@@ -43,6 +43,10 @@ impl Interfaces {
             w.client_mode = *((ip + eaddr as usize) as *const *mut c_void);
         }
 
+        if w.client_mode.is_null() {
+            return Err(anyhow::anyhow!("Failed to get client mode interface"));
+        }
+
         Ok(())
     }
 
