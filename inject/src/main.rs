@@ -18,7 +18,10 @@ fn main() -> ExitCode {
         let mut lib_path = None;
         for line in String::from_utf8_lossy(&output.stdout).lines() {
             if let Ok(msg) = serde_json::from_str::<Message>(line) {
-                if msg.reason == "compiler-artifact" && !msg.filenames.is_empty() {
+                if msg.reason == "compiler-artifact"
+                    && !msg.filenames.is_empty()
+                    && msg.filenames[0].ends_with(".so")
+                {
                     lib_path = Some(msg.filenames[0].clone());
                     break;
                 }
