@@ -1,5 +1,6 @@
 use std::{ffi::c_void, sync::RwLock};
 
+use log::info;
 use once_cell::sync::Lazy;
 
 use crate::{
@@ -25,6 +26,10 @@ impl Hooks {
             22,
             hk_create_move as *const c_void,
         )?;
+        info!(
+            "CreateMove hooked with original {:p} and hook {:p}",
+            w.create_move.original, hk_create_move as *const c_void
+        );
 
         Ok(())
     }

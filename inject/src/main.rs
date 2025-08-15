@@ -46,10 +46,33 @@ fn main() -> ExitCode {
         return ExitCode::from(1);
     }
 
-    let status = Command::new("sudo")
-        .args(["bash", "./inject/so_inject.sh", "inject", &pid, &lib_path])
+    let status = Command::new("gnome-terminal")
+        .args(["--", "bash", "-lc", "cat /proc/$(pidof tf_linux64)/fd/1"])
         .status()
-        .expect("Failed to execute so_inject.sh");
+        .expect("Failed to execute terminal command");
+    if !status.success() {
+        eprintln!("Failed to open terminal for stderr output");
+        return ExitCode::from(1);
+    }
+    let status = Command::new("gnome-terminal")
+        .args(["--", "bash", "-lc", "cat /proc/$(pidof tf_linux64)/fd/2"])
+        .status()
+        .expect("Failed to execute terminal command");
+    if !status.success() {
+        eprintln!("Failed to open terminal for stderr output");
+        return ExitCode::from(1);
+    }
+
+    let status = Command::new("sudo")
+        .args([
+            "bash",
+            "./inject/so_inject_debug.sh",
+            "inject",
+            &pid,
+            &lib_path,
+        ])
+        .status()
+        .expect("Failed to execute so_inject_debug.sh");
     if !status.success() {
         return ExitCode::from(1);
     }

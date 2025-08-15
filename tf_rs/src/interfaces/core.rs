@@ -1,5 +1,6 @@
 use std::{ffi::c_void, ptr, sync::RwLock};
 
+use log::info;
 use once_cell::sync::Lazy;
 
 use crate::interfaces::{Factory, TFBIN_PATH};
@@ -37,10 +38,12 @@ impl Interfaces {
          * Manually calculate the effective address of g_pClientMode and dereference it to get the interface.
          */
         unsafe {
-            let hud_process_input = *(w.client as *mut *mut *const c_void).add(10);
-            let eaddr = *((hud_process_input as usize + 0x3) as *const u32);
-            let ip = hud_process_input as usize + 0x7;
-            w.client_mode = *((ip + eaddr as usize) as *const *mut c_void);
+            let before_add = *(w.client as *mut *mut *const c_void);
+            let hud_process_input = *(before_add.add(10)) as usize;
+            let eaddr = ptr::read_unaligned((hud_process_input + 0x3) as *const u32);
+            let ip = hud_process_input + 0x7;
+            w.client_mode = ptr::read_unaligned((ip + eaddr as usize) as *const *mut c_void);
+            info!("Client mode interface at {:p}", w.client_mode);
         }
 
         if w.client_mode.is_null() {
