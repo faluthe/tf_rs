@@ -12,7 +12,7 @@ pub static H: Lazy<RwLock<Hooks>> = Lazy::new(|| RwLock::new(Hooks::default()));
 
 #[derive(Default)]
 pub struct Hooks {
-    pub create_move: VTableHook<FnSig>,
+    pub create_move: VTableHook,
 }
 
 unsafe impl Send for Hooks {}
@@ -40,7 +40,7 @@ impl Hooks {
         w.create_move.restore();
     }
 
-    pub fn create_move() -> VTableHook<FnSig> {
+    pub fn create_move() -> VTableHook {
         H.read().unwrap().create_move.clone()
     }
 }

@@ -1,9 +1,8 @@
 use std::{ffi::c_void, fmt};
 
-#[derive(Default, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub enum FnSig {
     CreateMove(extern "C" fn(*mut c_void, f32, *mut c_void) -> i64),
-    #[default]
     None,
 }
 

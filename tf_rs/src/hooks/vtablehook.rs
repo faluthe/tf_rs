@@ -4,26 +4,33 @@ use anyhow::anyhow;
 
 use libc::{_SC_PAGESIZE, PROT_READ, PROT_WRITE, mprotect, sysconf};
 
+use crate::hooks::fn_sig::FnSig;
+
 #[derive(Clone)]
-pub struct VTableHook<T: Default + Copy> {
+pub struct VTableHook {
     // Note that T is expected to be a function pointer, so vtable is a list of function pointers
-    vtable: *mut T,
-    pub original: T,
+    vtable: *mut FnSig,
+    pub original: FnSig,
 }
 
-impl<T: Default + Copy> Default for VTableHook<T> {
+impl Default for VTableHook {
     fn default() -> Self {
         VTableHook {
             vtable: ptr::null_mut(),
-            original: T::default(),
+            original: FnSig::None,
         }
     }
 }
 
-impl<T: Default + Copy> VTableHook<T> {
-    pub fn hook(&mut self, interface: *mut c_void, index: usize, hook: T) -> anyhow::Result<()> {
+impl VTableHook {
+    pub fn hook(
+        &mut self,
+        interface: *mut c_void,
+        index: usize,
+        hook: FnSig,
+    ) -> anyhow::Result<()> {
         unsafe {
-            self.vtable = *(interface as *mut *mut T);
+            self.vtable = *(interface as *mut *mut FnSig);
             self.original = *self.vtable.add(index);
 
             let page_size = sysconf(_SC_PAGESIZE) as usize;
