@@ -3,13 +3,17 @@ use std::{ffi::c_void, ptr, sync::RwLock};
 use log::info;
 use once_cell::sync::Lazy;
 
-use crate::interfaces::{Factory, TFBIN_PATH};
+use crate::interfaces::{
+    Factory, TFBIN_PATH, engine_client::EngineClient, entity_list::EntityList, factory::BIN_PATH,
+};
 
 pub static I: Lazy<RwLock<Interfaces>> = Lazy::new(|| RwLock::new(Interfaces::default()));
 
 pub struct Interfaces {
     pub client: *mut c_void,
     pub client_mode: *mut c_void,
+    pub engine_client: EngineClient,
+    pub entity_list: EntityList,
 }
 
 unsafe impl Send for Interfaces {}
@@ -20,6 +24,8 @@ impl Default for Interfaces {
         Interfaces {
             client: ptr::null_mut(),
             client_mode: ptr::null_mut(),
+            engine_client: EngineClient::default(),
+            entity_list: EntityList::default(),
         }
     }
 }
@@ -27,9 +33,12 @@ impl Default for Interfaces {
 impl Interfaces {
     pub fn init() -> anyhow::Result<()> {
         let client_factory = Factory::new(TFBIN_PATH, "client.so")?;
+        let engine_factory = Factory::new(BIN_PATH, "engine.so")?;
 
         let mut w = I.write().unwrap();
         w.client = client_factory.get("VClient017")?;
+        w.engine_client = EngineClient::new(engine_factory.get("VEngineClient014")?);
+        w.entity_list = EntityList::new(client_factory.get("VClientEntityList003")?);
 
         /*
          * https://github.com/OthmanAba/TeamFortress2/blob/1b81dded673d49adebf4d0958e52236ecc28a956/tf2_src/game/client/cdll_client_int.cpp#L1255
@@ -55,5 +64,13 @@ impl Interfaces {
 
     pub fn client_mode() -> *mut c_void {
         I.read().unwrap().client_mode
+    }
+
+    pub fn engine_client() -> EngineClient {
+        I.read().unwrap().engine_client.clone()
+    }
+
+    pub fn entity_list() -> EntityList {
+        I.read().unwrap().entity_list.clone()
     }
 }

@@ -1,5 +1,6 @@
 use crate::{hooks::Hooks, interfaces::Interfaces};
 
+mod features;
 mod hooks;
 mod interfaces;
 

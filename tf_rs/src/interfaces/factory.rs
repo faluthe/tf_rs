@@ -7,7 +7,7 @@ use libc::{RTLD_NOLOAD, RTLD_NOW, dlopen, dlsym};
 use log::debug;
 
 pub const TFBIN_PATH: &str = "./tf/bin/linux64/";
-pub const _BIN_PATH: &str = "./bin/linux64/";
+pub const BIN_PATH: &str = "./bin/linux64/";
 
 type CreateInterfaceFn =
     unsafe extern "C" fn(name: *const c_char, return_code: *mut i32) -> *mut c_void;

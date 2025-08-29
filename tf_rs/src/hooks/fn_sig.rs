@@ -14,3 +14,17 @@ impl fmt::Pointer for FnSig {
         }
     }
 }
+
+impl FnSig {
+    pub fn call_create_move(
+        &self,
+        this: *mut c_void,
+        sample_time: f32,
+        cmd: *mut c_void,
+    ) -> Option<i64> {
+        match self {
+            FnSig::CreateMove(f) => Some(f(this, sample_time, cmd)),
+            _ => None,
+        }
+    }
+}
