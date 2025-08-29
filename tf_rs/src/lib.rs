@@ -3,6 +3,7 @@ use crate::{hooks::Hooks, interfaces::Interfaces};
 mod features;
 mod hooks;
 mod interfaces;
+mod types;
 
 #[used]
 #[unsafe(link_section = ".init_array")]

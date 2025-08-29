@@ -12,4 +12,12 @@ impl Player {
     pub fn health(&self) -> i32 {
         unsafe { *((self.this as usize + 0xD4) as *const i32) }
     }
+
+    pub fn flags(&self) -> i32 {
+        unsafe { *((self.this as usize + 0x460) as *const i32) }
+    }
+
+    pub fn is_on_ground(&self) -> bool {
+        (self.flags() & 1) == 0
+    }
 }

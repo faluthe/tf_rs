@@ -1,8 +1,10 @@
 use std::{ffi::c_void, fmt};
 
+use crate::types::UserCmd;
+
 #[derive(Copy, Clone)]
 pub enum FnSig {
-    CreateMove(extern "C" fn(*mut c_void, f32, *mut c_void) -> i64),
+    CreateMove(extern "C" fn(*mut c_void, f32, *mut UserCmd) -> i64),
     None,
 }
 
@@ -20,7 +22,7 @@ impl FnSig {
         &self,
         this: *mut c_void,
         sample_time: f32,
-        cmd: *mut c_void,
+        cmd: *mut UserCmd,
     ) -> Option<i64> {
         match self {
             FnSig::CreateMove(f) => Some(f(this, sample_time, cmd)),

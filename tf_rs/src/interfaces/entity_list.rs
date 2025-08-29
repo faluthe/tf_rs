@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use crate::features::player::Player;
+use crate::types::Player;
 
 #[derive(Default, Clone)]
 pub struct EntityList {
