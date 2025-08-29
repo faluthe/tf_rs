@@ -5,29 +5,25 @@ use anyhow::anyhow;
 use libc::{_SC_PAGESIZE, PROT_READ, PROT_WRITE, mprotect, sysconf};
 
 #[derive(Clone)]
-pub struct VTableHook {
-    vtable: *mut *const c_void,
-    pub original: *const c_void,
+pub struct VTableHook<T: Default + Copy> {
+    // Note that T is expected to be a function pointer, so vtable is a list of function pointers
+    vtable: *mut T,
+    pub original: T,
 }
 
-impl Default for VTableHook {
+impl<T: Default + Copy> Default for VTableHook<T> {
     fn default() -> Self {
         VTableHook {
             vtable: ptr::null_mut(),
-            original: ptr::null(),
+            original: T::default(),
         }
     }
 }
 
-impl VTableHook {
-    pub fn hook(
-        &mut self,
-        interface: *mut c_void,
-        index: usize,
-        hook: *const c_void,
-    ) -> anyhow::Result<()> {
+impl<T: Default + Copy> VTableHook<T> {
+    pub fn hook(&mut self, interface: *mut c_void, index: usize, hook: T) -> anyhow::Result<()> {
         unsafe {
-            self.vtable = *(interface as *mut *mut *const c_void);
+            self.vtable = *(interface as *mut *mut T);
             self.original = *self.vtable.add(index);
 
             let page_size = sysconf(_SC_PAGESIZE) as usize;

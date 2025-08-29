@@ -15,23 +15,19 @@ fn get_lib_path() -> String {
         .output()
         .expect("Failed to execute cargo build");
 
-    let lib_path = {
-        let mut lib_path = None;
-        for line in String::from_utf8_lossy(&output.stdout).lines() {
-            if let Ok(msg) = serde_json::from_str::<Message>(line) {
-                if msg.reason == "compiler-artifact"
-                    && !msg.filenames.is_empty()
-                    && msg.filenames[0].ends_with(".so")
-                {
-                    lib_path = Some(msg.filenames[0].clone());
-                    break;
-                }
+    let mut lib_path = None;
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        if let Ok(msg) = serde_json::from_str::<Message>(line) {
+            if msg.reason == "compiler-artifact"
+                && !msg.filenames.is_empty()
+                && msg.filenames[0].ends_with(".so")
+            {
+                lib_path = Some(msg.filenames[0].clone());
+                break;
             }
         }
-        lib_path.expect("Could not find compiler-artifact filename")
-    };
-
-    lib_path
+    }
+    lib_path.expect("Could not find compiler-artifact filename")
 }
 
 fn get_pid() -> String {

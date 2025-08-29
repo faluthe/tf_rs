@@ -19,7 +19,7 @@ pub struct Factory {
 impl Factory {
     pub fn new(base_path: &str, lib: &str) -> anyhow::Result<Self> {
         unsafe {
-            let path = format!("{}{}", base_path, lib);
+            let path = format!("{base_path}{lib}");
             let c_path = CString::new(path).unwrap();
             let handle = dlopen(c_path.as_ptr(), RTLD_NOLOAD | RTLD_NOW);
 
@@ -36,7 +36,7 @@ impl Factory {
                 ));
             }
 
-            debug!("Loaded CreateInterface from {} at {:p}", lib, sym);
+            debug!("Loaded CreateInterface from {lib} at {sym:p}");
 
             Ok(Factory {
                 create_interface: mem::transmute::<*mut c_void, CreateInterfaceFn>(sym),
@@ -52,7 +52,7 @@ impl Factory {
             return Err(anyhow::anyhow!("Failed to get interface for {}", version));
         }
 
-        debug!("Got interface {} at {:p}", version, interface);
+        debug!("Got interface {version} at {interface:p}");
 
         Ok(interface)
     }

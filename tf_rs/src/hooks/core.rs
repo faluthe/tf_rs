@@ -4,7 +4,7 @@ use log::info;
 use once_cell::sync::Lazy;
 
 use crate::{
-    hooks::{VTableHook, create_move::hk_create_move},
+    hooks::{VTableHook, create_move::hk_create_move, fn_sig::FnSig},
     interfaces::Interfaces,
 };
 
@@ -12,7 +12,7 @@ pub static H: Lazy<RwLock<Hooks>> = Lazy::new(|| RwLock::new(Hooks::default()));
 
 #[derive(Default)]
 pub struct Hooks {
-    pub create_move: VTableHook,
+    pub create_move: VTableHook<FnSig>,
 }
 
 unsafe impl Send for Hooks {}
@@ -24,7 +24,7 @@ impl Hooks {
         w.create_move.hook(
             Interfaces::client_mode(),
             22,
-            hk_create_move as *const c_void,
+            FnSig::CreateMove(hk_create_move),
         )?;
         info!(
             "CreateMove hooked with original {:p} and hook {:p}",
@@ -40,7 +40,7 @@ impl Hooks {
         w.create_move.restore();
     }
 
-    pub fn create_move() -> VTableHook {
+    pub fn create_move() -> VTableHook<FnSig> {
         H.read().unwrap().create_move.clone()
     }
 }

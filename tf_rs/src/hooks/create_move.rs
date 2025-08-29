@@ -1,14 +1,19 @@
-use std::{ffi::c_void, mem};
+use std::ffi::c_void;
 
 use log::info;
 
-use crate::hooks::Hooks;
+use crate::hooks::{Hooks, fn_sig::FnSig};
 
 pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut c_void) -> i64 {
-    let rc = unsafe {
-        let og = mem::transmute::<*const c_void, extern "C" fn(*mut c_void, f32, *mut c_void) -> i64>(
-            Hooks::create_move().original,
-        );
+    let rc = {
+        let og = match Hooks::create_move().original {
+            FnSig::CreateMove(f) => f,
+            FnSig::None => {
+                info!("Original CreateMove is None!");
+                return 0;
+            }
+        };
+
         og(this, sample_time, cmd)
     };
 
