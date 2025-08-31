@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 
 use crate::interfaces::{
     Factory, TFBIN_PATH, engine_client::EngineClient, entity_list::EntityList, factory::BIN_PATH,
-    panel::Panel,
+    panel::Panel, surface::Surface,
 };
 
 pub static I: Lazy<RwLock<Interfaces>> = Lazy::new(|| RwLock::new(Interfaces::default()));
@@ -16,6 +16,7 @@ pub struct Interfaces {
     pub engine_client: EngineClient,
     pub entity_list: EntityList,
     pub panel: Panel,
+    pub surface: Surface,
 }
 
 unsafe impl Send for Interfaces {}
@@ -29,6 +30,7 @@ impl Default for Interfaces {
             engine_client: EngineClient::default(),
             entity_list: EntityList::default(),
             panel: Panel::default(),
+            surface: Surface::default(),
         }
     }
 }
@@ -38,12 +40,14 @@ impl Interfaces {
         let client_factory = Factory::new(TFBIN_PATH, "client.so")?;
         let engine_factory = Factory::new(BIN_PATH, "engine.so")?;
         let vgui_factory = Factory::new(BIN_PATH, "vgui2.so")?;
+        let surface_factory = Factory::new(BIN_PATH, "vguimatsurface.so")?;
 
         let mut w = I.write().unwrap();
         w.client = client_factory.get("VClient017")?;
         w.engine_client = EngineClient::new(engine_factory.get("VEngineClient014")?);
         w.entity_list = EntityList::new(client_factory.get("VClientEntityList003")?);
         w.panel = Panel::new(vgui_factory.get("VGUI_Panel009")?);
+        w.surface = Surface::new(surface_factory.get("VGUI_Surface030")?);
 
         /*
          * https://github.com/OthmanAba/TeamFortress2/blob/1b81dded673d49adebf4d0958e52236ecc28a956/tf2_src/game/client/cdll_client_int.cpp#L1255
@@ -81,5 +85,9 @@ impl Interfaces {
 
     pub fn panel() -> Panel {
         I.read().unwrap().panel.clone()
+    }
+
+    pub fn surface() -> Surface {
+        I.read().unwrap().surface.clone()
     }
 }
