@@ -13,3 +13,17 @@ macro_rules! vfunc {
         vfunc!($vtable, $idx, extern "C" fn($($arg),*) -> $ret)
     }};
 }
+
+#[macro_export]
+macro_rules! offset_get {
+    // Usage: offset_get!(pub fn name: Type, offset);
+    ($vis:vis fn $name:ident : $ty:ty, $off:expr) => {
+        #[inline(always)]
+        $vis fn $name(&self) -> $ty {
+            unsafe {
+                let p = (self.this as *const u8).add($off as usize) as *const $ty;
+                core::ptr::read(p)
+            }
+        }
+    };
+}
