@@ -1,7 +1,5 @@
 use std::ffi::c_void;
 
-use log::info;
-
 use crate::{hooks::Hooks, interfaces::Interfaces};
 
 pub extern "C" fn hk_paint_traverse(
@@ -15,9 +13,9 @@ pub extern "C" fn hk_paint_traverse(
         .call_paint_traverse(this, panel, force_repaint, allow_force)
         .expect("Invalid PaintTraverse function signature");
 
-    let i = Interfaces::panel();
-
-    info!("Panel name: {}", i.panel_name(panel));
+    if Interfaces::panel().panel_name(panel) != "FocusOverlayPanel" {
+        return rc;
+    }
 
     rc
 }
