@@ -1,6 +1,6 @@
 use std::{ffi::c_void, ptr};
 
-use anyhow::anyhow;
+use anyhow::{Result, anyhow};
 
 use libc::{_SC_PAGESIZE, PROT_READ, PROT_WRITE, mprotect, sysconf};
 
@@ -9,7 +9,7 @@ use crate::hooks::fn_sig::FnSig;
 #[derive(Clone)]
 pub struct VTableHook {
     // Note that T is expected to be a function pointer, so vtable is a list of function pointers
-    vtable: *mut FnSig,
+    vtable: *mut *mut c_void,
     pub original: FnSig,
 }
 
@@ -30,8 +30,8 @@ impl VTableHook {
         hook: FnSig,
     ) -> anyhow::Result<()> {
         unsafe {
-            self.vtable = *(interface as *mut *mut FnSig);
-            self.original = *self.vtable.add(index);
+            self.vtable = *(interface as *mut *mut *mut c_void);
+            self.original = FnSig::from_ptr(*self.vtable.add(index), hook);
 
             let page_size = sysconf(_SC_PAGESIZE) as usize;
             let table_page = (self.vtable as u64 & !(page_size as u64 - 1)) as *mut c_void;
@@ -40,7 +40,7 @@ impl VTableHook {
                 return Err(anyhow!("Failed to change memory protection"));
             }
 
-            self.vtable.add(index).write(hook);
+            self.vtable.add(index).write(hook.to_ptr()?);
 
             if mprotect(table_page, page_size, PROT_READ) != 0 {
                 return Err(anyhow!("Failed to restore memory protection"));
@@ -50,9 +50,11 @@ impl VTableHook {
         Ok(())
     }
 
-    pub fn restore(&self) {
+    pub fn restore(&self) -> Result<()> {
         unsafe {
-            (self.vtable).add(22).write(self.original);
+            (self.vtable).add(22).write(self.original.to_ptr()?);
         }
+
+        Ok(())
     }
 }

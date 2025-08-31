@@ -1,5 +1,7 @@
 use crate::{interfaces::Interfaces, types::Player};
 
+pub mod macros;
+
 pub fn get_localplayer() -> Option<Player> {
     let index = Interfaces::engine_client().get_localplayer_index();
 

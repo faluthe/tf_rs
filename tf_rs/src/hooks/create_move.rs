@@ -2,11 +2,7 @@ use std::ffi::c_void;
 
 use log::info;
 
-use crate::{
-    features::{helpers, movement},
-    hooks::Hooks,
-    types::UserCmd,
-};
+use crate::{features::movement, helpers, hooks::Hooks, types::UserCmd};
 
 pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut UserCmd) -> i64 {
     let rc = Hooks::create_move()

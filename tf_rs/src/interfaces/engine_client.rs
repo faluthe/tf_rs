@@ -1,5 +1,7 @@
 use std::ffi::c_void;
 
+use crate::vfunc;
+
 #[derive(Default, Clone)]
 pub struct EngineClient {
     this: *mut c_void,
@@ -13,8 +15,7 @@ impl EngineClient {
     }
 
     pub fn get_localplayer_index(&self) -> i32 {
-        let func: extern "C" fn(*mut c_void) -> i32 =
-            unsafe { std::mem::transmute(*self.vtable.add(12)) };
-        func(self.this)
+        let f = vfunc!(self.vtable, 12, extern "C" fn(*mut c_void) -> i32);
+        f(self.this)
     }
 }
