@@ -48,17 +48,21 @@ impl FnSig {
 
     pub fn from_ptr(ptr: *mut c_void, signature: Self) -> Self {
         match signature {
-            FnSig::CreateMove(_) => {
-                FnSig::CreateMove(unsafe { mem::transmute::<*mut c_void, _>(ptr) })
-            }
-            FnSig::PaintTraverse(_) => {
-                FnSig::PaintTraverse(unsafe { mem::transmute::<*mut c_void, _>(ptr) })
-            }
+            FnSig::CreateMove(_) => FnSig::CreateMove(unsafe {
+                mem::transmute::<*mut c_void, extern "C" fn(*mut c_void, f32, *mut UserCmd) -> i64>(
+                    ptr,
+                )
+            }),
+            FnSig::PaintTraverse(_) => FnSig::PaintTraverse(unsafe {
+                mem::transmute::<*mut c_void, extern "C" fn(*mut c_void, *mut c_void, i8, i8) -> i64>(
+                    ptr,
+                )
+            }),
             FnSig::None => FnSig::None,
         }
     }
 
-    pub fn to_ptr(&self) -> Result<*mut c_void> {
+    pub fn as_ptr(&self) -> Result<*mut c_void> {
         match self {
             FnSig::CreateMove(f) => Ok(*f as *mut c_void),
             FnSig::PaintTraverse(f) => Ok(*f as *mut c_void),

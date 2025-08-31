@@ -3,6 +3,7 @@ macro_rules! vfunc {
     // With explicit ABI: vfunc!(vtable_expr, idx, extern "C" fn(args...) -> ret)
     ($vtable:expr, $idx:expr, extern $abi:literal fn($($arg:ty),*) -> $ret:ty) => {{
         // $vtable: *const *const _
+        #[allow(clippy::macro_metavars_in_unsafe)]
         let slot = unsafe { *($vtable).add($idx) };
         let f: extern $abi fn($($arg),*) -> $ret = unsafe { core::mem::transmute(slot) };
         f

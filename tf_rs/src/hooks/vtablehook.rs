@@ -40,7 +40,7 @@ impl VTableHook {
                 return Err(anyhow!("Failed to change memory protection"));
             }
 
-            self.vtable.add(index).write(hook.to_ptr()?);
+            self.vtable.add(index).write(hook.as_ptr()?);
 
             if mprotect(table_page, page_size, PROT_READ) != 0 {
                 return Err(anyhow!("Failed to restore memory protection"));
@@ -52,7 +52,7 @@ impl VTableHook {
 
     pub fn restore(&self) -> Result<()> {
         unsafe {
-            (self.vtable).add(22).write(self.original.to_ptr()?);
+            (self.vtable).add(22).write(self.original.as_ptr()?);
         }
 
         Ok(())
