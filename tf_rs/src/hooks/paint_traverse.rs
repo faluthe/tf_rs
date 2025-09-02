@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use crate::{hooks::Hooks, interfaces::Interfaces};
+use crate::{features::esp, hooks::Hooks, interfaces::Interfaces};
 
 pub extern "C" fn hk_paint_traverse(
     this: *mut c_void,
@@ -19,6 +19,8 @@ pub extern "C" fn hk_paint_traverse(
 
     Interfaces::surface().draw_set_color(255, 255, 255, 255);
     Interfaces::surface().draw_outlined_rect(10, 10, 100, 100);
+
+    esp::player_boxes();
 
     rc
 }

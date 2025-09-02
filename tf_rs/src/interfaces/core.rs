@@ -3,10 +3,7 @@ use std::{ffi::c_void, ptr, sync::RwLock};
 use log::info;
 use once_cell::sync::Lazy;
 
-use crate::interfaces::{
-    Factory, TFBIN_PATH, engine_client::EngineClient, entity_list::EntityList, factory::BIN_PATH,
-    panel::Panel, surface::Surface,
-};
+use crate::interfaces::*;
 
 pub static I: Lazy<RwLock<Interfaces>> = Lazy::new(|| RwLock::new(Interfaces::default()));
 
@@ -17,6 +14,7 @@ pub struct Interfaces {
     pub entity_list: EntityList,
     pub panel: Panel,
     pub surface: Surface,
+    pub debug_overlay: DebugOverlay,
 }
 
 unsafe impl Send for Interfaces {}
@@ -31,6 +29,7 @@ impl Default for Interfaces {
             entity_list: EntityList::default(),
             panel: Panel::default(),
             surface: Surface::default(),
+            debug_overlay: DebugOverlay::default(),
         }
     }
 }
@@ -48,6 +47,7 @@ impl Interfaces {
         w.entity_list = EntityList::new(client_factory.get("VClientEntityList003")?);
         w.panel = Panel::new(vgui_factory.get("VGUI_Panel009")?);
         w.surface = Surface::new(surface_factory.get("VGUI_Surface030")?);
+        w.debug_overlay = DebugOverlay::new(engine_factory.get("VDebugOverlay003")?);
 
         /*
          * https://github.com/OthmanAba/TeamFortress2/blob/1b81dded673d49adebf4d0958e52236ecc28a956/tf2_src/game/client/cdll_client_int.cpp#L1255
@@ -89,5 +89,9 @@ impl Interfaces {
 
     pub fn surface() -> Surface {
         I.read().unwrap().surface.clone()
+    }
+
+    pub fn debug_overlay() -> DebugOverlay {
+        I.read().unwrap().debug_overlay.clone()
     }
 }

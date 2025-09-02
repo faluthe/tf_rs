@@ -18,4 +18,14 @@ impl EngineClient {
         let f = vfunc!(self.vtable, 12, extern "C" fn(*mut c_void) -> i32);
         f(self.this)
     }
+
+    pub fn is_in_game(&self) -> bool {
+        let f = vfunc!(self.vtable, 26, extern "C" fn(*mut c_void) -> bool);
+        f(self.this)
+    }
+
+    pub fn get_max_clients(&self) -> i32 {
+        let f = vfunc!(self.vtable, 21, extern "C" fn(*mut c_void) -> i32);
+        f(self.this)
+    }
 }

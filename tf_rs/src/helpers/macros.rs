@@ -20,6 +20,7 @@ macro_rules! offset_get {
     ($vis:vis fn $name:ident : $ty:ty, $off:expr) => {
         #[inline(always)]
         $vis fn $name(&self) -> $ty {
+            #[allow(clippy::macro_metavars_in_unsafe)]
             unsafe {
                 let p = (self.this as *const u8).add($off as usize) as *const $ty;
                 core::ptr::read(p)
