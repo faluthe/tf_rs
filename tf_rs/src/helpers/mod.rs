@@ -15,7 +15,7 @@ pub fn get_localplayer() -> Option<Player> {
     Interfaces::entity_list().get_client_entity(index)
 }
 
-// left, right, top, bottom
+// left, top, right, bottom
 pub fn get_bounding_box(player: Player) -> Option<(i32, i32, i32, i32)> {
     let origin = player.origin();
     let mins = player.mins();
@@ -39,7 +39,7 @@ pub fn get_bounding_box(player: Player) -> Option<(i32, i32, i32, i32)> {
             y: origin.y + oy,
             z: origin.z + oz,
         })
-        .map(|v| Interfaces::debug_overlay().screen_position(v))
+        .map(|v| Interfaces::debug_overlay().screen_position(&v))
         .collect::<Option<Vec<_>>>()?; // None if any projection failed
 
     let first = points_2d[0];

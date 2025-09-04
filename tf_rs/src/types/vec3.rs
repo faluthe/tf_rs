@@ -7,7 +7,7 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn _new(x: f32, y: f32, z: f32) -> Self {
+    pub fn new(x: f32, y: f32, z: f32) -> Self {
         Vec3 { x, y, z }
     }
 }

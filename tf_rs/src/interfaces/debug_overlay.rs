@@ -17,15 +17,15 @@ impl DebugOverlay {
         DebugOverlay { this, vtable }
     }
 
-    pub fn screen_position(&self, point: Vec3) -> Option<Vec2> {
-        let mut out = Vec2::new(0.0, 0.0);
+    pub fn screen_position(&self, point: &Vec3) -> Option<Vec2> {
+        let mut out = Vec3::new(0.0, 0.0, 0.0);
         let f = vfunc!(
             self.vtable,
-            13,
-            extern "C" fn(*mut c_void, Vec3, &mut Vec2) -> i8
+            9,
+            extern "C" fn(*mut c_void, *const Vec3, *mut Vec3) -> i32
         );
-        if f(self.this, point, &mut out) != 0 {
-            Some(out)
+        if f(self.this, point as *const Vec3, &mut out as *mut Vec3) == 0 {
+            Some(Vec2::new(out.x, out.y))
         } else {
             None
         }
