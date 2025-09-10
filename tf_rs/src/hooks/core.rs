@@ -1,6 +1,5 @@
-use std::{ffi::c_void, sync::RwLock};
+use std::sync::RwLock;
 
-use log::info;
 use once_cell::sync::Lazy;
 
 use crate::{hooks::*, interfaces::Interfaces};
