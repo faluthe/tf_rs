@@ -26,34 +26,15 @@ impl Hooks {
             22,
             FnSig::CreateMove(hk_create_move),
         )?;
-        info!(
-            "CreateMove hooked with original {:p} and hook {:p}",
-            w.create_move.original, hk_create_move as *const c_void
-        );
-
         w.paint_traverse.hook(
             Interfaces::panel().ptr(),
             42,
             FnSig::PaintTraverse(hk_paint_traverse),
         )?;
-        info!(
-            "PaintTraverse hooked with original {:p} and hook {:p}",
-            w.paint_traverse.original, hk_paint_traverse as *const c_void
-        );
-
         w.poll_event
             .hook("SDL_PollEvent\0", FnSig::PollEvent(hk_poll_event))?;
-        info!(
-            "SDL_PollEvent hooked with original {:p} and hook {:p}",
-            w.poll_event.original, hk_poll_event as *const c_void
-        );
-
         w.swap_window
             .hook("SDL_GL_SwapWindow\0", FnSig::SwapWindow(hk_swap_window))?;
-        info!(
-            "SDL_GL_SwapWindow hooked with original {:p} and hook {:p}",
-            w.swap_window.original, hk_swap_window as *const c_void
-        );
 
         Ok(())
     }
