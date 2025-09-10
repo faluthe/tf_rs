@@ -7,6 +7,8 @@ use crate::types::UserCmd;
 pub enum FnSig {
     CreateMove(extern "C" fn(*mut c_void, f32, *mut UserCmd) -> i64),
     PaintTraverse(extern "C" fn(*mut c_void, *mut c_void, i8, i8) -> i64),
+    PollEvent(extern "C" fn(*mut c_void) -> i32),
+    SwapWindow(extern "C" fn(*mut c_void) -> i32),
     None,
 }
 
@@ -15,6 +17,8 @@ impl fmt::Pointer for FnSig {
         match self {
             FnSig::CreateMove(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::PaintTraverse(func) => write!(f, "{:p}", *func as *const c_void),
+            FnSig::PollEvent(func) => write!(f, "{:p}", *func as *const c_void),
+            FnSig::SwapWindow(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::None => write!(f, "None"),
         }
     }
@@ -46,6 +50,20 @@ impl FnSig {
         }
     }
 
+    pub fn call_poll_event(&self, a: *mut c_void) -> Result<i32> {
+        match self {
+            FnSig::PollEvent(f) => Ok(f(a)),
+            _ => Err(anyhow!("Invalid PollEvent function signature")),
+        }
+    }
+
+    pub fn call_swap_window(&self, window: *mut c_void) -> Result<i32> {
+        match self {
+            FnSig::SwapWindow(f) => Ok(f(window)),
+            _ => Err(anyhow!("Invalid SwapWindow function signature")),
+        }
+    }
+
     pub fn from_ptr(ptr: *mut c_void, signature: Self) -> Self {
         match signature {
             FnSig::CreateMove(_) => FnSig::CreateMove(unsafe {
@@ -58,6 +76,12 @@ impl FnSig {
                     ptr,
                 )
             }),
+            FnSig::PollEvent(_) => FnSig::PollEvent(unsafe {
+                mem::transmute::<*mut c_void, extern "C" fn(*mut c_void) -> i32>(ptr)
+            }),
+            FnSig::SwapWindow(_) => FnSig::SwapWindow(unsafe {
+                mem::transmute::<*mut c_void, extern "C" fn(*mut c_void) -> i32>(ptr)
+            }),
             FnSig::None => FnSig::None,
         }
     }
@@ -66,6 +90,8 @@ impl FnSig {
         match self {
             FnSig::CreateMove(f) => Ok(*f as *mut c_void),
             FnSig::PaintTraverse(f) => Ok(*f as *mut c_void),
+            FnSig::PollEvent(f) => Ok(*f as *mut c_void),
+            FnSig::SwapWindow(f) => Ok(*f as *mut c_void),
             FnSig::None => Err(anyhow!("FnSig is None")),
         }
     }

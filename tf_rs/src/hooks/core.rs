@@ -3,12 +3,7 @@ use std::{ffi::c_void, sync::RwLock};
 use log::info;
 use once_cell::sync::Lazy;
 
-use crate::{
-    hooks::{
-        VTableHook, create_move::hk_create_move, fn_sig::FnSig, paint_traverse::hk_paint_traverse,
-    },
-    interfaces::Interfaces,
-};
+use crate::{hooks::*, interfaces::Interfaces};
 
 pub static H: Lazy<RwLock<Hooks>> = Lazy::new(|| RwLock::new(Hooks::default()));
 
@@ -16,6 +11,8 @@ pub static H: Lazy<RwLock<Hooks>> = Lazy::new(|| RwLock::new(Hooks::default()));
 pub struct Hooks {
     pub create_move: VTableHook,
     pub paint_traverse: VTableHook,
+    pub poll_event: SDLHook,
+    pub swap_window: SDLHook,
 }
 
 unsafe impl Send for Hooks {}
@@ -44,6 +41,20 @@ impl Hooks {
             w.paint_traverse.original, hk_paint_traverse as *const c_void
         );
 
+        w.poll_event
+            .hook("SDL_PollEvent\0", FnSig::PollEvent(hk_poll_event))?;
+        info!(
+            "SDL_PollEvent hooked with original {:p} and hook {:p}",
+            w.poll_event.original, hk_poll_event as *const c_void
+        );
+
+        w.swap_window
+            .hook("SDL_GL_SwapWindow\0", FnSig::SwapWindow(hk_swap_window))?;
+        info!(
+            "SDL_GL_SwapWindow hooked with original {:p} and hook {:p}",
+            w.swap_window.original, hk_swap_window as *const c_void
+        );
+
         Ok(())
     }
 
@@ -59,5 +70,13 @@ impl Hooks {
 
     pub fn paint_traverse() -> VTableHook {
         H.read().unwrap().paint_traverse.clone()
+    }
+
+    pub fn poll_event() -> SDLHook {
+        H.read().unwrap().poll_event.clone()
+    }
+
+    pub fn swap_window() -> SDLHook {
+        H.read().unwrap().swap_window.clone()
     }
 }

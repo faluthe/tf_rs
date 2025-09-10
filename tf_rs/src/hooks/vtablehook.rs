@@ -4,11 +4,10 @@ use anyhow::{Result, anyhow};
 
 use libc::{_SC_PAGESIZE, PROT_READ, PROT_WRITE, mprotect, sysconf};
 
-use crate::hooks::fn_sig::FnSig;
+use crate::hooks::FnSig;
 
 #[derive(Clone)]
 pub struct VTableHook {
-    // Note that T is expected to be a function pointer, so vtable is a list of function pointers
     vtable: *mut *mut c_void,
     pub original: FnSig,
 }
