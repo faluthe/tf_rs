@@ -4,6 +4,7 @@ mod features;
 mod helpers;
 mod hooks;
 mod interfaces;
+mod nuklear;
 mod types;
 
 #[used]
