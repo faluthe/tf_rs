@@ -9,3 +9,8 @@ cargo inject
 ```bash
 cargo inject --debug
 ```
+
+### Required packages
+```
+libsdl2-dev clang gdb libglew-dev
+```

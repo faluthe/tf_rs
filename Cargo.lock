@@ -94,6 +94,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2261d10cca569e4643e526d8dc2e62e433cc8aba21ab764233731f8d369bf394"
 
 [[package]]
+name = "cc"
+version = "1.2.41"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac9fe6cdbb24b6ade63616c0a0688e45bb56732262c158df3c0c4bea4ca47cb7"
+dependencies = [
+ "find-msvc-tools",
+ "shlex",
+]
+
+[[package]]
 name = "cexpr"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -153,6 +163,12 @@ dependencies = [
  "jiff",
  "log",
 ]
+
+[[package]]
+name = "find-msvc-tools"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52051878f80a721bb68ebfbc930e07b65ba72f2da88968ea5c06fd6ca3d3a127"
 
 [[package]]
 name = "glob"
@@ -408,6 +424,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bindgen",
+ "cc",
  "env_logger",
  "libc",
  "log",
