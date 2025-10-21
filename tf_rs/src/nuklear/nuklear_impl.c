@@ -1,9 +1,4 @@
-#if defined(__APPLE__)
-#include <OpenGL/gl3.h>
-#else
 #include <GL/glew.h>
-#endif
-
 #include <SDL2/SDL.h>
 
 #define NK_INCLUDE_FIXED_TYPES

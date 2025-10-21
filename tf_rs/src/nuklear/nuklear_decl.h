@@ -1,3 +1,6 @@
+#include <GL/glew.h>
+#include <SDL2/SDL.h>
+
 // Declarations for Nuklear
 #pragma once
 #define NK_INCLUDE_FIXED_TYPES
