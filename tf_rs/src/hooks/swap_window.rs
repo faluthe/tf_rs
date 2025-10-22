@@ -46,7 +46,11 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
             ) != 0
             {
                 nk_layout_row_dynamic(NK_CTX, 40.0, 1);
-                nk_label(NK_CTX, "Welcome to TF_RS!\0".as_ptr() as *const i8, 0);
+                nk_label(
+                    NK_CTX,
+                    "Welcome to TF_RS!\0".as_ptr() as *const i8,
+                    nk_text_alignment_NK_TEXT_LEFT,
+                );
             }
             nk_end(NK_CTX);
         }
