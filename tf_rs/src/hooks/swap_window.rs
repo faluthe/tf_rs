@@ -68,7 +68,7 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
         nk_input_begin(NK_CTX);
         let rc = Hooks::swap_window()
             .original
-            .call_swap_window(window as *mut c_void)
+            .call_swap_window(window as _)
             .expect("Invalid SwapWindow function signature");
         nk_input_end(NK_CTX);
 
