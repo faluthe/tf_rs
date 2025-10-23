@@ -274,7 +274,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nuklear-sys"
+name = "nuklear_sys"
 version = "0.1.0"
 dependencies = [
  "bindgen",
@@ -434,7 +434,7 @@ dependencies = [
  "env_logger",
  "libc",
  "log",
- "nuklear-sys",
+ "nuklear_sys",
  "once_cell",
 ]
 
