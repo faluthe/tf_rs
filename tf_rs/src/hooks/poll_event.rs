@@ -1,11 +1,9 @@
 use std::ffi::c_void;
 
 use log::info;
+use nuklear_sys::*;
 
-use crate::{
-    hooks::Hooks,
-    nuklear::{SDL_Event, nk_sdl_handle_event},
-};
+use crate::hooks::Hooks;
 
 pub extern "C" fn hk_poll_event(event: *mut c_void) -> i32 {
     let event = event as *mut SDL_Event;

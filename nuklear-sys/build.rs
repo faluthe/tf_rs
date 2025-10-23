@@ -1,12 +1,9 @@
 use std::{env, path::PathBuf};
 
 fn main() {
-    println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=../nuklear/nuklear.h");
-    println!("cargo:rerun-if-changed=../nuklear/demo/sdl_opengl3/nuklear_sdl_gl3.h");
-    println!("cargo:rerun-if-changed=src/nuklear/mod.rs");
-    println!("cargo:rerun-if-changed=src/nuklear/nuklear_decl.h");
-    println!("cargo:rerun-if-changed=src/nuklear/nuklear_impl.c");
+    for path in ["build.rs", "nuklear", "src"] {
+        println!("cargo:rerun-if-changed={path}");
+    }
 
     println!("cargo:rustc-link-lib=SDL2");
     println!("cargo:rustc-link-arg=-Wl,-l:libGLEW.so.2.1");
@@ -14,7 +11,7 @@ fn main() {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     let nuklear = bindgen::Builder::default()
-        .header("src/nuklear/nuklear_decl.h")
+        .header("src/nuklear_decl.h")
         .generate_comments(false)
         .blocklist_item("^FP_.*")
         .generate()
@@ -24,6 +21,6 @@ fn main() {
         .expect("Couldn't write nuklear bindings!");
 
     cc::Build::new()
-        .file("src/nuklear/nuklear_impl.c")
+        .file("src/nuklear_impl.c")
         .compile("nuklear_impl.a");
 }

@@ -1,8 +1,9 @@
 use std::{ffi::c_void, ptr};
 
 use log::info;
+use nuklear_sys::*;
 
-use crate::{hooks::Hooks, nuklear::*};
+use crate::hooks::Hooks;
 
 static mut NK_CTX: *mut nk_context = ptr::null_mut();
 static mut OG_CTX: SDL_GLContext = ptr::null_mut();
