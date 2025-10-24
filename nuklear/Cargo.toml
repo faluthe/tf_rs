@@ -1,0 +1,7 @@
+[package]
+name = "nuklear"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+nuklear_sys = { path = "../nuklear_sys" }

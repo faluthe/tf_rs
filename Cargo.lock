@@ -274,6 +274,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nuklear"
+version = "0.1.0"
+dependencies = [
+ "nuklear_sys",
+]
+
+[[package]]
 name = "nuklear_sys"
 version = "0.1.0"
 dependencies = [
@@ -434,6 +441,7 @@ dependencies = [
  "env_logger",
  "libc",
  "log",
+ "nuklear",
  "nuklear_sys",
  "once_cell",
 ]
