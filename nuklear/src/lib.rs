@@ -1,14 +1,32 @@
 use std::ffi::{CString, c_void};
 
+use bitflags::bitflags;
+
 use nuklear_sys::{
-    GLEW_OK, SDL_GL_CreateContext, SDL_GL_GetCurrentContext, SDL_GL_MakeCurrent, SDL_GLContext,
-    SDL_Window, glewInit, nk_anti_aliasing_NK_ANTI_ALIASING_ON, nk_begin, nk_context, nk_end,
-    nk_font_atlas, nk_input_begin, nk_input_end, nk_label, nk_layout_row_dynamic, nk_rect,
-    nk_sdl_font_stash_begin, nk_sdl_font_stash_end, nk_sdl_init, nk_sdl_render,
+    GLEW_OK, SDL_Event, SDL_GL_CreateContext, SDL_GL_GetCurrentContext, SDL_GL_MakeCurrent,
+    SDL_GLContext, SDL_Window, glewInit, nk_anti_aliasing_NK_ANTI_ALIASING_ON, nk_begin,
+    nk_context, nk_end, nk_font_atlas, nk_input_begin, nk_input_end, nk_label,
+    nk_layout_row_dynamic, nk_panel_flags_NK_WINDOW_BORDER, nk_panel_flags_NK_WINDOW_MOVABLE,
+    nk_panel_flags_NK_WINDOW_TITLE, nk_rect, nk_sdl_font_stash_begin, nk_sdl_font_stash_end,
+    nk_sdl_handle_event, nk_sdl_init, nk_sdl_render, nk_text_alignment_NK_TEXT_LEFT,
 };
 
 // TODO: Is this thread safe?
 static mut CONTEXT: Option<Context> = None;
+
+bitflags! {
+    pub struct PanelFlags : u32{
+        const BORDER = nk_panel_flags_NK_WINDOW_BORDER;
+        const MOVABLE = nk_panel_flags_NK_WINDOW_MOVABLE;
+        const TITLE = nk_panel_flags_NK_WINDOW_TITLE;
+    }
+}
+
+bitflags! {
+    pub struct TextAlignment : u32 {
+        const LEFT = nk_text_alignment_NK_TEXT_LEFT;
+    }
+}
 
 pub struct Rect {
     pub x: f32,
@@ -30,7 +48,12 @@ pub struct Nuklear {
 }
 
 impl Nuklear {
-    pub fn begin<T: Into<Vec<u8>>>(window: *mut c_void, size: Rect, flags: u32, title: T) -> Self {
+    pub fn begin<T: Into<Vec<u8>>>(
+        window: *mut c_void,
+        size: Rect,
+        flags: PanelFlags,
+        title: T,
+    ) -> Self {
         let mut n = Nuklear {
             window: window as *mut SDL_Window,
             begin: false,
@@ -44,7 +67,7 @@ impl Nuklear {
                 c.nk_ctx,
                 CString::new(title).unwrap().as_ptr(),
                 nk_rect(size.x, size.y, size.w, size.h),
-                flags,
+                flags.bits(),
             ) != 0;
         }
 
@@ -64,14 +87,14 @@ impl Nuklear {
         self
     }
 
-    pub fn label(&self, text: CString, alignment: u32) -> &Self {
+    pub fn label(&self, text: CString, alignment: TextAlignment) -> &Self {
         if !self.begin {
             return self;
         }
 
         let c = self.ctx();
         unsafe {
-            nk_label(c.nk_ctx, text.as_ptr(), alignment);
+            nk_label(c.nk_ctx, text.as_ptr(), alignment.bits());
         }
 
         self
@@ -107,6 +130,15 @@ impl Nuklear {
         let c = self.ctx();
         unsafe {
             nk_input_end(c.nk_ctx);
+        }
+    }
+
+    pub fn handle_event(event: *mut c_void) {
+        let event = event as *mut SDL_Event;
+        unsafe {
+            if nk_sdl_handle_event(event) != 0 {
+                (*event).type_ = 0;
+            }
         }
     }
 

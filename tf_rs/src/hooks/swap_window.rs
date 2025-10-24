@@ -1,11 +1,7 @@
 use std::ffi::{CString, c_void};
 
 use log::info;
-use nuklear::{Nuklear, Rect};
-use nuklear_sys::{
-    nk_panel_flags_NK_WINDOW_BORDER, nk_panel_flags_NK_WINDOW_MOVABLE,
-    nk_panel_flags_NK_WINDOW_TITLE, nk_text_alignment_NK_TEXT_LEFT,
-};
+use nuklear::{Nuklear, PanelFlags, Rect, TextAlignment};
 
 use crate::hooks::Hooks;
 
@@ -20,9 +16,7 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
             w: 500.0,
             h: 600.0,
         },
-        nk_panel_flags_NK_WINDOW_BORDER
-            | nk_panel_flags_NK_WINDOW_MOVABLE
-            | nk_panel_flags_NK_WINDOW_TITLE,
+        PanelFlags::BORDER | PanelFlags::MOVABLE | PanelFlags::TITLE,
         "TF_RS",
     );
 
@@ -30,7 +24,7 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
         .row_dynamic(40.0, 1)
         .label(
             CString::new("Welcome to TF_RS!").unwrap(),
-            nk_text_alignment_NK_TEXT_LEFT,
+            TextAlignment::LEFT,
         )
         .render();
 
