@@ -5,9 +5,6 @@ fn main() {
         println!("cargo:rerun-if-changed={path}");
     }
 
-    // println!("cargo:rustc-link-lib=SDL2");
-    // println!("cargo:rustc-link-arg=-Wl,-l:libGLEW.so.2.1");
-
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     let nuklear = bindgen::Builder::default()
