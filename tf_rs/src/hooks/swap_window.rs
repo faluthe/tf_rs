@@ -1,7 +1,7 @@
 use std::ffi::{CString, c_void};
 
 use log::info;
-use nuklear::{Nuklear, PanelFlags, Rect, TextAlignment};
+use nuklear::{Nuklear, Rect, flags::PanelFlags, flags::TextAlignment};
 
 use crate::hooks::Hooks;
 
@@ -9,15 +9,15 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     info!("hk_swap_window called with window: {:?}", window);
 
     let nuklear = Nuklear::begin(
-        window,
+        "TF_RS",
+        PanelFlags::BORDER | PanelFlags::MOVABLE | PanelFlags::TITLE,
         Rect {
             x: 200.0,
             y: 200.0,
             w: 500.0,
             h: 600.0,
         },
-        PanelFlags::BORDER | PanelFlags::MOVABLE | PanelFlags::TITLE,
-        "TF_RS",
+        window,
     );
 
     nuklear
