@@ -8,8 +8,6 @@ use nuklear_sys::{
     nk_sdl_render,
 };
 
-// TODO: Is this thread safe?
-// static mut CONTEXT: Option<Context> = None;
 static CONTEXT: OnceLock<Context> = OnceLock::new();
 
 #[derive(Clone, Copy)]
