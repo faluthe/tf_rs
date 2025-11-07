@@ -1,6 +1,6 @@
 use std::ffi::{CString, c_void};
 
-use nuklear_sys::{SDL_Event, SDL_GL_MakeCurrent, SDL_Window};
+use nuklear_sys::{SDL_Event, SDL_EventType_SDL_KEYDOWN, SDL_GL_MakeCurrent, SDL_Window};
 
 use crate::{
     Rect,
@@ -8,65 +8,84 @@ use crate::{
     flags::{PanelFlags, TextAlignment},
 };
 
+static mut DO_DRAW: bool = true;
+
 pub struct Nuklear {
     window: *mut SDL_Window,
-    began: bool,
+    context: &'static Context,
 }
 
 impl Nuklear {
-    pub fn begin<T: Into<Vec<u8>>>(
-        title: T,
-        flags: PanelFlags,
-        size: Rect,
-        window: *mut c_void,
-    ) -> Self {
+    pub fn get_or_init(window: *mut c_void) -> Self {
         let window = window as *mut SDL_Window;
-        let c = Context::get_or_init(window);
+        let context = Context::get_or_init(window);
+        Nuklear { window, context }
+    }
 
+    pub fn make_current(&self) {
         unsafe {
-            SDL_GL_MakeCurrent(window, c.new_ctx);
+            SDL_GL_MakeCurrent(self.window, self.context.new_ctx);
         }
+    }
 
-        let began = c.begin(CString::new(title).unwrap(), size.into(), flags.bits()) != 0;
+    pub fn should_draw() -> bool {
+        unsafe { DO_DRAW }
+    }
 
-        Nuklear { window, began }
+    pub fn begin<T: Into<Vec<u8>>>(&self, title: T, flags: PanelFlags, size: Rect) -> bool {
+        self.context
+            .begin(CString::new(title).unwrap(), size.into(), flags.bits())
+            != 0
     }
 
     pub fn row_dynamic(&self, height: f32, cols: i32) -> &Self {
-        if self.began {
-            Context::row_dynamic(self.window, height, cols);
-        }
+        self.context.row_dynamic(height, cols);
         self
     }
 
     pub fn label(&self, text: CString, alignment: TextAlignment) -> &Self {
-        if self.began {
-            Context::label(self.window, text, alignment.bits())
-        }
+        self.context.label(text, alignment.bits());
         self
     }
 
+    pub fn end(&self) {
+        self.context.end();
+    }
+
     pub fn render(&self) {
-        let c = Context::get_or_init(self.window);
-        c.end();
-        c.render();
-        unsafe { SDL_GL_MakeCurrent(self.window, c.og_ctx) };
+        self.context.render();
+        unsafe { SDL_GL_MakeCurrent(self.window, self.context.og_ctx) };
     }
 
     pub fn input_begin(&self) {
-        // Does not need began check
-        Context::input_begin(self.window);
+        self.context.input_begin();
     }
 
     pub fn input_end(&self) {
-        // Does not need began check
-        Context::input_end(self.window);
+        self.context.input_end();
     }
 
-    pub fn handle_event(event: *mut c_void) {
+    pub fn handle_event(event: *mut c_void) -> bool {
+        Context::handle_event(event as _) != 0
+    }
+
+    pub fn capture_input(event: *mut c_void) {
         let event = event as *mut SDL_Event;
-        if Context::handle_event(event) != 0 {
-            unsafe { (*event).type_ = 0 };
+        unsafe { (*event).type_ = 0 };
+    }
+
+    pub fn handle_menu_show_hide(event: *mut c_void) {
+        let event = event as *mut SDL_Event;
+        match unsafe { (*event).type_ } {
+            SDL_EventType_SDL_KEYDOWN => {
+                let key = unsafe { (*event).key.keysym.scancode };
+                if key == 43 && unsafe { (*event).key.repeat } == 0 {
+                    unsafe {
+                        DO_DRAW = !DO_DRAW;
+                    }
+                }
+            }
+            _ => {}
         }
     }
 }

@@ -46,31 +46,27 @@ impl Context {
         })
     }
 
-    pub(crate) fn row_dynamic(window: *mut SDL_Window, height: f32, cols: i32) {
-        let c = Context::get_or_init(window);
+    pub(crate) fn row_dynamic(&self, height: f32, cols: i32) {
         unsafe {
-            nk_layout_row_dynamic(c.nk_ctx, height, cols);
+            nk_layout_row_dynamic(self.nk_ctx, height, cols);
         }
     }
 
-    pub(crate) fn label(window: *mut SDL_Window, text: CString, alignment: u32) {
-        let c = Context::get_or_init(window);
+    pub(crate) fn label(&self, text: CString, alignment: u32) {
         unsafe {
-            nk_label(c.nk_ctx, text.as_ptr(), alignment);
+            nk_label(self.nk_ctx, text.as_ptr(), alignment);
         }
     }
 
-    pub(crate) fn input_begin(window: *mut SDL_Window) {
-        let c = Context::get_or_init(window);
+    pub(crate) fn input_begin(&self) {
         unsafe {
-            nk_input_begin(c.nk_ctx);
+            nk_input_begin(self.nk_ctx);
         }
     }
 
-    pub(crate) fn input_end(window: *mut SDL_Window) {
-        let c = Context::get_or_init(window);
+    pub(crate) fn input_end(&self) {
         unsafe {
-            nk_input_end(c.nk_ctx);
+            nk_input_end(self.nk_ctx);
         }
     }
 
