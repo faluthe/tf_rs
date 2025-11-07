@@ -1,6 +1,6 @@
 use std::ffi::{CString, c_void};
 
-use nuklear_sys::{SDL_Event, SDL_EventType_SDL_KEYDOWN, SDL_GL_MakeCurrent, SDL_Window};
+use nuklear_sys::{SDL_Event, SDL_EventType, SDL_GL_MakeCurrent, SDL_Scancode, SDL_Window};
 
 use crate::{
     Rect,
@@ -42,8 +42,9 @@ impl Nuklear {
         self
     }
 
-    pub fn label(&self, text: CString, alignment: TextAlignment) -> &Self {
-        self.context.label(text, alignment.bits());
+    pub fn label<T: Into<Vec<u8>>>(&self, text: T, alignment: TextAlignment) -> &Self {
+        self.context
+            .label(CString::new(text).unwrap(), alignment.bits());
         self
     }
 
@@ -75,16 +76,16 @@ impl Nuklear {
 
     pub fn handle_menu_show_hide(event: *mut c_void) {
         let event = event as *mut SDL_Event;
-        match unsafe { (*event).type_ } {
-            SDL_EventType_SDL_KEYDOWN => {
-                let key = unsafe { (*event).key.keysym.scancode };
-                if key == 43 && unsafe { (*event).key.repeat } == 0 {
-                    unsafe {
-                        DO_DRAW = !DO_DRAW;
-                    }
-                }
+        let type_ = unsafe { (*event).type_ };
+        let key = unsafe { (*event).key };
+
+        if type_ == SDL_EventType::SDL_KEYDOWN as u32
+            && key.keysym.scancode == SDL_Scancode::SDL_SCANCODE_TAB
+            && key.repeat == 0
+        {
+            unsafe {
+                DO_DRAW = !DO_DRAW;
             }
-            _ => {}
         }
     }
 }

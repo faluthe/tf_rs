@@ -11,6 +11,8 @@ fn main() {
         .header("src/nuklear_decl.h")
         .generate_comments(false)
         .blocklist_item("^FP_.*")
+        .rustified_enum("SDL_EventType")
+        .rustified_enum("SDL_Scancode")
         .generate()
         .expect("Unable to generate nuklear bindings");
     nuklear
