@@ -19,13 +19,12 @@ impl Nuklear {
     pub fn get_or_init(window: *mut c_void) -> Self {
         let window = window as *mut SDL_Window;
         let context = Context::get_or_init(window);
-        Nuklear { window, context }
-    }
 
-    pub fn make_current(&self) {
         unsafe {
-            SDL_GL_MakeCurrent(self.window, self.context.new_ctx);
+            SDL_GL_MakeCurrent(window, context.new_ctx);
         }
+
+        Nuklear { window, context }
     }
 
     pub fn should_draw() -> bool {

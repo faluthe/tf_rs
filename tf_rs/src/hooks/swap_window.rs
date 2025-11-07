@@ -6,7 +6,6 @@ use crate::hooks::Hooks;
 
 pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     let nuklear = Nuklear::get_or_init(window);
-    nuklear.make_current();
 
     if Nuklear::should_draw() {
         if nuklear.begin(
