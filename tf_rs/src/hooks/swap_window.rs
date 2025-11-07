@@ -1,4 +1,4 @@
-use std::ffi::{CString, c_void};
+use std::ffi::c_void;
 
 use nuklear::{Nuklear, Rect, flags::PanelFlags, flags::TextAlignment};
 
@@ -8,21 +8,7 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     let nuklear = Nuklear::get_or_init(window);
 
     if Nuklear::should_draw() {
-        if nuklear.begin(
-            "TF_RS",
-            PanelFlags::BORDER | PanelFlags::MOVABLE | PanelFlags::TITLE,
-            Rect {
-                x: 200.0,
-                y: 200.0,
-                w: 500.0,
-                h: 600.0,
-            },
-        ) {
-            nuklear
-                .row_dynamic(30.0, 2)
-                .label(CString::new("TF_RS Menu").unwrap(), TextAlignment::LEFT);
-        }
-        nuklear.end();
+        draw_menu(&nuklear);
     }
 
     nuklear.render();
@@ -35,4 +21,21 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     nuklear.input_end();
 
     rc
+}
+
+fn draw_menu(nk: &Nuklear) {
+    if nk.begin(
+        "TF_RS",
+        PanelFlags::BORDER | PanelFlags::MOVABLE | PanelFlags::TITLE,
+        Rect {
+            x: 200.0,
+            y: 200.0,
+            w: 500.0,
+            h: 600.0,
+        },
+    ) {
+        nk.row_dynamic(30.0, 2)
+            .label("TF_RS Menu", TextAlignment::LEFT);
+    }
+    nk.end();
 }
