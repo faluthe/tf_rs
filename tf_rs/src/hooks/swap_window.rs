@@ -2,9 +2,7 @@ use std::ffi::c_void;
 
 use nuklear::{Nuklear, Rect, flags::PanelFlags, flags::TextAlignment};
 
-use crate::hooks::Hooks;
-
-static mut TEST_CHECK: i32 = 0;
+use crate::{config::CONFIG, hooks::Hooks};
 
 pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     let nuklear = Nuklear::get_or_init(window);
@@ -36,9 +34,10 @@ fn draw_menu(nk: &Nuklear) {
             h: 600.0,
         },
     ) {
-        nk.row_dynamic(30.0, 2)
+        nk.row_dynamic(30.0, 1)
             .label("TF_RS Menu", TextAlignment::LEFT)
-            .checkbox("Test checkbox", &raw mut TEST_CHECK);
+            .row_dynamic(30.0, 1)
+            .checkbox("Bunnyhop", CONFIG.bunnyhop.as_ptr());
     }
     nk.end();
 }
