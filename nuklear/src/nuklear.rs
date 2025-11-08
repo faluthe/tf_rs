@@ -48,6 +48,12 @@ impl Nuklear {
         self
     }
 
+    pub fn checkbox<T: Into<Vec<u8>>>(&self, text: T, active: *mut i32) -> &Self {
+        self.context
+            .checkbox_label(CString::new(text).unwrap(), active);
+        self
+    }
+
     pub fn end(&self) {
         self.context.end();
     }

@@ -4,6 +4,8 @@ use nuklear::{Nuklear, Rect, flags::PanelFlags, flags::TextAlignment};
 
 use crate::hooks::Hooks;
 
+static mut TEST_CHECK: i32 = 0;
+
 pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     let nuklear = Nuklear::get_or_init(window);
 
@@ -35,7 +37,8 @@ fn draw_menu(nk: &Nuklear) {
         },
     ) {
         nk.row_dynamic(30.0, 2)
-            .label("TF_RS Menu", TextAlignment::LEFT);
+            .label("TF_RS Menu", TextAlignment::LEFT)
+            .checkbox("Test checkbox", &raw mut TEST_CHECK);
     }
     nk.end();
 }

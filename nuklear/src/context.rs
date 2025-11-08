@@ -2,10 +2,10 @@ use std::{ffi::CString, sync::OnceLock};
 
 use nuklear_sys::{
     GLEW_OK, SDL_Event, SDL_GL_CreateContext, SDL_GL_GetCurrentContext, SDL_GLContext, SDL_Window,
-    glewInit, nk_anti_aliasing_NK_ANTI_ALIASING_ON, nk_begin, nk_bool, nk_context, nk_end,
-    nk_flags, nk_font_atlas, nk_input_begin, nk_input_end, nk_label, nk_layout_row_dynamic,
-    nk_rect, nk_sdl_font_stash_begin, nk_sdl_font_stash_end, nk_sdl_handle_event, nk_sdl_init,
-    nk_sdl_render,
+    glewInit, nk_anti_aliasing_NK_ANTI_ALIASING_ON, nk_begin, nk_bool, nk_checkbox_label,
+    nk_context, nk_end, nk_flags, nk_font_atlas, nk_input_begin, nk_input_end, nk_label,
+    nk_layout_row_dynamic, nk_rect, nk_sdl_font_stash_begin, nk_sdl_font_stash_end,
+    nk_sdl_handle_event, nk_sdl_init, nk_sdl_render,
 };
 
 static CONTEXT: OnceLock<Context> = OnceLock::new();
@@ -55,6 +55,12 @@ impl Context {
     pub(crate) fn label(&self, text: CString, alignment: u32) {
         unsafe {
             nk_label(self.nk_ctx, text.as_ptr(), alignment);
+        }
+    }
+
+    pub(crate) fn checkbox_label(&self, text: CString, active: *mut i32) {
+        unsafe {
+            nk_checkbox_label(self.nk_ctx, text.as_ptr(), active);
         }
     }
 
