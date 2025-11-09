@@ -17,9 +17,6 @@ pub extern "C" fn hk_paint_traverse(
         return rc;
     }
 
-    Interfaces::surface().draw_set_color(255, 255, 255, 255);
-    Interfaces::surface().draw_outlined_rect(10, 10, 100, 100);
-
     esp::player_boxes();
 
     rc

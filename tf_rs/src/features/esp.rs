@@ -1,7 +1,7 @@
-use crate::{helpers, interfaces::Interfaces};
+use crate::{cfg_enabled, helpers, interfaces::Interfaces};
 
 pub fn player_boxes() {
-    if !Interfaces::engine_client().is_in_game() {
+    if !cfg_enabled!(esp) || !Interfaces::engine_client().is_in_game() {
         return;
     }
 
