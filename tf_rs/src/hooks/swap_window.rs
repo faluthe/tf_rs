@@ -1,11 +1,18 @@
 use std::ffi::c_void;
 
-use nuklear::{Nuklear, Rect, flags::PanelFlags, flags::TextAlignment};
+use nuklear::{
+    Key, Nuklear, Rect,
+    flags::{PanelFlags, TextAlignment},
+};
 
-use crate::{config::CONFIG, hooks::Hooks};
+use crate::{config::CONFIG, hooks::Hooks, interfaces::Interfaces};
 
 pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     let nuklear = Nuklear::get_or_init(window);
+
+    if nuklear.is_draw_key_released(Key::Delete) {
+        Interfaces::surface().set_cursor_visible(Nuklear::should_draw());
+    }
 
     if Nuklear::should_draw() {
         draw_menu(&nuklear);

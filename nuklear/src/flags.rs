@@ -13,8 +13,7 @@ bitflags! {
     }
 }
 
-bitflags! {
-    pub struct TextAlignment : u32 {
-        const LEFT = nk_text_alignment_NK_TEXT_LEFT;
-    }
+#[repr(u32)]
+pub enum TextAlignment {
+    LEFT = nk_text_alignment_NK_TEXT_LEFT,
 }

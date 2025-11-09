@@ -31,4 +31,9 @@ impl Surface {
         );
         f(self.this, x0, y0, x1, y1)
     }
+
+    pub fn set_cursor_visible(&self, visible: bool) {
+        let f = vfunc!(self.vtable, 52, extern "C" fn(*mut c_void, bool) -> ());
+        f(self.this, visible)
+    }
 }
