@@ -44,7 +44,9 @@ fn draw_menu(nk: &Nuklear) {
         nk.row_dynamic(30.0, 1)
             .label("TF_RS Menu", TextAlignment::LEFT)
             .row_dynamic(30.0, 1)
-            .checkbox("Bunnyhop", CONFIG.bunnyhop.as_ptr());
+            .checkbox("Bunnyhop", CONFIG.bunnyhop.as_ptr())
+            .row_dynamic(30.0, 1)
+            .checkbox("ESP", CONFIG.esp.as_ptr());
     }
     nk.end();
 }

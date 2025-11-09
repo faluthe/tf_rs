@@ -1,6 +1,5 @@
 use crate::{
     cfg_enabled,
-    config::CONFIG,
     types::{Player, UserCmd, user_cmd::Buttons},
 };
 
