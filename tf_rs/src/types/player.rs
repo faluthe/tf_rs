@@ -29,6 +29,7 @@ impl Player {
     offset_get!(fn lifestate: i8, 0x746);
     offset_get!(fn active_weapon_: i32, 0x11D0);
     offset_get!(fn tick_base: i32, 0x1718);
+    offset_get!(fn eye_z_diff: f32, 0x14C);
 
     fn get_networkable(&self) -> *mut c_void {
         (self.this as usize + 0x10) as *mut c_void
@@ -51,9 +52,10 @@ impl Player {
         self.active_weapon_() & 0xFFF
     }
 
-    pub fn shoot_position(&self) -> Vec3 {
-        let f = vfunc!(self.vtable, 302, extern "C" fn(*mut c_void) -> Vec3);
-        f(self.this)
+    pub fn eye_pos(&self) -> Vec3 {
+        let mut eye_pos = self.origin();
+        eye_pos.z += self.eye_z_diff();
+        eye_pos
     }
 
     pub fn is_dormant(&self) -> bool {
