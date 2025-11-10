@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use crate::{types::Player, vfunc};
+use crate::{traits::FromRaw, vfunc};
 
 #[derive(Default, Clone)]
 pub struct EntityList {
@@ -14,7 +14,7 @@ impl EntityList {
         EntityList { this, vtable }
     }
 
-    pub fn get_client_entity(&self, i: i32) -> Option<Player> {
+    pub fn get_client_entity<T: FromRaw>(&self, i: i32) -> Option<T> {
         let f = vfunc!(self.vtable, 3, (*mut c_void, i32) -> *mut c_void);
 
         let ptr = f(self.this, i);
@@ -22,6 +22,6 @@ impl EntityList {
             return None;
         }
 
-        Some(Player::new(ptr))
+        Some(T::from_raw(ptr))
     }
 }

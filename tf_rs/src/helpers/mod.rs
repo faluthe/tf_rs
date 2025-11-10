@@ -55,3 +55,21 @@ pub fn get_bounding_box(player: Player) -> Option<(i32, i32, i32, i32)> {
 
     Some((left as i32, top as i32, right as i32, bottom as i32))
 }
+
+pub fn calculate_angle(from: &Vec3, to: &Vec3) -> Vec3 {
+    let delta = Vec3 {
+        x: to.x - from.x,
+        y: to.y - from.y,
+        z: to.z - from.z,
+    };
+
+    // Common side between the two right triangles
+    let hyp = ((delta.x * delta.x) + (delta.y * delta.y)).sqrt();
+    let pitch = delta.z.atan2(hyp).to_degrees();
+    let yaw = delta.y.atan2(delta.x).to_degrees();
+    Vec3 {
+        x: -pitch,
+        y: yaw,
+        z: 0.0,
+    }
+}

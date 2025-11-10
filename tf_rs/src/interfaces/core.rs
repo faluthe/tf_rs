@@ -15,6 +15,7 @@ pub struct Interfaces {
     pub panel: Panel,
     pub surface: Surface,
     pub debug_overlay: DebugOverlay,
+    pub global_vars: *mut GlobalVars,
 }
 
 unsafe impl Send for Interfaces {}
@@ -30,6 +31,7 @@ impl Default for Interfaces {
             panel: Panel::default(),
             surface: Surface::default(),
             debug_overlay: DebugOverlay::default(),
+            global_vars: ptr::null_mut(),
         }
     }
 }
@@ -64,6 +66,15 @@ impl Interfaces {
             info!("Client mode interface at {:p}", w.client_mode);
         }
 
+        unsafe {
+            let before_add = *(w.client as *mut *mut *const c_void);
+            let hud_update = *(before_add.add(11)) as usize;
+            let eaddr = ptr::read_unaligned((hud_update + 0x16) as *const u32);
+            let ip = hud_update + 0x1A;
+            w.global_vars = ptr::read_unaligned((ip + eaddr as usize) as *const *mut GlobalVars);
+            info!("Global vars interface at {:p}", w.global_vars);
+        }
+
         if w.client_mode.is_null() {
             return Err(anyhow::anyhow!("Failed to get client mode interface"));
         }
@@ -93,5 +104,9 @@ impl Interfaces {
 
     pub fn debug_overlay() -> DebugOverlay {
         I.read().unwrap().debug_overlay.clone()
+    }
+
+    pub fn global_vars() -> &'static GlobalVars {
+        unsafe { &*I.read().unwrap().global_vars }
     }
 }

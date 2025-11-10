@@ -1,22 +1,34 @@
 use std::ffi::c_void;
 
-use crate::{offset_get, types::Vec3, vfunc};
+use crate::{
+    interfaces::Interfaces,
+    offset_get,
+    traits::FromRaw,
+    types::{Vec3, Weapon},
+    vfunc,
+};
 
 #[derive(PartialEq, Eq)]
 pub struct Player {
     this: *mut c_void,
+    vtable: *mut *mut c_void,
+}
+
+impl FromRaw for Player {
+    fn from_raw(raw: *mut c_void) -> Self {
+        let vtable = unsafe { *(raw as *mut *mut *mut c_void) };
+        Player { this: raw, vtable }
+    }
 }
 
 impl Player {
-    pub fn new(this: *mut c_void) -> Self {
-        Player { this }
-    }
-
     offset_get!(pub fn _health: i32, 0xD4);
     offset_get!(pub fn flags: i32, 0x460);
     offset_get!(pub fn team: i32, 0xDC);
     offset_get!(pub fn origin: Vec3, 0x328);
     offset_get!(fn lifestate: i8, 0x746);
+    offset_get!(fn active_weapon_: i32, 0x11D0);
+    offset_get!(fn tick_base: i32, 0x1718);
 
     fn get_networkable(&self) -> *mut c_void {
         (self.this as usize + 0x10) as *mut c_void
@@ -32,6 +44,16 @@ impl Player {
 
     pub fn is_dead(&self) -> bool {
         self.lifestate() != 1
+    }
+
+    pub fn active_weapon(&self) -> i32 {
+        // lower 12 bits represent the index
+        self.active_weapon_() & 0xFFF
+    }
+
+    pub fn shoot_position(&self) -> Vec3 {
+        let f = vfunc!(self.vtable, 302, extern "C" fn(*mut c_void) -> Vec3);
+        f(self.this)
     }
 
     pub fn is_dormant(&self) -> bool {
@@ -53,5 +75,39 @@ impl Player {
         let vtable = unsafe { *(collideable as *mut *mut *mut c_void) };
         let f = vfunc!(vtable, 2, extern "C" fn(*mut c_void) -> *const Vec3);
         unsafe { *(f(collideable)) }
+    }
+
+    pub fn can_attack(&self) -> bool {
+        let Some(weapon) =
+            Interfaces::entity_list().get_client_entity::<Weapon>(self.active_weapon())
+        else {
+            return false;
+        };
+
+        let next_attack = weapon.next_attack();
+        let cur_time = self.tick_base() as f32 * Interfaces::global_vars().interval_per_tick;
+
+        if next_attack > cur_time {
+            return false;
+        }
+
+        true
+    }
+
+    pub fn get_bone_position(&self, bone_id: usize) -> Option<Vec3> {
+        let mut bone_to_world_out: [[[f32; 4]; 3]; 128] = [[[0.0; 4]; 3]; 128];
+        let f = vfunc!(
+            self.vtable,
+            96,
+            extern "C" fn(*mut c_void, *mut [[[f32; 4]; 3]; 128], i32, i32, f32) -> i32
+        );
+        if f(self.this, &mut bone_to_world_out, 128, 0x100, 0.0) == 0 {
+            return None;
+        }
+        Some(Vec3 {
+            x: bone_to_world_out[bone_id][0][3],
+            y: bone_to_world_out[bone_id][1][3],
+            z: bone_to_world_out[bone_id][2][3],
+        })
     }
 }
