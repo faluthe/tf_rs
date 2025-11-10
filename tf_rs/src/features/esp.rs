@@ -1,4 +1,4 @@
-use crate::{cfg_enabled, helpers, interfaces::Interfaces};
+use crate::{cfg_enabled, helpers, interfaces::Interfaces, types::Player};
 
 pub fn player_boxes() {
     if !cfg_enabled!(esp) || !Interfaces::engine_client().is_in_game() {
@@ -10,7 +10,7 @@ pub fn player_boxes() {
     Interfaces::surface().draw_set_color(255, 255, 255, 255);
 
     for i in 1..=Interfaces::engine_client().get_max_clients() {
-        if let Some(player) = Interfaces::entity_list().get_client_entity(i) {
+        if let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i) {
             if player == localplayer
                 || player.is_dormant()
                 || player.is_dead()

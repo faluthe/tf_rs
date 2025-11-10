@@ -46,7 +46,9 @@ fn draw_menu(nk: &Nuklear) {
             .row_dynamic(30.0, 1)
             .checkbox("Bunnyhop", CONFIG.bunnyhop.as_ptr())
             .row_dynamic(30.0, 1)
-            .checkbox("ESP", CONFIG.esp.as_ptr());
+            .checkbox("ESP", CONFIG.esp.as_ptr())
+            .row_dynamic(30.0, 1)
+            .checkbox("Aimbot", CONFIG.aimbot.as_ptr());
     }
     nk.end();
 }

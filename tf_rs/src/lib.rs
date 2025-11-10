@@ -5,6 +5,7 @@ mod features;
 mod helpers;
 mod hooks;
 mod interfaces;
+mod traits;
 mod types;
 
 #[used]

@@ -23,5 +23,6 @@ pub struct UserCmd {
 
 #[repr(i32)]
 pub enum Buttons {
+    InAttack = 1 << 0,
     InJump = 1 << 1,
 }
