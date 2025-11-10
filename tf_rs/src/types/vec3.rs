@@ -12,12 +12,19 @@ impl Vec3 {
     }
 
     pub fn fov_to(&self, other: &Vec3) -> f32 {
-        let x = (self.x - other.x).rem_euclid(360.0);
-        let y = (self.y - other.y).rem_euclid(360.0);
+        let mut dx = (self.x - other.x).rem_euclid(360.0);
+        let mut dy = (self.y - other.y).rem_euclid(360.0);
 
-        let clamped_x = x.clamp(-89.0, 89.0);
-        let clamped_y = y.clamp(-180.0, 180.0);
+        if dx > 180.0 {
+            dx -= 360.0;
+        }
+        if dy > 180.0 {
+            dy -= 360.0;
+        }
 
-        clamped_x.hypot(clamped_y)
+        dx = dx.clamp(-89.0, 89.0);
+        dy = dy.clamp(-180.0, 180.0);
+
+        (dx * dx) + (dy * dy).sqrt()
     }
 }
