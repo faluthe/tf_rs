@@ -32,7 +32,7 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd) {
 
 // TODO: Add sentry + other entity checks
 pub fn get_target(localplayer: &Player, view_angle: &Vec3) -> (Option<Player>, Option<Vec3>) {
-    let shoot_pos = localplayer.origin();
+    let shoot_pos = localplayer.eye_pos();
     let mut smallest_fov = f32::MAX;
     let mut target = None;
     let mut target_angle = None;
@@ -49,11 +49,11 @@ pub fn get_target(localplayer: &Player, view_angle: &Vec3) -> (Option<Player>, O
             }
 
             // Torso aim for now
-            // let Some(player_pos) = player.get_bone_position(1) else {
-            //     continue;
-            // };
+            let Some(player_pos) = player.get_bone_position(1) else {
+                continue;
+            };
 
-            let player_pos = player.origin();
+            // let player_pos = player.origin();
 
             let aim_angle = helpers::calculate_angle(&shoot_pos, &player_pos);
             let fov = view_angle.fov_to(&aim_angle);
