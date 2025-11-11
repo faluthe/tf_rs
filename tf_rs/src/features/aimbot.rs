@@ -43,7 +43,6 @@ pub fn get_target(localplayer: &Player, view_angle: &Vec3) -> (Option<Player>, O
                 || player.is_dormant()
                 || player.is_dead()
                 || player.team() == localplayer.team()
-            // TODO: Trace ray
             {
                 continue;
             }
@@ -53,7 +52,9 @@ pub fn get_target(localplayer: &Player, view_angle: &Vec3) -> (Option<Player>, O
                 continue;
             };
 
-            // let player_pos = player.origin();
+            if !helpers::is_ent_visible(&shoot_pos, &player_pos, &player, localplayer) {
+                continue;
+            }
 
             let aim_angle = helpers::calculate_angle(&shoot_pos, &player_pos);
             let fov = view_angle.fov_to(&aim_angle);

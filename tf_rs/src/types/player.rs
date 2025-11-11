@@ -10,7 +10,7 @@ use crate::{
 
 #[derive(PartialEq, Eq)]
 pub struct Player {
-    this: *mut c_void,
+    pub this: *mut c_void,
     vtable: *mut *mut c_void,
 }
 
