@@ -16,6 +16,7 @@ pub struct Interfaces {
     pub surface: Surface,
     pub debug_overlay: DebugOverlay,
     pub global_vars: *mut GlobalVars,
+    pub engine_trace: EngineTrace,
 }
 
 unsafe impl Send for Interfaces {}
@@ -32,6 +33,7 @@ impl Default for Interfaces {
             surface: Surface::default(),
             debug_overlay: DebugOverlay::default(),
             global_vars: ptr::null_mut(),
+            engine_trace: EngineTrace::default(),
         }
     }
 }
@@ -50,6 +52,7 @@ impl Interfaces {
         w.panel = Panel::new(vgui_factory.get("VGUI_Panel009")?);
         w.surface = Surface::new(surface_factory.get("VGUI_Surface030")?);
         w.debug_overlay = DebugOverlay::new(engine_factory.get("VDebugOverlay003")?);
+        w.engine_trace = EngineTrace::new(engine_factory.get("EngineTraceClient003")?);
 
         /*
          * https://github.com/OthmanAba/TeamFortress2/blob/1b81dded673d49adebf4d0958e52236ecc28a956/tf2_src/game/client/cdll_client_int.cpp#L1255
@@ -108,5 +111,9 @@ impl Interfaces {
 
     pub fn global_vars() -> &'static GlobalVars {
         unsafe { &*I.read().unwrap().global_vars }
+    }
+
+    pub fn engine_trace() -> EngineTrace {
+        I.read().unwrap().engine_trace.clone()
     }
 }
