@@ -5,7 +5,7 @@ use nuklear::{
     flags::{PanelFlags, TextAlignment},
 };
 
-use crate::{config::CONFIG, hooks::Hooks, interfaces::Interfaces};
+use crate::{cfg_enabled, config::CONFIG, hooks::Hooks, interfaces::Interfaces};
 
 pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     let nuklear = Nuklear::get_or_init(window);
@@ -49,6 +49,11 @@ fn draw_menu(nk: &Nuklear) {
             .checkbox("ESP", CONFIG.esp.as_ptr())
             .row_dynamic(30.0, 1)
             .checkbox("Aimbot", CONFIG.aimbot.as_ptr());
+
+        if cfg_enabled!(aimbot) {
+            nk.row_dynamic(30.0, 1)
+                .checkbox("Silent Aim", CONFIG.silent_aim.as_ptr());
+        }
     }
     nk.end();
 }

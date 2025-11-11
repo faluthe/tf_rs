@@ -1,6 +1,7 @@
 use std::ffi::c_void;
 
 use crate::{
+    cfg_enabled,
     features::{aimbot, movement},
     helpers,
     hooks::Hooks,
@@ -23,5 +24,5 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
     movement::bunnyhop(&localplayer, cmd);
     aimbot::run(&localplayer, cmd);
 
-    rc
+    if cfg_enabled!(silent_aim) { 0 } else { rc }
 }
