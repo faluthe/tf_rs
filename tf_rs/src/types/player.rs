@@ -4,7 +4,7 @@ use crate::{
     interfaces::Interfaces,
     offset_get,
     traits::FromRaw,
-    types::{Vec3, Weapon},
+    types::{Vec3, Weapon, WeaponClass},
     vfunc,
 };
 
@@ -22,7 +22,7 @@ impl FromRaw for Player {
 }
 
 impl Player {
-    offset_get!(pub fn _health: i32, 0xD4);
+    offset_get!(pub fn health: i32, 0xD4);
     offset_get!(pub fn flags: i32, 0x460);
     offset_get!(pub fn team: i32, 0xDC);
     offset_get!(pub fn origin: Vec3, 0x328);
@@ -30,6 +30,7 @@ impl Player {
     offset_get!(fn active_weapon_: i32, 0x11D0);
     offset_get!(fn tick_base: i32, 0x1718);
     offset_get!(fn eye_z_diff: f32, 0x14C);
+    offset_get!(fn player_class: PlayerClass, 0x1BA0);
 
     fn get_networkable(&self) -> *mut c_void {
         (self.this as usize + 0x10) as *mut c_void
@@ -47,9 +48,10 @@ impl Player {
         self.lifestate() != 1
     }
 
-    pub fn active_weapon(&self) -> i32 {
+    pub fn active_weapon(&self) -> Option<Weapon> {
         // lower 12 bits represent the index
-        self.active_weapon_() & 0xFFF
+        let index = self.active_weapon_() & 0xFFF;
+        Interfaces::entity_list().get_client_entity::<Weapon>(index)
     }
 
     pub fn eye_pos(&self) -> Vec3 {
@@ -80,10 +82,9 @@ impl Player {
     }
 
     pub fn can_attack(&self) -> bool {
-        let Some(weapon) =
-            Interfaces::entity_list().get_client_entity::<Weapon>(self.active_weapon())
-        else {
-            return false;
+        let weapon = match self.active_weapon() {
+            Some(weapon) => weapon,
+            None => return false,
         };
 
         let next_attack = weapon.next_attack();
@@ -112,4 +113,41 @@ impl Player {
             z: bone_to_world_out[bone_id][2][3],
         })
     }
+
+    pub fn can_headshot(&self) -> bool {
+        let weapon = match self.active_weapon() {
+            Some(weapon) => weapon,
+            None => return false,
+        };
+
+        match (self.player_class(), weapon.weapon_class()) {
+            (PlayerClass::Sniper, WeaponClass::Sniperrifle) => true,
+            _ => false,
+        }
+    }
+
+    pub fn head_bone_id(&self) -> usize {
+        match self.player_class() {
+            PlayerClass::Engineer => 8,
+            PlayerClass::Demoman => 16,
+            PlayerClass::Sniper | PlayerClass::Soldier => 5,
+            _ => 6,
+        }
+    }
+}
+
+// Warns for unconstructed variants since we always use it through ffi
+#[allow(dead_code)]
+#[repr(i32)]
+enum PlayerClass {
+    Undefined = 0,
+    Scout = 1,
+    Sniper = 2,
+    Soldier = 3,
+    Demoman = 4,
+    Medic = 5,
+    HeavyWeapons = 6,
+    Pyro = 7,
+    Spy = 8,
+    Engineer = 9,
 }

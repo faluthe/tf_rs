@@ -17,3 +17,4 @@ pub use vec2::Vec2;
 pub use vec3::Vec3;
 pub use vec3_aligned::Vec3Aligned;
 pub use weapon::Weapon;
+pub use weapon::WeaponClass;
