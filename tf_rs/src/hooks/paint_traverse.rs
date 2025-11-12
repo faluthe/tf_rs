@@ -17,6 +17,11 @@ pub extern "C" fn hk_paint_traverse(
         return rc;
     }
 
+    Interfaces::surface().draw_set_text_font(esp::esp_font());
+    Interfaces::surface().draw_set_text_color(255, 255, 255, 255);
+    Interfaces::surface().draw_set_text_pos(10, 10);
+    Interfaces::surface().draw_print_text("tf-rs v0.1.0");
+
     esp::player_boxes();
 
     rc
