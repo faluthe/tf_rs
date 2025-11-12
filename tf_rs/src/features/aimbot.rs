@@ -1,7 +1,5 @@
 use core::f32;
 
-use log::info;
-
 use crate::{
     cfg_enabled, helpers,
     interfaces::Interfaces,
@@ -17,11 +15,6 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd) {
     let (_, Some(aim_angle)) = get_target(localplayer, &cmd.view_angles) else {
         return;
     };
-
-    info!(
-        "Current angle: x: {}, y: {}, z: {}",
-        cmd.view_angles.x, cmd.view_angles.y, cmd.view_angles.z
-    );
 
     let wants_shot = (cmd.buttons & Buttons::InAttack as i32) != 0;
 
@@ -47,8 +40,12 @@ pub fn get_target(localplayer: &Player, view_angle: &Vec3) -> (Option<Player>, O
                 continue;
             }
 
-            // Torso aim for now
-            let Some(player_pos) = player.get_bone_position(1) else {
+            let bone_id = if player.health() < 50 || !localplayer.can_headshot() {
+                1 // Torso
+            } else {
+                player.head_bone_id()
+            };
+            let Some(player_pos) = player.get_bone_position(bone_id) else {
                 continue;
             };
 
