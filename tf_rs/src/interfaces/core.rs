@@ -15,6 +15,8 @@ pub struct Interfaces {
     pub panel: Panel,
     pub surface: Surface,
     pub debug_overlay: DebugOverlay,
+    pub global_vars: *mut GlobalVars,
+    pub engine_trace: EngineTrace,
 }
 
 unsafe impl Send for Interfaces {}
@@ -30,6 +32,8 @@ impl Default for Interfaces {
             panel: Panel::default(),
             surface: Surface::default(),
             debug_overlay: DebugOverlay::default(),
+            global_vars: ptr::null_mut(),
+            engine_trace: EngineTrace::default(),
         }
     }
 }
@@ -48,6 +52,7 @@ impl Interfaces {
         w.panel = Panel::new(vgui_factory.get("VGUI_Panel009")?);
         w.surface = Surface::new(surface_factory.get("VGUI_Surface030")?);
         w.debug_overlay = DebugOverlay::new(engine_factory.get("VDebugOverlay003")?);
+        w.engine_trace = EngineTrace::new(engine_factory.get("EngineTraceClient003")?);
 
         /*
          * https://github.com/OthmanAba/TeamFortress2/blob/1b81dded673d49adebf4d0958e52236ecc28a956/tf2_src/game/client/cdll_client_int.cpp#L1255
@@ -62,6 +67,15 @@ impl Interfaces {
             let ip = hud_process_input + 0x7;
             w.client_mode = ptr::read_unaligned((ip + eaddr as usize) as *const *mut c_void);
             info!("Client mode interface at {:p}", w.client_mode);
+        }
+
+        unsafe {
+            let before_add = *(w.client as *mut *mut *const c_void);
+            let hud_update = *(before_add.add(11)) as usize;
+            let eaddr = ptr::read_unaligned((hud_update + 0x16) as *const u32);
+            let ip = hud_update + 0x1A;
+            w.global_vars = ptr::read_unaligned((ip + eaddr as usize) as *const *mut GlobalVars);
+            info!("Global vars interface at {:p}", w.global_vars);
         }
 
         if w.client_mode.is_null() {
@@ -93,5 +107,13 @@ impl Interfaces {
 
     pub fn debug_overlay() -> DebugOverlay {
         I.read().unwrap().debug_overlay.clone()
+    }
+
+    pub fn global_vars() -> &'static GlobalVars {
+        unsafe { &*I.read().unwrap().global_vars }
+    }
+
+    pub fn engine_trace() -> EngineTrace {
+        I.read().unwrap().engine_trace.clone()
     }
 }

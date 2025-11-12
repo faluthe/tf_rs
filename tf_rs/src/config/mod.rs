@@ -6,6 +6,8 @@ use once_cell::sync::Lazy;
 pub struct Config {
     pub bunnyhop: AtomicI32,
     pub esp: AtomicI32,
+    pub aimbot: AtomicI32,
+    pub silent_aim: AtomicI32,
 }
 
 pub static CONFIG: Lazy<Config> = Lazy::new(|| Config::default());
