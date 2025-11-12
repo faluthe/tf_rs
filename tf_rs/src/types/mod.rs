@@ -1,9 +1,20 @@
 pub mod player;
+pub mod ray;
+pub mod trace_filter;
+pub mod trace_result;
 pub mod user_cmd;
 pub mod vec2;
 pub mod vec3;
+pub mod vec3_aligned;
+pub mod weapon;
 
 pub use player::Player;
+pub use ray::Ray;
+pub use trace_filter::TraceFilter;
+pub use trace_result::TraceResult;
 pub use user_cmd::UserCmd;
 pub use vec2::Vec2;
 pub use vec3::Vec3;
+pub use vec3_aligned::Vec3Aligned;
+pub use weapon::Weapon;
+pub use weapon::WeaponClass;
