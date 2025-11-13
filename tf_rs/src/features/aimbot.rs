@@ -1,7 +1,9 @@
 use core::f32;
 
 use crate::{
-    cfg_enabled, helpers,
+    cfg_enabled,
+    globals::{Globals, Target},
+    helpers,
     interfaces::Interfaces,
     types::{Player, UserCmd, Vec3, user_cmd::Buttons},
 };
@@ -12,9 +14,11 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd) {
         return;
     }
 
-    let (_, Some(aim_angle)) = get_target(localplayer, &cmd.view_angles) else {
+    let (target, Some(aim_angle)) = get_target(localplayer, &cmd.view_angles) else {
         return;
     };
+
+    Globals::write().target = target;
 
     let wants_shot = (cmd.buttons & Buttons::InAttack as i32) != 0;
 
@@ -24,11 +28,11 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd) {
 }
 
 // TODO: Add sentry + other entity checks
-pub fn get_target(localplayer: &Player, view_angle: &Vec3) -> (Option<Player>, Option<Vec3>) {
+pub fn get_target(localplayer: &Player, view_angle: &Vec3) -> (Option<Target>, Option<Vec3>) {
     let shoot_pos = localplayer.eye_pos();
     let mut smallest_fov = f32::MAX;
-    let mut target = None;
     let mut target_angle = None;
+    let mut target = None;
 
     for i in 1..=Interfaces::engine_client().get_max_clients() {
         if let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i) {
@@ -40,10 +44,11 @@ pub fn get_target(localplayer: &Player, view_angle: &Vec3) -> (Option<Player>, O
                 continue;
             }
 
-            let bone_id = if player.health() < 50 || !localplayer.can_headshot() {
-                1 // Torso
-            } else {
+            let headshot = player.health() > 50 && localplayer.can_headshot();
+            let bone_id = if headshot {
                 player.head_bone_id()
+            } else {
+                1 // Torso
             };
             let Some(player_pos) = player.get_bone_position(bone_id) else {
                 continue;
@@ -58,8 +63,11 @@ pub fn get_target(localplayer: &Player, view_angle: &Vec3) -> (Option<Player>, O
 
             if fov < smallest_fov {
                 smallest_fov = fov;
-                target = Some(player);
                 target_angle = Some(aim_angle);
+                target = Some(Target {
+                    target_index: i,
+                    should_headshot: headshot,
+                });
             }
         }
     }

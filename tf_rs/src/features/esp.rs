@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use crate::{cfg_enabled, helpers, interfaces::Interfaces, types::Player};
+use crate::{cfg_enabled, globals::Globals, helpers, interfaces::Interfaces, types::Player};
 
 static ESP_FONT: OnceLock<u64> = OnceLock::new();
 
@@ -18,6 +18,8 @@ pub fn player_boxes() {
     }
 
     let localplayer = helpers::get_localplayer().expect("Failed to get localplayer");
+    let globals = Globals::read();
+    let target = globals.target.as_ref();
 
     Interfaces::surface().draw_set_color(255, 255, 255, 255);
 
@@ -33,6 +35,16 @@ pub fn player_boxes() {
 
             if let Some((left, top, right, bottom)) = helpers::get_bounding_box(player) {
                 Interfaces::surface().draw_outlined_rect(left, top, right, bottom);
+
+                if Some(i) == target.map(|t| t.target_index) {
+                    Interfaces::surface().draw_set_text_pos((right + 10) as u32, top as u32);
+                    Interfaces::surface().draw_print_text("TARGET");
+                    if Some(true) == target.map(|t| t.should_headshot) {
+                        Interfaces::surface()
+                            .draw_set_text_pos((right + 10) as u32, (top + 10) as u32);
+                        Interfaces::surface().draw_print_text("HS");
+                    }
+                }
             }
         }
     }
