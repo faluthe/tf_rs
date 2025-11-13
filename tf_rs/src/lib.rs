@@ -2,6 +2,7 @@ use crate::{hooks::Hooks, interfaces::Interfaces};
 
 mod config;
 mod features;
+mod globals;
 mod helpers;
 mod hooks;
 mod interfaces;
