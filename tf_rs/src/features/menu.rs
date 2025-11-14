@@ -50,7 +50,9 @@ pub fn draw(nk: &Nuklear) {
                             format!("Aimbot FOV: {}", cfg_get!(aimbot_fov)),
                             TextAlignment::LEFT,
                         )
-                        .slider_int(1, CONFIG.aimbot_fov.as_ptr(), 100, 1);
+                        .slider_int(1, CONFIG.aimbot_fov.as_ptr(), 100, 1)
+                        .row_dynamic(30.0, 1)
+                        .checkbox("Draw fov", CONFIG.draw_fov.as_ptr());
                 }
             }
             MenuTab::ESP => {

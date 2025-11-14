@@ -53,7 +53,7 @@ pub fn player_boxes(localplayer: &Player) {
 
 // TODO: Fix for scoped weapons
 pub fn draw_fov() {
-    if !cfg_enabled!(aimbot_fov) {
+    if !cfg_enabled!(draw_fov) {
         return;
     }
 
