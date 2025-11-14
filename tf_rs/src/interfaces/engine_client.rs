@@ -14,6 +14,18 @@ impl EngineClient {
         EngineClient { this, vtable }
     }
 
+    pub fn get_screen_size(&self) -> (i32, i32) {
+        let mut width = 0;
+        let mut height = 0;
+        let f = vfunc!(
+            self.vtable,
+            5,
+            extern "C" fn(*mut c_void, &mut i32, &mut i32) -> ()
+        );
+        f(self.this, &mut width, &mut height);
+        (width, height)
+    }
+
     pub fn get_localplayer_index(&self) -> i32 {
         let f = vfunc!(self.vtable, 12, extern "C" fn(*mut c_void) -> i32);
         f(self.this)

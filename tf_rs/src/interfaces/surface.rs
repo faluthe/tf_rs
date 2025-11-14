@@ -105,4 +105,13 @@ impl Surface {
             0,
         )
     }
+
+    pub fn draw_circle(&self, x: i32, y: i32, radius: i32, segments: i32) {
+        let f = vfunc!(
+            self.vtable,
+            99,
+            extern "C" fn(*mut c_void, i32, i32, i32, i32) -> ()
+        );
+        f(self.this, x, y, radius, segments)
+    }
 }

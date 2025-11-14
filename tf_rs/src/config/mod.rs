@@ -8,6 +8,7 @@ pub struct Config {
     pub esp: AtomicI32,
     pub aimbot: AtomicI32,
     pub silent_aim: AtomicI32,
+    pub aimbot_fov: AtomicI32,
 }
 
 pub static CONFIG: Lazy<Config> = Lazy::new(|| Config::default());
@@ -19,5 +20,14 @@ macro_rules! cfg_enabled {
             .$field
             .load(std::sync::atomic::Ordering::Relaxed)
             != 0
+    };
+}
+
+#[macro_export]
+macro_rules! cfg_get {
+    ($field:ident) => {
+        crate::config::CONFIG
+            .$field
+            .load(std::sync::atomic::Ordering::Relaxed)
     };
 }

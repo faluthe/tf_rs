@@ -1,4 +1,4 @@
-use std::ffi::c_void;
+use std::{ffi::c_void, sync::atomic::Ordering};
 
 use nuklear::{
     Key, Nuklear, Rect,
@@ -53,6 +53,9 @@ fn draw_menu(nk: &Nuklear) {
         if cfg_enabled!(aimbot) {
             nk.row_dynamic(30.0, 1)
                 .checkbox("Silent Aim", CONFIG.silent_aim.as_ptr());
+            CONFIG.aimbot_fov.store(90, Ordering::Relaxed);
+        } else {
+            CONFIG.aimbot_fov.store(0, Ordering::Relaxed);
         }
     }
     nk.end();
