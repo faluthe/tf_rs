@@ -1,7 +1,5 @@
 use std::sync::OnceLock;
 
-use log::info;
-
 use crate::{
     cfg_enabled, cfg_get, globals::Globals, helpers, interfaces::Interfaces, types::Player,
 };
@@ -53,6 +51,7 @@ pub fn player_boxes(localplayer: &Player) {
     }
 }
 
+// TODO: Fix for scoped weapons
 pub fn draw_fov() {
     if !cfg_enabled!(aimbot_fov) {
         return;

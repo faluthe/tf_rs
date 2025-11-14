@@ -1,11 +1,8 @@
-use std::{ffi::c_void, sync::atomic::Ordering};
+use std::ffi::c_void;
 
-use nuklear::{
-    Key, Nuklear, Rect,
-    flags::{PanelFlags, TextAlignment},
-};
+use nuklear::{Key, Nuklear};
 
-use crate::{cfg_enabled, config::CONFIG, hooks::Hooks, interfaces::Interfaces};
+use crate::{features::menu, hooks::Hooks, interfaces::Interfaces};
 
 pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     let nuklear = Nuklear::get_or_init(window);
@@ -15,7 +12,7 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     }
 
     if Nuklear::should_draw() {
-        draw_menu(&nuklear);
+        menu::draw(&nuklear);
     }
 
     nuklear.render();
@@ -28,35 +25,4 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     nuklear.input_end();
 
     rc
-}
-
-fn draw_menu(nk: &Nuklear) {
-    if nk.begin(
-        "TF_RS",
-        PanelFlags::BORDER | PanelFlags::MOVABLE | PanelFlags::TITLE,
-        Rect {
-            x: 200.0,
-            y: 200.0,
-            w: 500.0,
-            h: 600.0,
-        },
-    ) {
-        nk.row_dynamic(30.0, 1)
-            .label("TF_RS Menu", TextAlignment::LEFT)
-            .row_dynamic(30.0, 1)
-            .checkbox("Bunnyhop", CONFIG.bunnyhop.as_ptr())
-            .row_dynamic(30.0, 1)
-            .checkbox("ESP", CONFIG.esp.as_ptr())
-            .row_dynamic(30.0, 1)
-            .checkbox("Aimbot", CONFIG.aimbot.as_ptr());
-
-        if cfg_enabled!(aimbot) {
-            nk.row_dynamic(30.0, 1)
-                .checkbox("Silent Aim", CONFIG.silent_aim.as_ptr());
-            CONFIG.aimbot_fov.store(90, Ordering::Relaxed);
-        } else {
-            CONFIG.aimbot_fov.store(0, Ordering::Relaxed);
-        }
-    }
-    nk.end();
 }

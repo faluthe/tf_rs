@@ -54,6 +54,15 @@ impl Nuklear {
         self
     }
 
+    pub fn button_label<T: Into<Vec<u8>>>(&self, label: T) -> bool {
+        self.context.button_label(CString::new(label).unwrap())
+    }
+
+    pub fn slider_int(&self, min: i32, val: *mut i32, max: i32, step: i32) -> &Self {
+        self.context.slider_int(min, val, max, step);
+        self
+    }
+
     pub fn end(&self) {
         self.context.end();
     }

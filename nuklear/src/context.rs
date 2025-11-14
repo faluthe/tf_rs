@@ -2,10 +2,10 @@ use std::{ffi::CString, sync::OnceLock};
 
 use nuklear_sys::{
     GLEW_OK, SDL_Event, SDL_GL_CreateContext, SDL_GL_GetCurrentContext, SDL_GLContext, SDL_Window,
-    glewInit, nk_anti_aliasing_NK_ANTI_ALIASING_ON, nk_begin, nk_bool, nk_checkbox_label,
-    nk_context, nk_end, nk_flags, nk_font_atlas, nk_input_begin, nk_input_end,
+    glewInit, nk_anti_aliasing_NK_ANTI_ALIASING_ON, nk_begin, nk_bool, nk_button_label,
+    nk_checkbox_label, nk_context, nk_end, nk_flags, nk_font_atlas, nk_input_begin, nk_input_end,
     nk_input_is_key_released, nk_label, nk_layout_row_dynamic, nk_rect, nk_sdl_font_stash_begin,
-    nk_sdl_font_stash_end, nk_sdl_handle_event, nk_sdl_init, nk_sdl_render,
+    nk_sdl_font_stash_end, nk_sdl_handle_event, nk_sdl_init, nk_sdl_render, nk_slider_int,
 };
 
 static CONTEXT: OnceLock<Context> = OnceLock::new();
@@ -61,6 +61,16 @@ impl Context {
     pub(crate) fn checkbox_label(&self, text: CString, active: *mut i32) {
         unsafe {
             nk_checkbox_label(self.nk_ctx, text.as_ptr(), active);
+        }
+    }
+
+    pub(crate) fn button_label(&self, label: CString) -> bool {
+        unsafe { nk_button_label(self.nk_ctx, label.as_ptr()) != 0 }
+    }
+
+    pub(crate) fn slider_int(&self, min: i32, val: *mut i32, max: i32, step: i32) {
+        unsafe {
+            nk_slider_int(self.nk_ctx, min, val, max, step);
         }
     }
 
