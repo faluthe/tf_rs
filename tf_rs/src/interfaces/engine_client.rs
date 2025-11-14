@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use crate::vfunc;
+use crate::{types::PlayerInfo, vfunc};
 
 #[derive(Default, Clone)]
 pub struct EngineClient {
@@ -26,6 +26,16 @@ impl EngineClient {
         (width, height)
     }
 
+    pub fn get_player_info(&self, index: i32) -> PlayerInfo {
+        let mut i = PlayerInfo::default();
+        let f = vfunc!(
+            self.vtable,
+            8,
+            extern "C" fn(*mut c_void, i32, &mut PlayerInfo) -> ()
+        );
+        f(self.this, index, &mut i);
+        i
+    }
     pub fn get_localplayer_index(&self) -> i32 {
         let f = vfunc!(self.vtable, 12, extern "C" fn(*mut c_void) -> i32);
         f(self.this)

@@ -37,6 +37,10 @@ pub fn player_boxes(localplayer: &Player) {
             if let Some((left, top, right, bottom)) = helpers::get_bounding_box(player) {
                 Interfaces::surface().draw_outlined_rect(left, top, right, bottom);
 
+                let name = Interfaces::engine_client().get_player_info(i).name;
+                Interfaces::surface().draw_set_text_pos(left as u32, (top - 20) as u32);
+                Interfaces::surface().draw_print_text(str::from_utf8(&name).unwrap_or(""));
+
                 if Some(i) == target.map(|t| t.target_index) {
                     Interfaces::surface().draw_set_text_pos((right + 10) as u32, top as u32);
                     Interfaces::surface().draw_print_text("TARGET");

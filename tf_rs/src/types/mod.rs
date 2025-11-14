@@ -1,4 +1,5 @@
 pub mod player;
+pub mod player_info;
 pub mod ray;
 pub mod trace_filter;
 pub mod trace_result;
@@ -9,6 +10,7 @@ pub mod vec3_aligned;
 pub mod weapon;
 
 pub use player::Player;
+pub use player_info::PlayerInfo;
 pub use ray::Ray;
 pub use trace_filter::TraceFilter;
 pub use trace_result::TraceResult;
