@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use crate::{features::esp, hooks::Hooks, interfaces::Interfaces};
+use crate::{features::esp, helpers, hooks::Hooks, interfaces::Interfaces};
 
 pub extern "C" fn hk_paint_traverse(
     this: *mut c_void,
@@ -19,10 +19,20 @@ pub extern "C" fn hk_paint_traverse(
 
     Interfaces::surface().draw_set_text_font(esp::esp_font());
     Interfaces::surface().draw_set_text_color(255, 255, 255, 255);
-    Interfaces::surface().draw_set_text_pos(10, 10);
-    Interfaces::surface().draw_print_text("tf-rs v0.1.0");
 
-    esp::player_boxes();
+    if !Interfaces::engine_client().is_in_game() {
+        return rc;
+    }
+
+    let localplayer = helpers::get_localplayer().expect("Failed to get localplayer");
+
+    esp::player_boxes(&localplayer);
+
+    if localplayer.is_dead() {
+        return rc;
+    }
+
+    esp::draw_fov();
 
     rc
 }

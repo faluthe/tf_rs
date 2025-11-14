@@ -1,7 +1,7 @@
 use core::f32;
 
 use crate::{
-    cfg_enabled,
+    cfg_enabled, cfg_get,
     globals::{Globals, Target},
     helpers,
     interfaces::Interfaces,
@@ -14,11 +14,11 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd) {
         return;
     }
 
-    let (target, Some(aim_angle)) = get_target(localplayer, &cmd.view_angles) else {
+    let (target, aim_angle) = get_target(localplayer, &cmd.view_angles);
+    Globals::write().target = target;
+    let Some(aim_angle) = aim_angle else {
         return;
     };
-
-    Globals::write().target = target;
 
     let wants_shot = (cmd.buttons & Buttons::InAttack as i32) != 0;
 
@@ -61,7 +61,7 @@ pub fn get_target(localplayer: &Player, view_angle: &Vec3) -> (Option<Target>, O
             let aim_angle = helpers::calculate_angle(&shoot_pos, &player_pos);
             let fov = view_angle.fov_to(&aim_angle);
 
-            if fov < smallest_fov {
+            if fov < smallest_fov && fov <= cfg_get!(aimbot_fov) as f32 {
                 smallest_fov = fov;
                 target_angle = Some(aim_angle);
                 target = Some(Target {
