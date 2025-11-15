@@ -1,6 +1,9 @@
-use std::ffi::{CString, c_void};
+use std::{
+    ffi::{CString, c_void},
+    ptr,
+};
 
-use nuklear_sys::{SDL_Event, SDL_GL_MakeCurrent, SDL_Window};
+use nuklear_sys::{SDL_Event, SDL_GL_MakeCurrent, SDL_GetKeyboardState, SDL_Scancode, SDL_Window};
 
 use crate::{
     Key, Rect,
@@ -97,5 +100,10 @@ impl Nuklear {
             return true;
         }
         false
+    }
+
+    pub fn is_key_pressed(key: SDL_Scancode) -> bool {
+        let state = unsafe { SDL_GetKeyboardState(ptr::null_mut()) };
+        unsafe { *state.add(key as usize) != 0 }
     }
 }

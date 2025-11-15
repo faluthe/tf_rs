@@ -10,6 +10,7 @@ pub struct Config {
     pub silent_aim: AtomicI32,
     pub aimbot_fov: AtomicI32,
     pub draw_fov: AtomicI32,
+    pub use_aimbot_key: AtomicI32,
 }
 
 pub static CONFIG: Lazy<Config> = Lazy::new(|| Config::default());

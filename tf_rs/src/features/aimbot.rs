@@ -20,10 +20,15 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd) {
         return;
     };
 
-    let wants_shot = (cmd.buttons & Buttons::InAttack as i32) != 0;
+    let use_key = cfg_enabled!(use_aimbot_key);
+    let wants_shot = (use_key && Globals::read().aimbot_key_down)
+        || (!use_key && (cmd.buttons & Buttons::InAttack as i32) != 0);
 
     if wants_shot && localplayer.can_attack() {
         cmd.view_angles = aim_angle;
+        if use_key {
+            cmd.buttons |= Buttons::InAttack as i32;
+        }
     }
 }
 
