@@ -45,6 +45,8 @@ pub fn draw(nk: &Nuklear) {
                 if cfg_enabled!(aimbot) {
                     nk.row_dynamic(30.0, 1)
                         .checkbox("Silent Aim", CONFIG.silent_aim.as_ptr())
+                        .row_dynamic(30.0, 1)
+                        .checkbox("Use key", CONFIG.use_aimbot_key.as_ptr())
                         .row_dynamic(30.0, 2)
                         .label(
                             format!("Aimbot FOV: {}", cfg_get!(aimbot_fov)),

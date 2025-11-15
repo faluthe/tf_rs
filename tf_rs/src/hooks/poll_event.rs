@@ -1,8 +1,8 @@
 use std::ffi::c_void;
 
-use nuklear::Nuklear;
+use nuklear::{Nuklear, SDL_Scancode};
 
-use crate::hooks::Hooks;
+use crate::{globals::Globals, hooks::Hooks};
 
 pub extern "C" fn hk_poll_event(event: *mut c_void) -> i32 {
     let rc = Hooks::poll_event()
@@ -14,6 +14,8 @@ pub extern "C" fn hk_poll_event(event: *mut c_void) -> i32 {
         Nuklear::capture_input(event);
         return rc;
     }
+
+    Globals::write().aimbot_key_down = Nuklear::is_key_pressed(SDL_Scancode::SDL_SCANCODE_X);
 
     rc
 }
