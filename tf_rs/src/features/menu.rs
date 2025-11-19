@@ -21,7 +21,7 @@ pub fn draw(nk: &Nuklear) {
         Rect {
             x: 200.0,
             y: 200.0,
-            w: 500.0,
+            w: 600.0,
             h: 400.0,
         },
     ) {
@@ -53,7 +53,7 @@ fn aimbot_tab(nk: &Nuklear) {
 
     if cfg_enabled!(aimbot) {
         nk.row_dynamic(30.0, 1)
-            .checkbox("Silent Aim", CONFIG.silent_aim.as_ptr())
+            .checkbox("Silent aim", CONFIG.silent_aim.as_ptr())
             .row_dynamic(30.0, 1)
             .checkbox("Use key", CONFIG.use_aimbot_key.as_ptr())
             .row_dynamic(30.0, 2)
@@ -63,13 +63,20 @@ fn aimbot_tab(nk: &Nuklear) {
             )
             .slider_int(1, CONFIG.aimbot_fov.as_ptr(), 100, 1)
             .row_dynamic(30.0, 1)
-            .checkbox("Draw fov", CONFIG.draw_fov.as_ptr());
+            .checkbox("Draw FOV", CONFIG.draw_fov.as_ptr());
     }
 }
 
 fn esp_tab(nk: &Nuklear) {
     nk.row_dynamic(30.0, 1)
-        .checkbox("ESP Boxes", CONFIG.esp.as_ptr());
+        .checkbox("Master", CONFIG.esp.as_ptr());
+
+    if cfg_enabled!(esp) {
+        nk.row_dynamic(30.0, 3)
+            .checkbox("Boxes", CONFIG.esp_boxes.as_ptr())
+            .checkbox("Names", CONFIG.esp_names.as_ptr())
+            .checkbox("Aimbot target", CONFIG.esp_aimbot_target.as_ptr());
+    }
 }
 
 fn misc_tab(nk: &Nuklear) {
