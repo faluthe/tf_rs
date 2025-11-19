@@ -1,10 +1,10 @@
 use crate::{
-    cfg_enabled,
+    config::Config,
     types::{Player, UserCmd, user_cmd::Buttons},
 };
 
-pub fn bunnyhop(localplayer: &Player, cmd: *mut UserCmd) {
-    if !cfg_enabled!(bunnyhop) {
+pub fn bunnyhop(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
+    if config.bunnyhop == 0 {
         return;
     }
 

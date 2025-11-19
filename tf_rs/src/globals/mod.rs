@@ -15,7 +15,7 @@ pub struct Target {
 }
 
 // TODO: Use arc swap?
-pub static G: Lazy<RwLock<Globals>> = Lazy::new(|| RwLock::new(Globals::default()));
+static G: Lazy<RwLock<Globals>> = Lazy::new(|| RwLock::new(Globals::default()));
 
 impl Globals {
     pub fn write() -> RwLockWriteGuard<'static, Globals> {

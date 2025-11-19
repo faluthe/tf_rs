@@ -1,38 +1,39 @@
-use std::sync::atomic::AtomicI32;
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use once_cell::sync::Lazy;
 
 #[derive(Default)]
 pub struct Config {
-    pub bunnyhop: AtomicI32,
-    pub esp: AtomicI32,
-    pub esp_boxes: AtomicI32,
-    pub esp_names: AtomicI32,
-    pub esp_aimbot_target: AtomicI32,
-    pub aimbot: AtomicI32,
-    pub silent_aim: AtomicI32,
-    pub aimbot_fov: AtomicI32,
-    pub draw_fov: AtomicI32,
-    pub use_aimbot_key: AtomicI32,
+    pub bunnyhop: i32, // nuklear expects i32 :P
+    pub esp: ESPConfig,
+    pub aimbot: AimbotConfig,
 }
 
-pub static CONFIG: Lazy<Config> = Lazy::new(|| Config::default());
-
-#[macro_export]
-macro_rules! cfg_enabled {
-    ($field:ident) => {
-        crate::config::CONFIG
-            .$field
-            .load(std::sync::atomic::Ordering::Relaxed)
-            != 0
-    };
+#[derive(Default)]
+pub struct ESPConfig {
+    pub master: i32,
+    pub boxes: i32,
+    pub names: i32,
+    pub aimbot_target: i32,
 }
 
-#[macro_export]
-macro_rules! cfg_get {
-    ($field:ident) => {
-        crate::config::CONFIG
-            .$field
-            .load(std::sync::atomic::Ordering::Relaxed)
-    };
+#[derive(Default)]
+pub struct AimbotConfig {
+    pub master: i32,
+    pub silent_aim: i32,
+    pub use_key: i32,
+    pub fov: i32,
+    pub draw_fov: i32,
+}
+
+static C: Lazy<RwLock<Config>> = Lazy::new(|| RwLock::new(Config::default()));
+
+impl Config {
+    pub fn write() -> RwLockWriteGuard<'static, Config> {
+        C.write().unwrap()
+    }
+
+    pub fn read() -> RwLockReadGuard<'static, Config> {
+        C.read().unwrap()
+    }
 }

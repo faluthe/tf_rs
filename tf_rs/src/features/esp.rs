@@ -1,7 +1,7 @@
 use std::sync::OnceLock;
 
 use crate::{
-    cfg_enabled, cfg_get,
+    config::Config,
     globals::{Globals, Target},
     helpers,
     interfaces::Interfaces,
@@ -18,8 +18,8 @@ pub fn esp_font() -> u64 {
     })
 }
 
-pub fn player_esp(localplayer: &Player) {
-    if !cfg_enabled!(esp) {
+pub fn player_esp(localplayer: &Player, config: &Config) {
+    if config.esp.master == 0 {
         return;
     }
 
@@ -38,19 +38,19 @@ pub fn player_esp(localplayer: &Player) {
             }
 
             if let Some((left, top, right, bottom)) = helpers::get_bounding_box(player) {
-                draw_box(left, top, right, bottom);
-                draw_name(left, top, right, bottom, i);
+                draw_box(left, top, right, bottom, config);
+                draw_name(left, top, right, bottom, i, config);
 
                 if Some(i) == target.map(|t| t.target_index) {
-                    draw_target(left, top, right, bottom, target);
+                    draw_target(left, top, right, bottom, target, config);
                 }
             }
         }
     }
 }
 
-fn draw_box(left: i32, top: i32, right: i32, bottom: i32) {
-    if !cfg_enabled!(esp_boxes) {
+fn draw_box(left: i32, top: i32, right: i32, bottom: i32, config: &Config) {
+    if config.esp.boxes == 0 {
         return;
     }
 
@@ -58,8 +58,8 @@ fn draw_box(left: i32, top: i32, right: i32, bottom: i32) {
     Interfaces::surface().draw_outlined_rect(left, top, right, bottom);
 }
 
-fn draw_name(left: i32, top: i32, _right: i32, _bottom: i32, player_index: i32) {
-    if !cfg_enabled!(esp_names) {
+fn draw_name(left: i32, top: i32, _right: i32, _bottom: i32, player_index: i32, config: &Config) {
+    if config.esp.names == 0 {
         return;
     }
 
@@ -73,8 +73,15 @@ fn draw_name(left: i32, top: i32, _right: i32, _bottom: i32, player_index: i32) 
     Interfaces::surface().draw_print_text(name);
 }
 
-fn draw_target(_left: i32, top: i32, right: i32, _bottom: i32, target: Option<&Target>) {
-    if !cfg_enabled!(esp_aimbot_target) {
+fn draw_target(
+    _left: i32,
+    top: i32,
+    right: i32,
+    _bottom: i32,
+    target: Option<&Target>,
+    config: &Config,
+) {
+    if config.esp.aimbot_target == 0 {
         return;
     }
 
@@ -89,12 +96,12 @@ fn draw_target(_left: i32, top: i32, right: i32, _bottom: i32, target: Option<&T
 }
 
 // TODO: Fix for scoped weapons
-pub fn draw_fov() {
-    if !cfg_enabled!(draw_fov) {
+pub fn draw_fov(config: &Config) {
+    if config.aimbot.draw_fov == 0 {
         return;
     }
 
-    let fov = cfg_get!(aimbot_fov) as f32;
+    let fov = config.aimbot.fov as f32;
     let (width, height) = Interfaces::engine_client().get_screen_size();
 
     let radius = (f32::tan((fov / 2.0).to_radians()) / f32::tan(45.0f32.to_radians()))
