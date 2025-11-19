@@ -6,6 +6,9 @@ use once_cell::sync::Lazy;
 pub struct Config {
     pub bunnyhop: AtomicI32,
     pub esp: AtomicI32,
+    pub esp_boxes: AtomicI32,
+    pub esp_names: AtomicI32,
+    pub esp_aimbot_target: AtomicI32,
     pub aimbot: AtomicI32,
     pub silent_aim: AtomicI32,
     pub aimbot_fov: AtomicI32,
