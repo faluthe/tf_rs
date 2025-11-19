@@ -3,7 +3,7 @@ use nuklear::{
     flags::{PanelFlags, TextAlignment},
 };
 
-use crate::{cfg_enabled, cfg_get, config::CONFIG};
+use crate::config::Config;
 
 static mut TAB: MenuTab = MenuTab::Aimbot;
 
@@ -25,15 +25,17 @@ pub fn draw(nk: &Nuklear) {
             h: 400.0,
         },
     ) {
+        let mut config = Config::write();
+
         nk.row_dynamic(30.0, 3);
         tab_button(nk, "Aimbot", MenuTab::Aimbot);
         tab_button(nk, "ESP", MenuTab::ESP);
         tab_button(nk, "Misc", MenuTab::Misc);
 
         match unsafe { TAB } {
-            MenuTab::Aimbot => aimbot_tab(nk),
-            MenuTab::ESP => esp_tab(nk),
-            MenuTab::Misc => misc_tab(nk),
+            MenuTab::Aimbot => aimbot_tab(nk, &mut config),
+            MenuTab::ESP => esp_tab(nk, &mut config),
+            MenuTab::Misc => misc_tab(nk, &mut config),
         }
     }
     nk.end();
@@ -47,39 +49,39 @@ fn tab_button(nk: &Nuklear, title: &str, tab: MenuTab) {
     }
 }
 
-fn aimbot_tab(nk: &Nuklear) {
+fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
     nk.row_dynamic(30.0, 1)
-        .checkbox("Master", CONFIG.aimbot.as_ptr());
+        .checkbox("Master", &mut config.aimbot.master);
 
-    if cfg_enabled!(aimbot) {
+    if config.aimbot.master != 0 {
         nk.row_dynamic(30.0, 1)
-            .checkbox("Silent aim", CONFIG.silent_aim.as_ptr())
+            .checkbox("Silent aim", &mut config.aimbot.silent_aim)
             .row_dynamic(30.0, 1)
-            .checkbox("Use key", CONFIG.use_aimbot_key.as_ptr())
+            .checkbox("Use key", &mut config.aimbot.use_key)
             .row_dynamic(30.0, 2)
             .label(
-                format!("Aimbot FOV: {}", cfg_get!(aimbot_fov)),
+                format!("Aimbot FOV: {}", config.aimbot.fov),
                 TextAlignment::LEFT,
             )
-            .slider_int(1, CONFIG.aimbot_fov.as_ptr(), 100, 1)
+            .slider_int(1, &mut config.aimbot.fov, 100, 1)
             .row_dynamic(30.0, 1)
-            .checkbox("Draw FOV", CONFIG.draw_fov.as_ptr());
+            .checkbox("Draw FOV", &mut config.aimbot.draw_fov);
     }
 }
 
-fn esp_tab(nk: &Nuklear) {
+fn esp_tab(nk: &Nuklear, config: &mut Config) {
     nk.row_dynamic(30.0, 1)
-        .checkbox("Master", CONFIG.esp.as_ptr());
+        .checkbox("Master", &mut config.esp.master);
 
-    if cfg_enabled!(esp) {
+    if config.esp.master != 0 {
         nk.row_dynamic(30.0, 3)
-            .checkbox("Boxes", CONFIG.esp_boxes.as_ptr())
-            .checkbox("Names", CONFIG.esp_names.as_ptr())
-            .checkbox("Aimbot target", CONFIG.esp_aimbot_target.as_ptr());
+            .checkbox("Boxes", &mut config.esp.boxes)
+            .checkbox("Names", &mut config.esp.names)
+            .checkbox("Aimbot target", &mut config.esp.aimbot_target);
     }
 }
 
-fn misc_tab(nk: &Nuklear) {
+fn misc_tab(nk: &Nuklear, config: &mut Config) {
     nk.row_dynamic(30.0, 1)
-        .checkbox("Bunnyhop", CONFIG.bunnyhop.as_ptr());
+        .checkbox("Bunnyhop", &mut config.bunnyhop);
 }

@@ -1,26 +1,26 @@
 use core::f32;
 
 use crate::{
-    cfg_enabled, cfg_get,
+    config::Config,
     globals::{Globals, Target},
     helpers,
     interfaces::Interfaces,
     types::{Player, UserCmd, Vec3, user_cmd::Buttons},
 };
 
-pub fn run(localplayer: &Player, cmd: *mut UserCmd) {
+pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
     let cmd = unsafe { &mut *cmd };
-    if !cfg_enabled!(aimbot) {
+    if config.aimbot.master == 0 {
         return;
     }
 
-    let (target, aim_angle) = get_target(localplayer, &cmd.view_angles);
+    let (target, aim_angle) = get_target(localplayer, &cmd.view_angles, config);
     Globals::write().target = target;
     let Some(aim_angle) = aim_angle else {
         return;
     };
 
-    let use_key = cfg_enabled!(use_aimbot_key);
+    let use_key = config.aimbot.use_key != 0;
     let wants_shot = (use_key && Globals::read().aimbot_key_down)
         || (!use_key && (cmd.buttons & Buttons::InAttack as i32) != 0);
 
@@ -33,7 +33,11 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd) {
 }
 
 // TODO: Add sentry + other entity checks
-pub fn get_target(localplayer: &Player, view_angle: &Vec3) -> (Option<Target>, Option<Vec3>) {
+pub fn get_target(
+    localplayer: &Player,
+    view_angle: &Vec3,
+    config: &Config,
+) -> (Option<Target>, Option<Vec3>) {
     let shoot_pos = localplayer.eye_pos();
     let mut smallest_fov = f32::MAX;
     let mut target_angle = None;
@@ -66,7 +70,7 @@ pub fn get_target(localplayer: &Player, view_angle: &Vec3) -> (Option<Target>, O
             let aim_angle = helpers::calculate_angle(&shoot_pos, &player_pos);
             let fov = view_angle.fov_to(&aim_angle);
 
-            if fov < smallest_fov && fov <= cfg_get!(aimbot_fov) as f32 {
+            if fov < smallest_fov && fov <= config.aimbot.fov as f32 {
                 smallest_fov = fov;
                 target_angle = Some(aim_angle);
                 target = Some(Target {
