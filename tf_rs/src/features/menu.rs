@@ -14,14 +14,6 @@ enum MenuTab {
     Misc,
 }
 
-fn draw_tab(nk: &Nuklear, title: &str, tab: MenuTab) {
-    if nk.button_label(title) {
-        unsafe {
-            TAB = tab;
-        }
-    }
-}
-
 pub fn draw(nk: &Nuklear) {
     if nk.begin(
         "TF_RS",
@@ -34,38 +26,53 @@ pub fn draw(nk: &Nuklear) {
         },
     ) {
         nk.row_dynamic(30.0, 3);
-        draw_tab(nk, "Aimbot", MenuTab::Aimbot);
-        draw_tab(nk, "ESP", MenuTab::ESP);
-        draw_tab(nk, "Misc", MenuTab::Misc);
+        tab_button(nk, "Aimbot", MenuTab::Aimbot);
+        tab_button(nk, "ESP", MenuTab::ESP);
+        tab_button(nk, "Misc", MenuTab::Misc);
 
         match unsafe { TAB } {
-            MenuTab::Aimbot => {
-                nk.row_dynamic(30.0, 1)
-                    .checkbox("Master", CONFIG.aimbot.as_ptr());
-                if cfg_enabled!(aimbot) {
-                    nk.row_dynamic(30.0, 1)
-                        .checkbox("Silent Aim", CONFIG.silent_aim.as_ptr())
-                        .row_dynamic(30.0, 1)
-                        .checkbox("Use key", CONFIG.use_aimbot_key.as_ptr())
-                        .row_dynamic(30.0, 2)
-                        .label(
-                            format!("Aimbot FOV: {}", cfg_get!(aimbot_fov)),
-                            TextAlignment::LEFT,
-                        )
-                        .slider_int(1, CONFIG.aimbot_fov.as_ptr(), 100, 1)
-                        .row_dynamic(30.0, 1)
-                        .checkbox("Draw fov", CONFIG.draw_fov.as_ptr());
-                }
-            }
-            MenuTab::ESP => {
-                nk.row_dynamic(30.0, 1)
-                    .checkbox("ESP Boxes", CONFIG.esp.as_ptr());
-            }
-            MenuTab::Misc => {
-                nk.row_dynamic(30.0, 1)
-                    .checkbox("Bunnyhop", CONFIG.bunnyhop.as_ptr());
-            }
+            MenuTab::Aimbot => aimbot_tab(nk),
+            MenuTab::ESP => esp_tab(nk),
+            MenuTab::Misc => misc_tab(nk),
         }
     }
     nk.end();
+}
+
+fn tab_button(nk: &Nuklear, title: &str, tab: MenuTab) {
+    if nk.button_label(title) {
+        unsafe {
+            TAB = tab;
+        }
+    }
+}
+
+fn aimbot_tab(nk: &Nuklear) {
+    nk.row_dynamic(30.0, 1)
+        .checkbox("Master", CONFIG.aimbot.as_ptr());
+
+    if cfg_enabled!(aimbot) {
+        nk.row_dynamic(30.0, 1)
+            .checkbox("Silent Aim", CONFIG.silent_aim.as_ptr())
+            .row_dynamic(30.0, 1)
+            .checkbox("Use key", CONFIG.use_aimbot_key.as_ptr())
+            .row_dynamic(30.0, 2)
+            .label(
+                format!("Aimbot FOV: {}", cfg_get!(aimbot_fov)),
+                TextAlignment::LEFT,
+            )
+            .slider_int(1, CONFIG.aimbot_fov.as_ptr(), 100, 1)
+            .row_dynamic(30.0, 1)
+            .checkbox("Draw fov", CONFIG.draw_fov.as_ptr());
+    }
+}
+
+fn esp_tab(nk: &Nuklear) {
+    nk.row_dynamic(30.0, 1)
+        .checkbox("ESP Boxes", CONFIG.esp.as_ptr());
+}
+
+fn misc_tab(nk: &Nuklear) {
+    nk.row_dynamic(30.0, 1)
+        .checkbox("Bunnyhop", CONFIG.bunnyhop.as_ptr());
 }
