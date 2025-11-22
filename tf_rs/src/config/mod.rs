@@ -6,6 +6,7 @@ use std::{
     sync::{RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
+use log::error;
 use once_cell::sync::Lazy;
 
 #[derive(Default)]
@@ -34,10 +35,41 @@ pub struct AimbotConfig {
 
 static C: Lazy<RwLock<Config>> = Lazy::new(|| {
     let cfg = Config::load_or_create("default").unwrap_or_else(|e| {
-        eprintln!("Failed to load config: {}", e);
+        error!("Failed to load config: {}", e);
         Config::default()
     });
     RwLock::new(cfg)
+});
+
+// TODO: Clean this up
+static L: Lazy<Vec<String>> = Lazy::new(|| {
+    let home = match env::var("HOME") {
+        Ok(h) => h,
+        Err(_) => return Vec::new(),
+    };
+    let mut configs = Vec::new();
+    let dir = match fs::read_dir(&home) {
+        Ok(d) => d,
+        Err(_) => return Vec::new(),
+    };
+    for entry in dir {
+        if let Ok(entry) = entry {
+            let file_name = entry.file_name();
+            let file_name = file_name.to_string_lossy();
+            if file_name.starts_with('.') && file_name.ends_with(".tf_rs.cfg") {
+                configs.push(file_name.to_string());
+            }
+        }
+    }
+
+    configs
+        .iter()
+        .map(|s| {
+            s.trim_start_matches('.')
+                .trim_end_matches(".tf_rs.cfg")
+                .to_string()
+        })
+        .collect()
 });
 
 impl Config {
@@ -47,6 +79,10 @@ impl Config {
 
     pub fn read() -> RwLockReadGuard<'static, Config> {
         C.read().unwrap()
+    }
+
+    pub fn list_configs() -> &'static Vec<String> {
+        &L
     }
 
     pub fn load(&mut self, name: &str) -> anyhow::Result<()> {

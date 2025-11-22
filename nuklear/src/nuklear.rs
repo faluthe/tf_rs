@@ -8,7 +8,7 @@ use nuklear_sys::{SDL_Event, SDL_GL_MakeCurrent, SDL_GetKeyboardState, SDL_Scanc
 use crate::{
     Key, Rect,
     context::Context,
-    flags::{PanelFlags, TextAlignment},
+    flags::{LayoutFormat, PanelFlags, TextAlignment},
 };
 
 static mut DO_DRAW: bool = false;
@@ -70,6 +70,44 @@ impl Nuklear {
         self.row_dynamic(thickness, 1);
         self.context.rule_horizontal(80, 80, 80, 255, 0);
         self
+    }
+
+    pub fn get_content_region(&self) -> (f32, f32) {
+        self.context.window_get_content_region()
+    }
+
+    pub fn group_begin<T: Into<Vec<u8>>>(&self, title: T, flags: PanelFlags) -> bool {
+        self.context
+            .group_begin(CString::new(title).unwrap(), flags.bits())
+    }
+
+    pub fn layout_row_begin(&self, fmt: LayoutFormat, row_height: f32, cols: i32) -> &Self {
+        self.context.layout_row_begin(fmt as u32, row_height, cols);
+        self
+    }
+
+    pub fn layout_row_push(&self, width: f32) -> &Self {
+        self.context.layout_row_push(width);
+        self
+    }
+
+    pub fn layout_row_end(&self) -> &Self {
+        self.context.layout_row_end();
+        self
+    }
+
+    pub fn group_end(&self) {
+        self.context.group_end();
+    }
+
+    pub fn selectable_label<T: Into<Vec<u8>>>(
+        &self,
+        label: T,
+        align: TextAlignment,
+        selected: *mut i32,
+    ) -> bool {
+        self.context
+            .selectable_label(CString::new(label).unwrap(), align as u32, selected)
     }
 
     pub fn end(&self) {
