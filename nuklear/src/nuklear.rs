@@ -66,6 +66,12 @@ impl Nuklear {
         self
     }
 
+    pub fn horizontal_separator(&self, thickness: f32) -> &Self {
+        self.row_dynamic(thickness, 1);
+        self.context.rule_horizontal(80, 80, 80, 255, 0);
+        self
+    }
+
     pub fn end(&self) {
         self.context.end();
     }
