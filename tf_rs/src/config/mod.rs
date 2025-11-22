@@ -1,4 +1,5 @@
-use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use core::fmt;
+use std::{env, fs, path::PathBuf, str::FromStr, sync::{RwLock, RwLockReadGuard, RwLockWriteGuard}};
 
 use once_cell::sync::Lazy;
 
@@ -26,7 +27,13 @@ pub struct AimbotConfig {
     pub draw_fov: i32,
 }
 
-static C: Lazy<RwLock<Config>> = Lazy::new(|| RwLock::new(Config::default()));
+static C: Lazy<RwLock<Config>> = Lazy::new(|| {
+    let cfg = Config::load_or_create("default").unwrap_or_else(|e| {
+        eprintln!("Failed to load config: {}", e);
+        Config::default()
+    });
+    RwLock::new(cfg)
+});
 
 impl Config {
     pub fn write() -> RwLockWriteGuard<'static, Config> {
@@ -35,5 +42,80 @@ impl Config {
 
     pub fn read() -> RwLockReadGuard<'static, Config> {
         C.read().unwrap()
+    }
+
+    fn load_or_create(name: &str) -> anyhow::Result<Self> {
+        let home = env::var("HOME")?;
+
+        let mut path = PathBuf::from(home);
+        path.push(format!(".{}.tf_rs.cfg", name));
+        
+        if path.exists() {
+            match fs::read_to_string(&path) {
+                Ok(s) => {
+                    if let Ok(cfg) = s.parse::<Config>() {
+                        return Ok(cfg);
+                    }
+                }
+                Err(_) => {}
+            }
+        }
+
+        let cfg = Config::default();
+
+        fs::write(&path, cfg.to_string())?;
+
+        Ok(cfg)
+    }
+}
+
+impl fmt::Display for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "bunnyhop: {}", self.bunnyhop)?;
+        writeln!(f, "esp.master: {}", self.esp.master)?;
+        writeln!(f, "esp.boxes: {}", self.esp.boxes)?;
+        writeln!(f, "esp.names: {}", self.esp.names)?;
+        writeln!(f, "esp.aimbot_target: {}", self.esp.aimbot_target)?;
+        writeln!(f, "aimbot.master: {}", self.aimbot.master)?;
+        writeln!(f, "aimbot.silent_aim: {}", self.aimbot.silent_aim)?;
+        writeln!(f, "aimbot.use_key: {}", self.aimbot.use_key)?;
+        writeln!(f, "aimbot.fov: {}", self.aimbot.fov)?;
+        writeln!(f, "aimbot.draw_fov: {}", self.aimbot.draw_fov)?;
+
+        Ok(())
+    }
+}
+
+impl FromStr for Config {
+    type Err = String;
+    
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut cfg = Config::default();
+        for line in s.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            let mut parts = line.splitn(2, ":");
+            let key = parts.next().ok_or("Missing key")?.trim();
+            let value_str = parts.next().ok_or("Missing value")?.trim();
+            let value: i32 = value_str.parse().map_err(|_| format!("Invalid value for {}: {}", key, value_str))?;
+
+            match key {
+                "bunnyhop" => cfg.bunnyhop = value,
+                "esp.master" => cfg.esp.master = value,
+                "esp.boxes" => cfg.esp.boxes = value,
+                "esp.names" => cfg.esp.names = value,
+                "esp.aimbot_target" => cfg.esp.aimbot_target = value,
+                "aimbot.master" => cfg.aimbot.master = value,
+                "aimbot.silent_aim" => cfg.aimbot.silent_aim = value,
+                "aimbot.use_key" => cfg.aimbot.use_key = value,
+                "aimbot.fov" => cfg.aimbot.fov = value,
+                "aimbot.draw_fov" => cfg.aimbot.draw_fov = value,
+                _ => return Err(format!("Unknown config key: {}", key)),
+            }
+        }
+        Ok(cfg)
     }
 }
