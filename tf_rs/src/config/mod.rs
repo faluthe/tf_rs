@@ -49,11 +49,36 @@ impl Config {
         C.read().unwrap()
     }
 
-    fn load_or_create(name: &str) -> anyhow::Result<Self> {
-        let home = env::var("HOME")?;
+    pub fn load(&mut self, name: &str) -> anyhow::Result<()> {
+        let path = Config::get_path(name)?;
 
-        let mut path = PathBuf::from(home);
-        path.push(format!(".{}.tf_rs.cfg", name));
+        if path.exists() {
+            match fs::read_to_string(&path) {
+                Ok(s) => {
+                    if let Ok(cfg) = s.parse::<Config>() {
+                        *self = cfg;
+                        return Ok(());
+                    }
+                }
+                Err(e) => {
+                    return Err(anyhow::anyhow!("Failed to read config file: {}", e));
+                }
+            }
+        }
+
+        Err(anyhow::anyhow!("Config file does not exist"))
+    }
+
+    pub fn save(&self, name: &str) -> anyhow::Result<()> {
+        let path = Config::get_path(name)?;
+
+        fs::write(&path, self.to_string())?;
+
+        Ok(())
+    }
+
+    fn load_or_create(name: &str) -> anyhow::Result<Self> {
+        let path = Config::get_path(name)?;
 
         if path.exists() {
             match fs::read_to_string(&path) {
@@ -71,6 +96,15 @@ impl Config {
         fs::write(&path, cfg.to_string())?;
 
         Ok(cfg)
+    }
+
+    fn get_path(name: &str) -> anyhow::Result<PathBuf> {
+        let home = env::var("HOME")?;
+
+        let mut path = PathBuf::from(home);
+        path.push(format!(".{}.tf_rs.cfg", name));
+
+        Ok(path)
     }
 }
 
