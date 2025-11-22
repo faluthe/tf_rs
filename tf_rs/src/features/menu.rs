@@ -1,11 +1,12 @@
 use nuklear::{
     Nuklear, Rect,
-    flags::{PanelFlags, TextAlignment},
+    flags::{LayoutFormat, PanelFlags, TextAlignment},
 };
 
 use crate::config::Config;
 
 static mut TAB: MenuTab = MenuTab::Aimbot;
+static mut SELECTED_CONFIG: usize = 0;
 
 #[derive(Clone, Copy)]
 enum MenuTab {
@@ -90,12 +91,36 @@ fn misc_tab(nk: &Nuklear, config: &mut Config) {
 }
 
 fn config_tab(nk: &Nuklear, config: &mut Config) {
-    nk.row_dynamic(30.0, 2);
-    if nk.button_label("Load config") {
-        config.load("default").unwrap();
+    let configs = Config::list_configs();
+
+    nk.row_dynamic(200.0, 1);
+    if nk.group_begin("Configs", PanelFlags::BORDER) {
+        for (i, cfg) in configs.iter().enumerate() {
+            nk.layout_row_begin(LayoutFormat::DYNAMIC, 30.0, 2)
+                .layout_row_push(0.8);
+
+            let mut selected = (unsafe { SELECTED_CONFIG } == i) as i32;
+            if nk.selectable_label(cfg.as_str(), TextAlignment::LEFT, &mut selected) {
+                unsafe {
+                    SELECTED_CONFIG = i;
+                }
+                config.load(cfg).unwrap(); // TODO: dont unwrap
+            }
+
+            nk.layout_row_push(0.2);
+
+            if selected != 0 && nk.button_label("Save") {
+                config.save(cfg).unwrap(); // TODO: dont unwrap
+            }
+
+            nk.layout_row_end();
+        }
+        nk.group_end();
     }
 
-    if nk.button_label("Save config") {
-        config.save("default").unwrap();
+    nk.row_dynamic(30.0, 2)
+        .label("some config", TextAlignment::LEFT);
+    if nk.button_label("Create new") {
+        // create new config
     }
 }

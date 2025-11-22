@@ -1,8 +1,9 @@
 use bitflags::bitflags;
 
 use nuklear_sys::{
-    nk_panel_flags_NK_WINDOW_BORDER, nk_panel_flags_NK_WINDOW_MOVABLE,
-    nk_panel_flags_NK_WINDOW_TITLE, nk_text_alignment_NK_TEXT_LEFT,
+    nk_layout_format_NK_DYNAMIC, nk_layout_format_NK_STATIC, nk_panel_flags_NK_WINDOW_BORDER,
+    nk_panel_flags_NK_WINDOW_MOVABLE, nk_panel_flags_NK_WINDOW_TITLE,
+    nk_text_alignment_NK_TEXT_CENTERED, nk_text_alignment_NK_TEXT_LEFT,
 };
 
 bitflags! {
@@ -16,4 +17,11 @@ bitflags! {
 #[repr(u32)]
 pub enum TextAlignment {
     LEFT = nk_text_alignment_NK_TEXT_LEFT,
+    CENTER = nk_text_alignment_NK_TEXT_CENTERED,
+}
+
+#[repr(u32)]
+pub enum LayoutFormat {
+    DYNAMIC = nk_layout_format_NK_DYNAMIC,
+    STATIC = nk_layout_format_NK_STATIC,
 }

@@ -3,10 +3,11 @@ use std::{ffi::CString, sync::OnceLock};
 use nuklear_sys::{
     GLEW_OK, SDL_Event, SDL_GL_CreateContext, SDL_GL_GetCurrentContext, SDL_GLContext, SDL_Window,
     glewInit, nk_anti_aliasing_NK_ANTI_ALIASING_ON, nk_begin, nk_bool, nk_button_label,
-    nk_checkbox_label, nk_color, nk_context, nk_end, nk_flags, nk_font_atlas, nk_input_begin,
-    nk_input_end, nk_input_is_key_released, nk_label, nk_layout_row_dynamic, nk_rect,
+    nk_checkbox_label, nk_color, nk_context, nk_end, nk_flags, nk_font_atlas, nk_group_begin,
+    nk_group_end, nk_input_begin, nk_input_end, nk_input_is_key_released, nk_label,
+    nk_layout_row_begin, nk_layout_row_dynamic, nk_layout_row_end, nk_layout_row_push, nk_rect,
     nk_rule_horizontal, nk_sdl_font_stash_begin, nk_sdl_font_stash_end, nk_sdl_handle_event,
-    nk_sdl_init, nk_sdl_render, nk_slider_int,
+    nk_sdl_init, nk_sdl_render, nk_selectable_label, nk_slider_int, nk_window_get_content_region,
 };
 
 static CONTEXT: OnceLock<Context> = OnceLock::new();
@@ -80,6 +81,45 @@ impl Context {
             let color = nk_color { r, g, b, a };
             nk_rule_horizontal(self.nk_ctx, color, rounding);
         }
+    }
+
+    pub(crate) fn window_get_content_region(&self) -> (f32, f32) {
+        unsafe {
+            let rect = nk_window_get_content_region(self.nk_ctx);
+            (rect.w, rect.h)
+        }
+    }
+
+    pub(crate) fn group_begin(&self, title: CString, flags: nk_flags) -> bool {
+        unsafe { nk_group_begin(self.nk_ctx, title.as_ptr(), flags) != 0 }
+    }
+
+    pub(crate) fn layout_row_begin(&self, fmt: u32, row_height: f32, cols: i32) {
+        unsafe {
+            nk_layout_row_begin(self.nk_ctx, fmt, row_height, cols);
+        }
+    }
+
+    pub(crate) fn layout_row_push(&self, width: f32) {
+        unsafe {
+            nk_layout_row_push(self.nk_ctx, width);
+        }
+    }
+
+    pub(crate) fn layout_row_end(&self) {
+        unsafe {
+            nk_layout_row_end(self.nk_ctx);
+        }
+    }
+
+    pub(crate) fn group_end(&self) {
+        unsafe {
+            nk_group_end(self.nk_ctx);
+        }
+    }
+
+    pub(crate) fn selectable_label(&self, label: CString, align: u32, selected: *mut i32) -> bool {
+        unsafe { nk_selectable_label(self.nk_ctx, label.as_ptr(), align, selected) != 0 }
     }
 
     pub(crate) fn input_begin(&self) {
