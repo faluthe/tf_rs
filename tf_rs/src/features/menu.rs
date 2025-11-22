@@ -12,6 +12,7 @@ enum MenuTab {
     Aimbot,
     ESP,
     Misc,
+    Config,
 }
 
 pub fn draw(nk: &Nuklear) {
@@ -27,15 +28,17 @@ pub fn draw(nk: &Nuklear) {
     ) {
         let mut config = Config::write();
 
-        nk.row_dynamic(30.0, 3);
+        nk.row_dynamic(30.0, 4);
         tab_button(nk, "Aimbot", MenuTab::Aimbot);
         tab_button(nk, "ESP", MenuTab::ESP);
         tab_button(nk, "Misc", MenuTab::Misc);
+        tab_button(nk, "Config", MenuTab::Config);
 
         match unsafe { TAB } {
             MenuTab::Aimbot => aimbot_tab(nk, &mut config),
             MenuTab::ESP => esp_tab(nk, &mut config),
             MenuTab::Misc => misc_tab(nk, &mut config),
+            MenuTab::Config => config_tab(nk, &mut config),
         }
     }
     nk.end();
@@ -84,4 +87,15 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
 fn misc_tab(nk: &Nuklear, config: &mut Config) {
     nk.row_dynamic(30.0, 1)
         .checkbox("Bunnyhop", &mut config.bunnyhop);
+}
+
+fn config_tab(nk: &Nuklear, config: &mut Config) {
+    nk.row_dynamic(30.0, 2);
+    if nk.button_label("Load config") {
+        config.load("default").unwrap();
+    }
+
+    if nk.button_label("Save config") {
+        config.save("default").unwrap();
+    }
 }
