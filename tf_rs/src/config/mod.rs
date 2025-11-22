@@ -1,5 +1,10 @@
 use core::fmt;
-use std::{env, fs, path::PathBuf, str::FromStr, sync::{RwLock, RwLockReadGuard, RwLockWriteGuard}};
+use std::{
+    env, fs,
+    path::PathBuf,
+    str::FromStr,
+    sync::{RwLock, RwLockReadGuard, RwLockWriteGuard},
+};
 
 use once_cell::sync::Lazy;
 
@@ -49,7 +54,7 @@ impl Config {
 
         let mut path = PathBuf::from(home);
         path.push(format!(".{}.tf_rs.cfg", name));
-        
+
         if path.exists() {
             match fs::read_to_string(&path) {
                 Ok(s) => {
@@ -88,7 +93,7 @@ impl fmt::Display for Config {
 
 impl FromStr for Config {
     type Err = String;
-    
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut cfg = Config::default();
         for line in s.lines() {
@@ -100,7 +105,9 @@ impl FromStr for Config {
             let mut parts = line.splitn(2, ":");
             let key = parts.next().ok_or("Missing key")?.trim();
             let value_str = parts.next().ok_or("Missing value")?.trim();
-            let value: i32 = value_str.parse().map_err(|_| format!("Invalid value for {}: {}", key, value_str))?;
+            let value: i32 = value_str
+                .parse()
+                .map_err(|_| format!("Invalid value for {}: {}", key, value_str))?;
 
             match key {
                 "bunnyhop" => cfg.bunnyhop = value,
