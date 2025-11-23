@@ -1,12 +1,16 @@
+use std::sync::RwLock;
+
 use nuklear::{
     Nuklear, Rect,
-    flags::{LayoutFormat, PanelFlags, TextAlignment},
+    flags::{EditFlags, LayoutFormat, PanelFlags, TextAlignment},
 };
 
 use crate::config::Config;
 
+// TODO: Clean this up lol
 static mut TAB: MenuTab = MenuTab::Aimbot;
 static mut SELECTED_CONFIG: usize = 0;
+static NEW_CONFIG_NAME: RwLock<[u8; 256]> = RwLock::new([0; 256]);
 
 #[derive(Clone, Copy)]
 enum MenuTab {
@@ -91,36 +95,48 @@ fn misc_tab(nk: &Nuklear, config: &mut Config) {
 }
 
 fn config_tab(nk: &Nuklear, config: &mut Config) {
-    let configs = Config::list_configs();
+    {
+        let configs = Config::list_configs();
 
-    nk.row_dynamic(200.0, 1);
-    if nk.group_begin("Configs", PanelFlags::BORDER) {
-        for (i, cfg) in configs.iter().enumerate() {
-            nk.layout_row_begin(LayoutFormat::DYNAMIC, 30.0, 2)
-                .layout_row_push(0.8);
+        nk.row_dynamic(200.0, 1);
+        if nk.group_begin("Configs", PanelFlags::BORDER) {
+            for (i, cfg) in configs.iter().enumerate() {
+                nk.layout_row_begin(LayoutFormat::DYNAMIC, 30.0, 2)
+                    .layout_row_push(0.8);
 
-            let mut selected = (unsafe { SELECTED_CONFIG } == i) as i32;
-            if nk.selectable_label(cfg.as_str(), TextAlignment::LEFT, &mut selected) {
-                unsafe {
-                    SELECTED_CONFIG = i;
+                let mut selected = (unsafe { SELECTED_CONFIG } == i) as i32;
+                if nk.selectable_label(cfg.as_str(), TextAlignment::LEFT, &mut selected) {
+                    unsafe {
+                        SELECTED_CONFIG = i;
+                    }
+                    config.load(cfg).unwrap(); // TODO: dont unwrap
                 }
-                config.load(cfg).unwrap(); // TODO: dont unwrap
+
+                nk.layout_row_push(0.2);
+
+                if selected != 0 && nk.button_label("Save") {
+                    config.save(cfg).unwrap(); // TODO: dont unwrap
+                }
+
+                nk.layout_row_end();
             }
-
-            nk.layout_row_push(0.2);
-
-            if selected != 0 && nk.button_label("Save") {
-                config.save(cfg).unwrap(); // TODO: dont unwrap
-            }
-
-            nk.layout_row_end();
+            nk.group_end();
         }
-        nk.group_end();
     }
 
+    nk.row_dynamic(30.0, 1);
+
+    if nk.button_label("Refresh") {
+        Config::refresh_configs();
+    }
+
+    let mut ptr = NEW_CONFIG_NAME.write().unwrap();
     nk.row_dynamic(30.0, 2)
-        .label("some config", TextAlignment::LEFT);
+        .edit_string(EditFlags::EDIT_FIELD, ptr.as_mut_ptr() as *mut i8, 256);
     if nk.button_label("Create new") {
-        // create new config
+        let end = ptr.iter().position(|&c| c == 0).unwrap_or(256);
+        let name = str::from_utf8(&ptr[..end]).unwrap();
+        config.save(name).unwrap(); // TODO: dont unwrap
+        Config::refresh_configs();
     }
 }

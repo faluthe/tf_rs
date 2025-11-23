@@ -1,9 +1,10 @@
 use bitflags::bitflags;
 
 use nuklear_sys::{
-    nk_layout_format_NK_DYNAMIC, nk_layout_format_NK_STATIC, nk_panel_flags_NK_WINDOW_BORDER,
-    nk_panel_flags_NK_WINDOW_MOVABLE, nk_panel_flags_NK_WINDOW_TITLE,
-    nk_text_alignment_NK_TEXT_CENTERED, nk_text_alignment_NK_TEXT_LEFT,
+    nk_edit_types_NK_EDIT_FIELD, nk_layout_format_NK_DYNAMIC, nk_layout_format_NK_STATIC,
+    nk_panel_flags_NK_WINDOW_BORDER, nk_panel_flags_NK_WINDOW_MOVABLE,
+    nk_panel_flags_NK_WINDOW_TITLE, nk_text_alignment_NK_TEXT_CENTERED,
+    nk_text_alignment_NK_TEXT_LEFT,
 };
 
 bitflags! {
@@ -11,6 +12,12 @@ bitflags! {
         const BORDER = nk_panel_flags_NK_WINDOW_BORDER;
         const MOVABLE = nk_panel_flags_NK_WINDOW_MOVABLE;
         const TITLE = nk_panel_flags_NK_WINDOW_TITLE;
+    }
+}
+
+bitflags! {
+    pub struct EditFlags : u32 {
+        const EDIT_FIELD = nk_edit_types_NK_EDIT_FIELD;
     }
 }
 
