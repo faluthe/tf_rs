@@ -8,7 +8,7 @@ use nuklear_sys::{SDL_Event, SDL_GL_MakeCurrent, SDL_GetKeyboardState, SDL_Scanc
 use crate::{
     Key, Rect,
     context::Context,
-    flags::{LayoutFormat, PanelFlags, TextAlignment},
+    flags::{EditFlags, LayoutFormat, PanelFlags, TextAlignment},
 };
 
 static mut DO_DRAW: bool = false;
@@ -108,6 +108,12 @@ impl Nuklear {
     ) -> bool {
         self.context
             .selectable_label(CString::new(label).unwrap(), align as u32, selected)
+    }
+
+    pub fn edit_string(&self, flags: EditFlags, buffer: *mut i8, max: i32) -> &Self {
+        self.context
+            .edit_string_zero_terminated(flags.bits(), buffer, max);
+        self
     }
 
     pub fn end(&self) {
