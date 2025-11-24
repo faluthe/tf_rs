@@ -7,6 +7,7 @@ use std::{
 };
 
 use log::error;
+use nuklear::SDL_Scancode;
 use once_cell::sync::Lazy;
 
 #[derive(Default)]
@@ -30,6 +31,7 @@ pub struct AimbotConfig {
     pub master: i32,
     pub silent_aim: i32,
     pub use_key: i32,
+    pub key: SDL_Scancode,
     pub fov: i32,
     pub draw_fov: i32,
 }
@@ -164,6 +166,7 @@ impl fmt::Display for Config {
         writeln!(f, "aimbot.master: {}", self.aimbot.master)?;
         writeln!(f, "aimbot.silent_aim: {}", self.aimbot.silent_aim)?;
         writeln!(f, "aimbot.use_key: {}", self.aimbot.use_key)?;
+        writeln!(f, "aimbot.key: {}", self.aimbot.key as u32)?;
         writeln!(f, "aimbot.fov: {}", self.aimbot.fov)?;
         writeln!(f, "aimbot.draw_fov: {}", self.aimbot.draw_fov)?;
 
@@ -199,6 +202,7 @@ impl FromStr for Config {
                 "aimbot.master" => cfg.aimbot.master = value,
                 "aimbot.silent_aim" => cfg.aimbot.silent_aim = value,
                 "aimbot.use_key" => cfg.aimbot.use_key = value,
+                "aimbot.key" => cfg.aimbot.key = unsafe { std::mem::transmute(value as u32) },
                 "aimbot.fov" => cfg.aimbot.fov = value,
                 "aimbot.draw_fov" => cfg.aimbot.draw_fov = value,
                 _ => return Err(format!("Unknown config key: {}", key)),

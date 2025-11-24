@@ -1,6 +1,6 @@
 use std::{
     ffi::{CString, c_void},
-    ptr,
+    mem, ptr, slice,
 };
 
 use nuklear_sys::{SDL_Event, SDL_GL_MakeCurrent, SDL_GetKeyboardState, SDL_Scancode, SDL_Window};
@@ -155,5 +155,18 @@ impl Nuklear {
     pub fn is_key_pressed(key: SDL_Scancode) -> bool {
         let state = unsafe { SDL_GetKeyboardState(ptr::null_mut()) };
         unsafe { *state.add(key as usize) != 0 }
+    }
+
+    pub fn get_key_pressed() -> Option<SDL_Scancode> {
+        let state = unsafe { SDL_GetKeyboardState(ptr::null_mut()) };
+        let state =
+            unsafe { slice::from_raw_parts(state, SDL_Scancode::SDL_NUM_SCANCODES as usize) };
+
+        for (i, &pressed) in state.iter().enumerate() {
+            if pressed != 0 {
+                return Some(unsafe { mem::transmute(i as u32) });
+            }
+        }
+        None
     }
 }
