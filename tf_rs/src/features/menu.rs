@@ -5,7 +5,7 @@ use nuklear::{
     flags::{EditFlags, LayoutFormat, PanelFlags, TextAlignment},
 };
 
-use crate::config::Config;
+use crate::{config::Config, globals::Globals};
 
 // TODO: Clean this up lol
 static mut TAB: MenuTab = MenuTab::Aimbot;
@@ -64,9 +64,25 @@ fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
     if config.aimbot.master != 0 {
         nk.row_dynamic(30.0, 1)
             .checkbox("Silent aim", &mut config.aimbot.silent_aim)
-            .row_dynamic(30.0, 1)
-            .checkbox("Use key", &mut config.aimbot.use_key)
             .row_dynamic(30.0, 2)
+            .checkbox("Use key", &mut config.aimbot.use_key);
+
+        if config.aimbot.use_key != 0 {
+            let mut g = Globals::write();
+            let label = if g.aimbot_key_editing {
+                "Press a key...".to_string()
+            } else {
+                format!("Aimbot key: {}", config.aimbot.key as u32)
+            };
+
+            if nk.button_label(label.as_str()) {
+                g.aimbot_key_editing = !g.aimbot_key_editing;
+            }
+        } else {
+            nk.label("", TextAlignment::LEFT);
+        }
+
+        nk.row_dynamic(30.0, 2)
             .label(
                 format!("Aimbot FOV: {}", config.aimbot.fov),
                 TextAlignment::LEFT,

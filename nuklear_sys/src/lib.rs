@@ -5,3 +5,9 @@
     non_camel_case_types
 )] // TODO: actually trim down header using bindgen options
 include!(concat!(env!("OUT_DIR"), "/nuklear_bindings.rs"));
+
+impl Default for SDL_Scancode {
+    fn default() -> Self {
+        SDL_Scancode::SDL_SCANCODE_UNKNOWN
+    }
+}

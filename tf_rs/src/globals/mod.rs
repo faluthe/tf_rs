@@ -6,6 +6,7 @@ use once_cell::sync::Lazy;
 pub struct Globals {
     pub target: Option<Target>,
     pub aimbot_key_down: bool,
+    pub aimbot_key_editing: bool,
 }
 
 #[derive(Default)]
