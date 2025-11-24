@@ -22,6 +22,7 @@ pub struct ESPConfig {
     pub boxes: i32,
     pub names: i32,
     pub aimbot_target: i32,
+    pub health: i32,
 }
 
 #[derive(Default)]
@@ -159,6 +160,7 @@ impl fmt::Display for Config {
         writeln!(f, "esp.boxes: {}", self.esp.boxes)?;
         writeln!(f, "esp.names: {}", self.esp.names)?;
         writeln!(f, "esp.aimbot_target: {}", self.esp.aimbot_target)?;
+        writeln!(f, "esp.health: {}", self.esp.health)?;
         writeln!(f, "aimbot.master: {}", self.aimbot.master)?;
         writeln!(f, "aimbot.silent_aim: {}", self.aimbot.silent_aim)?;
         writeln!(f, "aimbot.use_key: {}", self.aimbot.use_key)?;
@@ -193,6 +195,7 @@ impl FromStr for Config {
                 "esp.boxes" => cfg.esp.boxes = value,
                 "esp.names" => cfg.esp.names = value,
                 "esp.aimbot_target" => cfg.esp.aimbot_target = value,
+                "esp.health" => cfg.esp.health = value,
                 "aimbot.master" => cfg.aimbot.master = value,
                 "aimbot.silent_aim" => cfg.aimbot.silent_aim = value,
                 "aimbot.use_key" => cfg.aimbot.use_key = value,

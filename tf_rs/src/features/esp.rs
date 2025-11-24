@@ -37,9 +37,10 @@ pub fn player_esp(localplayer: &Player, config: &Config) {
                 continue;
             }
 
-            if let Some((left, top, right, bottom)) = helpers::get_bounding_box(player) {
+            if let Some((left, top, right, bottom)) = helpers::get_bounding_box(&player) {
                 draw_box(left, top, right, bottom, config);
                 draw_name(left, top, right, bottom, i, config);
+                draw_health(config, &player, top, bottom, right);
 
                 if Some(i) == target.map(|t| t.target_index) {
                     draw_target(left, top, right, bottom, target, config);
@@ -71,6 +72,56 @@ fn draw_name(left: i32, top: i32, _right: i32, _bottom: i32, player_index: i32, 
     Interfaces::surface().draw_set_text_color(255, 255, 255, 255);
     Interfaces::surface().draw_set_text_pos(left as u32, (top - 20) as u32);
     Interfaces::surface().draw_print_text(name);
+}
+
+// TODO: Add overheal
+fn draw_health(config: &Config, player: &Player, top: i32, bottom: i32, right: i32) {
+    if config.esp.health == 0 {
+        return;
+    }
+
+    let max_health = player.max_health();
+
+    if max_health <= 0 {
+        return;
+    }
+
+    let height = bottom - top;
+    if height <= 0 {
+        return;
+    }
+
+    let health_raw = player.health();
+    let health = health_raw.clamp(0, max_health);
+
+    let mut health_percent = health as f32 / max_health as f32;
+    if !health_percent.is_finite() {
+        return;
+    }
+    health_percent = health_percent.clamp(0.0, 1.0);
+
+    let bar_height = (height as f32 * health_percent)
+        .clamp(0.0, height as f32)
+        .round() as i32;
+
+    let bg_top = bottom - height;
+    if bg_top >= bottom {
+        return;
+    }
+
+    Interfaces::surface().draw_set_color(0, 0, 0, 255 / 2);
+    Interfaces::surface().draw_filled_rect(right + 1, bg_top, right + 4, bottom);
+
+    let green = (health_percent * 2.0 * 255.0).min(255.0).max(0.0) as i32;
+    let red = ((1.0 - health_percent) * 2.0 * 255.0).min(255.0).max(0.0) as i32;
+
+    let bar_top = bottom - bar_height;
+    if bar_top >= bottom {
+        return;
+    }
+
+    Interfaces::surface().draw_set_color(red, green, 0, 255);
+    Interfaces::surface().draw_filled_rect(right + 2, bar_top, right + 3, bottom - 1);
 }
 
 fn draw_target(

@@ -23,6 +23,7 @@ impl FromRaw for Player {
 
 impl Player {
     offset_get!(pub fn health: i32, 0xD4);
+    offset_get!(pub fn max_health: i32, 0x1DF8);
     offset_get!(pub fn flags: i32, 0x460);
     offset_get!(pub fn team: i32, 0xDC);
     offset_get!(pub fn origin: Vec3, 0x328);
