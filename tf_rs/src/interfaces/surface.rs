@@ -23,6 +23,15 @@ impl Surface {
         f(self.this, r, g, b, a)
     }
 
+    pub fn draw_filled_rect(&self, x0: i32, y0: i32, x1: i32, y1: i32) {
+        let f = vfunc!(
+            self.vtable,
+            12,
+            extern "C" fn(*mut c_void, i32, i32, i32, i32) -> ()
+        );
+        f(self.this, x0, y0, x1, y1)
+    }
+
     pub fn draw_outlined_rect(&self, x0: i32, y0: i32, x1: i32, y1: i32) {
         let f = vfunc!(
             self.vtable,

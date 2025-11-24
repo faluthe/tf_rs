@@ -82,9 +82,10 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
         .checkbox("Master", &mut config.esp.master);
 
     if config.esp.master != 0 {
-        nk.row_dynamic(30.0, 3)
+        nk.row_dynamic(30.0, 4)
             .checkbox("Boxes", &mut config.esp.boxes)
             .checkbox("Names", &mut config.esp.names)
+            .checkbox("Health", &mut config.esp.health)
             .checkbox("Aimbot target", &mut config.esp.aimbot_target);
     }
 }
