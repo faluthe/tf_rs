@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use nuklear::{Nuklear, SDL_Scancode};
+use nuklear::{Input, Nuklear, SDL_Scancode};
 
 use crate::{config::Config, globals::Globals, hooks::Hooks};
 
@@ -15,12 +15,20 @@ pub extern "C" fn hk_poll_event(event: *mut c_void) -> i32 {
 
     if rc != 0 && Nuklear::handle_event(event) && Nuklear::should_draw() {
         if globals.aimbot_key_editing {
-            // TODO: Handle mouse buttons
-            if let Some(key) = Nuklear::get_key_pressed() {
-                globals.aimbot_key_editing = false;
-                if key != SDL_Scancode::SDL_SCANCODE_ESCAPE {
-                    config.aimbot.key = key;
+            match Nuklear::get_input_pressed() {
+                Input::Key(code) => {
+                    globals.aimbot_key_editing = false;
+                    if code != SDL_Scancode::SDL_SCANCODE_ESCAPE {
+                        config.aimbot.key.is_mouse_button = false;
+                        config.aimbot.key.code = code as u32;
+                    }
                 }
+                Input::MouseButton(btn) => {
+                    globals.aimbot_key_editing = false;
+                    config.aimbot.key.is_mouse_button = true;
+                    config.aimbot.key.code = btn;
+                }
+                Input::None => {}
             }
         }
 
@@ -29,7 +37,8 @@ pub extern "C" fn hk_poll_event(event: *mut c_void) -> i32 {
     }
 
     if rc != 0 {
-        globals.aimbot_key_down = Nuklear::is_key_pressed(config.aimbot.key);
+        globals.aimbot_key_down =
+            Nuklear::is_input_pressed(config.aimbot.key.code, config.aimbot.key.is_mouse_button);
     }
 
     rc

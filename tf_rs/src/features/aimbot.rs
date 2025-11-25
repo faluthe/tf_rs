@@ -20,7 +20,7 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
         return;
     };
 
-    let use_key = config.aimbot.use_key != 0;
+    let use_key = config.aimbot.key.use_key != 0;
     let wants_shot = (use_key && Globals::read().aimbot_key_down)
         || (!use_key && (cmd.buttons & Buttons::InAttack as i32) != 0);
 
