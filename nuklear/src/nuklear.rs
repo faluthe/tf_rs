@@ -3,12 +3,16 @@ use std::{
     mem, ptr, slice,
 };
 
-use nuklear_sys::{SDL_Event, SDL_GL_MakeCurrent, SDL_GetKeyboardState, SDL_Scancode, SDL_Window};
+use nuklear_sys::{
+    SDL_BUTTON_LEFT, SDL_BUTTON_X2, SDL_Event, SDL_GL_MakeCurrent, SDL_GetKeyboardState,
+    SDL_GetMouseState, SDL_Scancode, SDL_Window,
+};
 
 use crate::{
-    Key, Rect,
+    NkKey, Rect,
     context::Context,
     flags::{EditFlags, LayoutFormat, PanelFlags, TextAlignment},
+    input::Input,
 };
 
 static mut DO_DRAW: bool = false;
@@ -142,7 +146,7 @@ impl Nuklear {
         unsafe { (*event).type_ = 0 };
     }
 
-    pub fn is_draw_key_released(&self, key: Key) -> bool {
+    pub fn is_draw_key_released(&self, key: NkKey) -> bool {
         if self.context.is_key_released(key as u32) {
             unsafe {
                 DO_DRAW = !DO_DRAW;
@@ -152,21 +156,36 @@ impl Nuklear {
         false
     }
 
-    pub fn is_key_pressed(key: SDL_Scancode) -> bool {
-        let state = unsafe { SDL_GetKeyboardState(ptr::null_mut()) };
-        unsafe { *state.add(key as usize) != 0 }
+    pub fn is_input_pressed(code: u32, is_mouse_button: bool) -> bool {
+        if is_mouse_button {
+            let state = unsafe { SDL_GetMouseState(ptr::null_mut(), ptr::null_mut()) };
+            // SDL_BUTTON macro
+            state & (1 << (code - 1)) != 0
+        } else {
+            let state = unsafe { SDL_GetKeyboardState(ptr::null_mut()) };
+            unsafe { *state.add(code as usize) != 0 }
+        }
     }
 
-    pub fn get_key_pressed() -> Option<SDL_Scancode> {
+    pub fn get_input_pressed() -> Input {
         let state = unsafe { SDL_GetKeyboardState(ptr::null_mut()) };
         let state =
             unsafe { slice::from_raw_parts(state, SDL_Scancode::SDL_NUM_SCANCODES as usize) };
 
         for (i, &pressed) in state.iter().enumerate() {
             if pressed != 0 {
-                return Some(unsafe { mem::transmute(i as u32) });
+                return Input::Key(unsafe { mem::transmute(i as u32) });
             }
         }
-        None
+
+        let state = unsafe { SDL_GetMouseState(ptr::null_mut(), ptr::null_mut()) };
+        for i in SDL_BUTTON_LEFT..=SDL_BUTTON_X2 {
+            // SDL_BUTTON macro
+            if state & (1 << (i - 1)) != 0 {
+                return Input::MouseButton(i);
+            }
+        }
+
+        Input::None
     }
 }

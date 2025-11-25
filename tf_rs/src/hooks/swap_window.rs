@@ -1,13 +1,13 @@
 use std::ffi::c_void;
 
-use nuklear::{Key, Nuklear};
+use nuklear::{NkKey, Nuklear};
 
 use crate::{features::menu, hooks::Hooks, interfaces::Interfaces};
 
 pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     let nuklear = Nuklear::get_or_init(window);
 
-    if nuklear.is_draw_key_released(Key::Delete) {
+    if nuklear.is_draw_key_released(NkKey::Delete) {
         Interfaces::surface().set_cursor_visible(Nuklear::should_draw());
     }
 

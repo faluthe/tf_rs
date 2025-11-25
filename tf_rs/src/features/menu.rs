@@ -65,14 +65,16 @@ fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
         nk.row_dynamic(30.0, 1)
             .checkbox("Silent aim", &mut config.aimbot.silent_aim)
             .row_dynamic(30.0, 2)
-            .checkbox("Use key", &mut config.aimbot.use_key);
+            .checkbox("Use key", &mut config.aimbot.key.use_key);
 
-        if config.aimbot.use_key != 0 {
+        if config.aimbot.key.use_key != 0 {
             let mut g = Globals::write();
             let label = if g.aimbot_key_editing {
                 "Press a key...".to_string()
+            } else if config.aimbot.key.is_mouse_button {
+                format!("Aimbot key: Mouse {}", config.aimbot.key.code as u32)
             } else {
-                format!("Aimbot key: {}", config.aimbot.key as u32)
+                format!("Aimbot key: {}", config.aimbot.key.code as u32)
             };
 
             if nk.button_label(label.as_str()) {
