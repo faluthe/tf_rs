@@ -5,7 +5,7 @@ use crate::{
     globals::{Globals, Target},
     helpers,
     interfaces::Interfaces,
-    types::{Player, UserCmd, Vec3, user_cmd::Buttons},
+    types::{Entity, Player, UserCmd, Vec3, entity::EntityClassID, user_cmd::Buttons},
 };
 
 pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
@@ -33,7 +33,7 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
 }
 
 // TODO: Add sentry + other entity checks
-pub fn get_target(
+fn get_target(
     localplayer: &Player,
     view_angle: &Vec3,
     config: &Config,
@@ -43,8 +43,10 @@ pub fn get_target(
     let mut target_angle = None;
     let mut target = None;
 
-    for i in 1..=Interfaces::engine_client().get_max_clients() {
-        if let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i) {
+    for i in 1..=Interfaces::entity_list().max_entities() {
+        if i <= Interfaces::engine_client().get_max_clients()
+            && let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i)
+        {
             if &player == localplayer
                 || player.is_dormant()
                 || player.is_dead()
@@ -76,6 +78,42 @@ pub fn get_target(
                 target = Some(Target {
                     target_index: i,
                     should_headshot: headshot,
+                });
+            }
+        } else if let Some(entity) = Interfaces::entity_list().get_client_entity::<Entity>(i) {
+            if entity.is_dormant() || entity.team() == localplayer.team() {
+                continue;
+            }
+
+            if !matches!(
+                entity.class_id(),
+                EntityClassID::Sentry | EntityClassID::Dispenser | EntityClassID::Teleporter
+            ) {
+                continue;
+            }
+
+            let entity_pos = entity.origin();
+            let mins = entity.mins();
+            let maxs = entity.maxs();
+            let entity_pos = Vec3 {
+                x: entity_pos.x + (mins.x + maxs.x) / 2.,
+                y: entity_pos.y + (mins.y + maxs.y) / 2.,
+                z: entity_pos.z + (mins.z + maxs.z) / 2.,
+            };
+
+            if !helpers::is_ent_visible(&shoot_pos, &entity_pos, &entity, localplayer) {
+                continue;
+            }
+
+            let aim_angle = helpers::calculate_angle(&shoot_pos, &entity_pos);
+            let fov = view_angle.fov_to(&aim_angle);
+
+            if fov < smallest_fov && fov <= config.aimbot.fov as f32 {
+                smallest_fov = fov;
+                target_angle = Some(aim_angle);
+                target = Some(Target {
+                    target_index: i,
+                    should_headshot: false,
                 });
             }
         }
