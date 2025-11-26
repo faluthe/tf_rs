@@ -81,7 +81,10 @@ fn get_target(
                 });
             }
         } else if let Some(entity) = Interfaces::entity_list().get_client_entity::<Entity>(i) {
-            if entity.is_dormant() || entity.team() == localplayer.team() {
+            if config.aimbot.building_aim == 0
+                || entity.is_dormant()
+                || entity.team() == localplayer.team()
+            {
                 continue;
             }
 

@@ -38,10 +38,17 @@ pub fn player_esp(localplayer: &Player, config: &Config) {
             }
 
             if let Some((left, top, right, bottom)) = helpers::get_bounding_box(&player) {
-                draw_box(left, top, right, bottom, config);
-                draw_name(left, top, right, bottom, i, config);
-                draw_health(config, &player, top, bottom, right);
+                if config.esp.player_boxes != 0 {
+                    draw_box(left, top, right, bottom);
+                }
+                if config.esp.player_names != 0 {
+                    draw_name(left, top, right, bottom, i as i32);
+                }
+                if config.esp.player_health != 0 {
+                    draw_health(&player, top, bottom, right);
+                }
 
+                // TODO: Move this to its own function prontly lol
                 if Some(i) == target.map(|t| t.target_index) {
                     draw_target(left, top, right, bottom, target, config);
                 }
@@ -55,6 +62,9 @@ pub fn entity_esp(_localplayer: &Player, config: &Config) {
         return;
     }
 
+    let globals = Globals::read();
+    let target = globals.target.as_ref();
+
     for i in Interfaces::engine_client().get_max_clients()..Interfaces::entity_list().max_entities()
     {
         if let Some(entity) = Interfaces::entity_list().get_client_entity::<Entity>(i) {
@@ -65,8 +75,13 @@ pub fn entity_esp(_localplayer: &Player, config: &Config) {
             match entity.class_id() {
                 EntityClassID::Sentry | EntityClassID::Dispenser | EntityClassID::Teleporter => {
                     if let Some((left, top, right, bottom)) = helpers::get_bounding_box(&entity) {
-                        draw_box(left, top, right, bottom, config);
-                        draw_health(config, &entity, top, bottom, right);
+                        if config.esp.building_boxes != 0 {
+                            draw_box(left, top, right, bottom);
+                        }
+                        // TODO: draw_health(config, &entity, top, bottom, right);
+                        if Some(i) == target.map(|t| t.target_index) {
+                            draw_target(left, top, right, bottom, target, config);
+                        }
                     }
                 }
                 _ => {}
@@ -75,20 +90,12 @@ pub fn entity_esp(_localplayer: &Player, config: &Config) {
     }
 }
 
-fn draw_box(left: i32, top: i32, right: i32, bottom: i32, config: &Config) {
-    if config.esp.boxes == 0 {
-        return;
-    }
-
+fn draw_box(left: i32, top: i32, right: i32, bottom: i32) {
     Interfaces::surface().draw_set_color(255, 255, 255, 255);
     Interfaces::surface().draw_outlined_rect(left, top, right, bottom);
 }
 
-fn draw_name(left: i32, top: i32, _right: i32, _bottom: i32, player_index: i32, config: &Config) {
-    if config.esp.names == 0 {
-        return;
-    }
-
+fn draw_name(left: i32, top: i32, _right: i32, _bottom: i32, player_index: i32) {
     let name = Interfaces::engine_client()
         .get_player_info(player_index)
         .name;
@@ -100,11 +107,7 @@ fn draw_name(left: i32, top: i32, _right: i32, _bottom: i32, player_index: i32, 
 }
 
 // TODO: Add overheal
-fn draw_health(config: &Config, player: &Entity, top: i32, bottom: i32, right: i32) {
-    if config.esp.health == 0 {
-        return;
-    }
-
+fn draw_health(player: &Entity, top: i32, bottom: i32, right: i32) {
     // TODO: Max health doesn't work for non-player entities
     let max_health = player.max_health();
 
@@ -174,7 +177,7 @@ fn draw_target(
 
 // TODO: Fix for scoped weapons
 pub fn draw_fov(config: &Config) {
-    if config.aimbot.draw_fov == 0 {
+    if config.aimbot.master == 0 || config.aimbot.draw_fov == 0 {
         return;
     }
 
