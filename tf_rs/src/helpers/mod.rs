@@ -1,6 +1,6 @@
 use crate::{
     interfaces::Interfaces,
-    types::{Player, Vec2, Vec3},
+    types::{Entity, Player, Vec2, Vec3},
 };
 
 pub mod macros;
@@ -16,7 +16,7 @@ pub fn get_localplayer() -> Option<Player> {
 }
 
 // left, top, right, bottom
-pub fn get_bounding_box(player: &Player) -> Option<(i32, i32, i32, i32)> {
+pub fn get_bounding_box(player: &Entity) -> Option<(i32, i32, i32, i32)> {
     let origin = player.origin();
     let mins = player.mins();
     let maxs = player.maxs();

@@ -1,3 +1,4 @@
+pub mod entity;
 pub mod player;
 pub mod player_info;
 pub mod ray;
@@ -9,6 +10,7 @@ pub mod vec3;
 pub mod vec3_aligned;
 pub mod weapon;
 
+pub use entity::Entity;
 pub use player::Player;
 pub use player_info::PlayerInfo;
 pub use ray::Ray;
