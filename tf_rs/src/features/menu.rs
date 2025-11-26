@@ -84,7 +84,9 @@ fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
             nk.label("", TextAlignment::LEFT);
         }
 
-        nk.row_dynamic(30.0, 2)
+        nk.row_dynamic(30.0, 1)
+            .checkbox("Building aim", &mut config.aimbot.building_aim)
+            .row_dynamic(30.0, 2)
             .label(
                 format!("Aimbot FOV: {}", config.aimbot.fov),
                 TextAlignment::LEFT,
@@ -100,11 +102,12 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
         .checkbox("Master", &mut config.esp.master);
 
     if config.esp.master != 0 {
-        nk.row_dynamic(30.0, 4)
-            .checkbox("Boxes", &mut config.esp.boxes)
-            .checkbox("Names", &mut config.esp.names)
-            .checkbox("Health", &mut config.esp.health)
-            .checkbox("Aimbot target", &mut config.esp.aimbot_target);
+        nk.row_dynamic(30.0, 5)
+            .checkbox("Player boxes", &mut config.esp.player_boxes)
+            .checkbox("Player names", &mut config.esp.player_names)
+            .checkbox("Player health", &mut config.esp.player_health)
+            .checkbox("Aimbot target", &mut config.esp.aimbot_target)
+            .checkbox("Building boxes", &mut config.esp.building_boxes);
     }
 }
 

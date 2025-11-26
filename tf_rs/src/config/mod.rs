@@ -19,16 +19,18 @@ pub struct Config {
 #[derive(Default)]
 pub struct ESPConfig {
     pub master: i32,
-    pub boxes: i32,
-    pub names: i32,
+    pub player_boxes: i32,
+    pub player_names: i32,
+    pub player_health: i32,
+    pub building_boxes: i32,
     pub aimbot_target: i32,
-    pub health: i32,
 }
 
 #[derive(Default)]
 pub struct AimbotConfig {
     pub master: i32,
     pub silent_aim: i32,
+    pub building_aim: i32,
     pub key: AimbotKey,
     pub fov: i32,
     pub draw_fov: i32,
@@ -163,13 +165,17 @@ impl Config {
 impl fmt::Display for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "bunnyhop: {}", self.bunnyhop)?;
+
         writeln!(f, "esp.master: {}", self.esp.master)?;
-        writeln!(f, "esp.boxes: {}", self.esp.boxes)?;
-        writeln!(f, "esp.names: {}", self.esp.names)?;
+        writeln!(f, "esp.player_boxes: {}", self.esp.player_boxes)?;
+        writeln!(f, "esp.player_names: {}", self.esp.player_names)?;
+        writeln!(f, "esp.player_health: {}", self.esp.player_health)?;
         writeln!(f, "esp.aimbot_target: {}", self.esp.aimbot_target)?;
-        writeln!(f, "esp.health: {}", self.esp.health)?;
+        writeln!(f, "esp.building_boxes: {}", self.esp.building_boxes)?;
+
         writeln!(f, "aimbot.master: {}", self.aimbot.master)?;
         writeln!(f, "aimbot.silent_aim: {}", self.aimbot.silent_aim)?;
+        writeln!(f, "aimbot.building_aim: {}", self.aimbot.building_aim)?;
         writeln!(f, "aimbot.key.use_key: {}", self.aimbot.key.use_key)?;
         writeln!(
             f,
@@ -204,13 +210,17 @@ impl FromStr for Config {
 
             match key {
                 "bunnyhop" => cfg.bunnyhop = value,
+
                 "esp.master" => cfg.esp.master = value,
-                "esp.boxes" => cfg.esp.boxes = value,
-                "esp.names" => cfg.esp.names = value,
+                "esp.player_boxes" => cfg.esp.player_boxes = value,
+                "esp.player_names" => cfg.esp.player_names = value,
                 "esp.aimbot_target" => cfg.esp.aimbot_target = value,
-                "esp.health" => cfg.esp.health = value,
+                "esp.player_health" => cfg.esp.player_health = value,
+                "esp.building_boxes" => cfg.esp.building_boxes = value,
+
                 "aimbot.master" => cfg.aimbot.master = value,
                 "aimbot.silent_aim" => cfg.aimbot.silent_aim = value,
+                "aimbot.building_aim" => cfg.aimbot.building_aim = value,
                 "aimbot.key.use_key" => cfg.aimbot.key.use_key = value,
                 "aimbot.key.is_mouse_button" => cfg.aimbot.key.is_mouse_button = value != 0,
                 "aimbot.key.code" => cfg.aimbot.key.code = value as u32,
