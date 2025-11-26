@@ -1,7 +1,5 @@
 use std::sync::OnceLock;
 
-use log::info;
-
 use crate::{
     config::Config,
     globals::{Globals, Target},
@@ -107,9 +105,8 @@ fn draw_health(config: &Config, player: &Entity, top: i32, bottom: i32, right: i
         return;
     }
 
+    // TODO: Max health doesn't work for non-player entities
     let max_health = player.max_health();
-
-    info!("max_health: {}", max_health);
 
     if max_health <= 0 {
         return;
@@ -121,7 +118,6 @@ fn draw_health(config: &Config, player: &Entity, top: i32, bottom: i32, right: i
     }
 
     let health_raw = player.health();
-    info!("health: {}", health_raw);
     let health = health_raw.clamp(0, max_health);
 
     let mut health_percent = health as f32 / max_health as f32;
