@@ -1,11 +1,13 @@
 use std::sync::OnceLock;
 
+use log::info;
+
 use crate::{
     config::Config,
     globals::{Globals, Target},
     helpers,
     interfaces::Interfaces,
-    types::Player,
+    types::{Entity, Player, entity::EntityClassID},
 };
 
 static ESP_FONT: OnceLock<u64> = OnceLock::new();
@@ -50,6 +52,31 @@ pub fn player_esp(localplayer: &Player, config: &Config) {
     }
 }
 
+pub fn entity_esp(_localplayer: &Player, config: &Config) {
+    if config.esp.master == 0 {
+        return;
+    }
+
+    for i in Interfaces::engine_client().get_max_clients()..Interfaces::entity_list().max_entities()
+    {
+        if let Some(entity) = Interfaces::entity_list().get_client_entity::<Entity>(i) {
+            if entity.is_dormant() {
+                continue;
+            }
+
+            match entity.class_id() {
+                EntityClassID::Sentry | EntityClassID::Dispenser | EntityClassID::Teleporter => {
+                    if let Some((left, top, right, bottom)) = helpers::get_bounding_box(&entity) {
+                        draw_box(left, top, right, bottom, config);
+                        draw_health(config, &entity, top, bottom, right);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
 fn draw_box(left: i32, top: i32, right: i32, bottom: i32, config: &Config) {
     if config.esp.boxes == 0 {
         return;
@@ -75,12 +102,14 @@ fn draw_name(left: i32, top: i32, _right: i32, _bottom: i32, player_index: i32, 
 }
 
 // TODO: Add overheal
-fn draw_health(config: &Config, player: &Player, top: i32, bottom: i32, right: i32) {
+fn draw_health(config: &Config, player: &Entity, top: i32, bottom: i32, right: i32) {
     if config.esp.health == 0 {
         return;
     }
 
     let max_health = player.max_health();
+
+    info!("max_health: {}", max_health);
 
     if max_health <= 0 {
         return;
@@ -92,6 +121,7 @@ fn draw_health(config: &Config, player: &Player, top: i32, bottom: i32, right: i
     }
 
     let health_raw = player.health();
+    info!("health: {}", health_raw);
     let health = health_raw.clamp(0, max_health);
 
     let mut health_percent = health as f32 / max_health as f32;

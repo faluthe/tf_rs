@@ -24,4 +24,9 @@ impl EntityList {
 
         Some(T::from_raw(ptr))
     }
+
+    pub fn max_entities(&self) -> i32 {
+        let f = vfunc!(self.vtable, 8, extern "C" fn(*mut c_void) -> i32);
+        f(self.this)
+    }
 }
