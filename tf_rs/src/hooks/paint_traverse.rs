@@ -17,8 +17,9 @@ pub extern "C" fn hk_paint_traverse(
         return rc;
     }
 
-    Interfaces::surface().draw_set_text_font(esp::esp_font());
-    Interfaces::surface().draw_set_text_color(255, 255, 255, 255);
+    let surface = Interfaces::surface();
+
+    surface.draw_set_text_font(esp::esp_font(&surface));
 
     if !Interfaces::engine_client().is_in_game() {
         return rc;
@@ -27,13 +28,13 @@ pub extern "C" fn hk_paint_traverse(
     let localplayer = helpers::get_localplayer().expect("Failed to get localplayer");
     let config = Config::read();
 
-    esp::run(&localplayer, &config);
+    esp::run(&localplayer, &surface, &config);
 
     if localplayer.is_dead() {
         return rc;
     }
 
-    esp::draw_fov(&config);
+    esp::draw_fov(&surface, &config);
 
     rc
 }

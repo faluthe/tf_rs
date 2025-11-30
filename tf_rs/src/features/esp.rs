@@ -3,21 +3,21 @@ use std::sync::OnceLock;
 use crate::{
     config::Config,
     helpers,
-    interfaces::Interfaces,
+    interfaces::{Interfaces, Surface},
     types::{BBox, ClassID, Entity, Player, RGBA},
 };
 
 static ESP_FONT: OnceLock<u64> = OnceLock::new();
 
-pub fn esp_font() -> u64 {
+pub fn esp_font(surface: &Surface) -> u64 {
     *ESP_FONT.get_or_init(|| {
-        let font = Interfaces::surface().create_font();
-        Interfaces::surface().set_font_glyph_set(font, "DejaVu Sans Mono", 14, 400, 0, 0, 0x0);
+        let font = surface.create_font();
+        surface.set_font_glyph_set(font, "DejaVu Sans Mono", 14, 400, 0, 0, 0x0);
         font
     })
 }
 
-pub fn run(localplayer: &Player, config: &Config) {
+pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
     if config.esp.master == 0 {
         return;
     }
@@ -40,28 +40,28 @@ pub fn run(localplayer: &Player, config: &Config) {
                     let team_color = entity.team().as_rgba();
 
                     if config.esp.player_boxes != 0 {
-                        draw_box(&bbox, &team_color);
+                        draw_box(&bbox, &team_color, surface);
                     }
                     if config.esp.player_names != 0 {
                         let name = Interfaces::engine_client().get_player_info(i).name;
                         let name = str::from_utf8(&name).unwrap_or("");
 
-                        draw_name(&bbox, name, &team_color);
+                        draw_name(&bbox, name, &team_color, surface);
                     }
                     if config.esp.player_health != 0 {
-                        draw_health(&bbox, &entity);
+                        draw_health(&bbox, &entity, surface);
                     }
                 }
-                ClassID::Sentry => building_esp(&entity, "Sentry", config),
-                ClassID::Dispenser => building_esp(&entity, "Dispenser", config),
-                ClassID::Teleporter => building_esp(&entity, "Teleporter", config),
+                ClassID::Sentry => building_esp(&entity, "Sentry", config, surface),
+                ClassID::Dispenser => building_esp(&entity, "Dispenser", config, surface),
+                ClassID::Teleporter => building_esp(&entity, "Teleporter", config, surface),
                 _ => {}
             }
         }
     }
 }
 
-fn building_esp(entity: &Entity, name: &str, config: &Config) {
+fn building_esp(entity: &Entity, name: &str, config: &Config, surface: &Surface) {
     let Some(bbox) = helpers::get_bounding_box(entity) else {
         return;
     };
@@ -69,31 +69,31 @@ fn building_esp(entity: &Entity, name: &str, config: &Config) {
     let team_color = entity.team().as_rgba();
 
     if config.esp.building_boxes != 0 {
-        draw_box(&bbox, &team_color);
+        draw_box(&bbox, &team_color, surface);
     }
     if config.esp.building_names != 0 {
-        draw_name(&bbox, name, &team_color);
+        draw_name(&bbox, name, &team_color, surface);
     }
     if config.esp.building_health != 0 {
-        draw_health(&bbox, entity);
+        draw_health(&bbox, entity, surface);
     }
 }
 
 // TODO: Outline in black for visibility
-fn draw_box(bbox: &BBox, color: &RGBA) {
-    Interfaces::surface().draw_set_color(color.r, color.g, color.b, color.a);
-    Interfaces::surface().draw_outlined_rect(bbox.left, bbox.top, bbox.right, bbox.bottom);
+fn draw_box(bbox: &BBox, color: &RGBA, surface: &Surface) {
+    surface.draw_set_color(color.r, color.g, color.b, color.a);
+    surface.draw_outlined_rect(bbox.left, bbox.top, bbox.right, bbox.bottom);
 }
 
 // TODO: Add custom positioning
-fn draw_name(bbox: &BBox, name: &str, color: &RGBA) {
-    Interfaces::surface().draw_set_text_color(color.r, color.g, color.b, color.a);
-    Interfaces::surface().draw_set_text_pos(bbox.left as u32, (bbox.top - 20) as u32);
-    Interfaces::surface().draw_print_text(name);
+fn draw_name(bbox: &BBox, name: &str, color: &RGBA, surface: &Surface) {
+    surface.draw_set_text_color(color.r, color.g, color.b, color.a);
+    surface.draw_set_text_pos(bbox.left as u32, (bbox.top - 20) as u32);
+    surface.draw_print_text(name);
 }
 
 // TODO: Add overheal + custom positioning
-fn draw_health(bbox: &BBox, entity: &Entity) {
+fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface) {
     let max_health = entity.max_health();
     if max_health <= 0 {
         return;
@@ -122,8 +122,8 @@ fn draw_health(bbox: &BBox, entity: &Entity) {
         return;
     }
 
-    Interfaces::surface().draw_set_color(0, 0, 0, 255 / 2);
-    Interfaces::surface().draw_filled_rect(bbox.right + 1, bg_top, bbox.right + 4, bbox.bottom);
+    surface.draw_set_color(0, 0, 0, 255 / 2);
+    surface.draw_filled_rect(bbox.right + 1, bg_top, bbox.right + 4, bbox.bottom);
 
     let green = (health_percent * 2.0 * 255.0).min(255.0).max(0.0) as i32;
     let red = ((1.0 - health_percent) * 2.0 * 255.0).min(255.0).max(0.0) as i32;
@@ -133,13 +133,8 @@ fn draw_health(bbox: &BBox, entity: &Entity) {
         return;
     }
 
-    Interfaces::surface().draw_set_color(red, green, 0, 255);
-    Interfaces::surface().draw_filled_rect(
-        bbox.right + 2,
-        bar_top,
-        bbox.right + 3,
-        bbox.bottom - 1,
-    );
+    surface.draw_set_color(red, green, 0, 255);
+    surface.draw_filled_rect(bbox.right + 2, bar_top, bbox.right + 3, bbox.bottom - 1);
 }
 
 // fn draw_target(
@@ -154,18 +149,18 @@ fn draw_health(bbox: &BBox, entity: &Entity) {
 //         return;
 //     }
 
-//     Interfaces::surface().draw_set_text_color(255, 255, 255, 255);
-//     Interfaces::surface().draw_set_text_pos((right + 10) as u32, top as u32);
-//     Interfaces::surface().draw_print_text("TARGET");
+//     surface.draw_set_text_color(255, 255, 255, 255);
+//     surface.draw_set_text_pos((right + 10) as u32, top as u32);
+//     surface.draw_print_text("TARGET");
 
 //     if Some(true) == target.map(|t| t.should_headshot) {
-//         Interfaces::surface().draw_set_text_pos((right + 10) as u32, (top + 10) as u32);
-//         Interfaces::surface().draw_print_text("HS");
+//         surface.draw_set_text_pos((right + 10) as u32, (top + 10) as u32);
+//         surface.draw_print_text("HS");
 //     }
 // }
 
 // TODO: Fix for scoped weapons
-pub fn draw_fov(config: &Config) {
+pub fn draw_fov(surface: &Surface, config: &Config) {
     if config.aimbot.master == 0 || config.aimbot.draw_fov == 0 {
         return;
     }
@@ -176,6 +171,6 @@ pub fn draw_fov(config: &Config) {
     let radius = (f32::tan((fov / 2.0).to_radians()) / f32::tan(45.0f32.to_radians()))
         * (width as f32 / 2.0);
 
-    Interfaces::surface().draw_set_color(255, 255, 255, 255);
-    Interfaces::surface().draw_circle(width / 2, height / 2, radius as i32, 255);
+    surface.draw_set_color(255, 255, 255, 255);
+    surface.draw_circle(width / 2, height / 2, radius as i32, 255);
 }
