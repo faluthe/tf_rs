@@ -34,6 +34,19 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
 
             let mut conds = Vec::new();
 
+            let mut color = entity.team().as_rgba();
+
+            if config.esp.aimbot_target != 0 {
+                if Some(i) == target.map(|t| t.target_index) {
+                    conds.push(("TARGET", RGBA::ORANGE));
+                    color = RGBA::ORANGE;
+
+                    if Some(true) == target.map(|t| t.should_headshot) {
+                        conds.push(("HS", RGBA::RED));
+                    }
+                }
+            }
+
             let bbox = match entity.class_id() {
                 ClassID::Player => {
                     let player = Player { ent: entity };
@@ -50,44 +63,40 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         continue;
                     };
 
-                    let team_color = player.team().as_rgba();
-
                     if config.esp.player_boxes != 0 {
-                        draw_box(&bbox, &team_color, surface);
+                        draw_box(&bbox, &color, surface);
                     }
 
                     if config.esp.player_names != 0 {
                         let name = Interfaces::engine_client().get_player_info(i).name;
                         let name = str::from_utf8(&name).unwrap_or("");
 
-                        draw_name(&bbox, name, &team_color, surface);
+                        draw_name(&bbox, name, &color, surface);
                     }
 
                     if config.esp.player_health != 0 {
                         draw_health(&bbox, &player, surface);
                     }
 
-                    conds.push("PLAYER");
-
                     Some(bbox)
                 }
                 ClassID::Sentry => {
                     if entity.team() != localplayer.team() || config.esp.building_friendly != 0 {
-                        building_esp(&entity, "Sentry", config, surface)
+                        building_esp(&entity, "Sentry", config, surface, &color)
                     } else {
                         continue;
                     }
                 }
                 ClassID::Dispenser => {
                     if entity.team() != localplayer.team() || config.esp.building_friendly != 0 {
-                        building_esp(&entity, "Dispenser", config, surface)
+                        building_esp(&entity, "Dispenser", config, surface, &color)
                     } else {
                         continue;
                     }
                 }
                 ClassID::Teleporter => {
                     if entity.team() != localplayer.team() || config.esp.building_friendly != 0 {
-                        building_esp(&entity, "Teleporter", config, surface)
+                        building_esp(&entity, "Teleporter", config, surface, &color)
                     } else {
                         continue;
                     }
@@ -99,18 +108,8 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                 continue;
             };
 
-            if config.esp.aimbot_target != 0 {
-                if Some(i) == target.map(|t| t.target_index) {
-                    conds.push("TARGET");
-
-                    if Some(true) == target.map(|t| t.should_headshot) {
-                        conds.push("HS");
-                    }
-                }
-            }
-
-            for (j, cond) in conds.iter().enumerate() {
-                surface.draw_set_text_color(255, 255, 255, 255);
+            for (j, (cond, color)) in conds.iter().enumerate() {
+                surface.draw_set_text_color(color.r, color.g, color.b, color.a);
                 surface.draw_set_text_pos(
                     (bbox.right + 10) as u32,
                     (bbox.top + (j as i32 * 10)) as u32,
@@ -121,19 +120,23 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
     }
 }
 
-fn building_esp(entity: &Entity, name: &str, config: &Config, surface: &Surface) -> Option<BBox> {
+fn building_esp(
+    entity: &Entity,
+    name: &str,
+    config: &Config,
+    surface: &Surface,
+    color: &RGBA,
+) -> Option<BBox> {
     let Some(bbox) = helpers::get_bounding_box(entity) else {
         return None;
     };
 
-    let team_color = entity.team().as_rgba();
-
     if config.esp.building_boxes != 0 {
-        draw_box(&bbox, &team_color, surface);
+        draw_box(&bbox, color, surface);
     }
 
     if config.esp.building_names != 0 {
-        draw_name(&bbox, name, &team_color, surface);
+        draw_name(&bbox, name, color, surface);
     }
 
     if config.esp.building_health != 0 {
