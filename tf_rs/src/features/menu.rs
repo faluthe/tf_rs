@@ -102,14 +102,33 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
         .checkbox("Master", &mut config.esp.master);
 
     if config.esp.master != 0 {
-        nk.row_dynamic(30.0, 3)
-            .checkbox("Player boxes", &mut config.esp.player_boxes)
-            .checkbox("Player names", &mut config.esp.player_names)
-            .checkbox("Player health", &mut config.esp.player_health)
-            .row_dynamic(30.0, 3)
-            .checkbox("Aimbot target", &mut config.esp.aimbot_target)
-            .checkbox("Building boxes", &mut config.esp.building_boxes)
-            .checkbox("Building health", &mut config.esp.building_health);
+        nk.row_dynamic(30.0, 1)
+            .label("Players", TextAlignment::LEFT)
+            .horizontal_separator(1.0)
+            .row_dynamic(30.0, 1)
+            .checkbox("Boxes", &mut config.esp.player_boxes)
+            .row_dynamic(30.0, 1)
+            .checkbox("Names", &mut config.esp.player_names)
+            .row_dynamic(30.0, 1)
+            .checkbox("Health bar", &mut config.esp.player_health)
+            .row_dynamic(10.0, 1)
+            .label("", TextAlignment::LEFT);
+
+        nk.row_dynamic(30.0, 1)
+            .label("Buildings", TextAlignment::LEFT)
+            .horizontal_separator(1.0)
+            .row_dynamic(30.0, 1)
+            .checkbox("Boxes", &mut config.esp.building_boxes)
+            .row_dynamic(30.0, 1)
+            .checkbox("Health bar", &mut config.esp.building_health)
+            .row_dynamic(10.0, 1)
+            .label("", TextAlignment::LEFT);
+
+        nk.row_dynamic(30.0, 1)
+            .label("Aimbot", TextAlignment::LEFT)
+            .horizontal_separator(1.0)
+            .row_dynamic(30.0, 1)
+            .checkbox("Show target", &mut config.esp.aimbot_target);
     }
 }
 
