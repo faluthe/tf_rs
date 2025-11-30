@@ -120,6 +120,8 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
             .row_dynamic(30.0, 1)
             .checkbox("Boxes", &mut config.esp.building_boxes)
             .row_dynamic(30.0, 1)
+            .checkbox("Names", &mut config.esp.building_names)
+            .row_dynamic(30.0, 1)
             .checkbox("Health bar", &mut config.esp.building_health)
             .row_dynamic(10.0, 1)
             .label("", TextAlignment::LEFT);
