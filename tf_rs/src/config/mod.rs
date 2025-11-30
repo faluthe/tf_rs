@@ -23,6 +23,7 @@ pub struct ESPConfig {
     pub player_boxes: i32,
     pub player_names: i32,
     pub player_health: i32,
+    pub player_conds: i32,
     pub building_friendly: i32,
     pub building_boxes: i32,
     pub building_names: i32,
@@ -175,6 +176,7 @@ impl fmt::Display for Config {
         writeln!(f, "esp.player_boxes: {}", self.esp.player_boxes)?;
         writeln!(f, "esp.player_names: {}", self.esp.player_names)?;
         writeln!(f, "esp.player_health: {}", self.esp.player_health)?;
+        writeln!(f, "esp.player_conds: {}", self.esp.player_conds)?;
         writeln!(f, "esp.building_friendly: {}", self.esp.building_friendly)?;
         writeln!(f, "esp.building_boxes: {}", self.esp.building_boxes)?;
         writeln!(f, "esp.building_names: {}", self.esp.building_names)?;
@@ -224,6 +226,7 @@ impl FromStr for Config {
                 "esp.player_boxes" => cfg.esp.player_boxes = value,
                 "esp.player_names" => cfg.esp.player_names = value,
                 "esp.player_health" => cfg.esp.player_health = value,
+                "esp.player_conds" => cfg.esp.player_conds = value,
                 "esp.building_friendly" => cfg.esp.building_friendly = value,
                 "esp.building_boxes" => cfg.esp.building_boxes = value,
                 "esp.building_names" => cfg.esp.building_names = value,

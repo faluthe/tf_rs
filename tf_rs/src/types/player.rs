@@ -37,6 +37,12 @@ impl Player {
     offset_get!(fn tick_base: i32, 0x1718);
     offset_get!(fn eye_z_diff: f32, 0x14C);
     offset_get!(fn player_class: PlayerClass, 0x1BA0);
+    offset_get!(fn conds_0: u32, 0x1F64);
+    offset_get!(fn conds_1: u32, 0x1F68);
+    offset_get!(fn conds_2: u32, 0x1F6C);
+    offset_get!(fn conds_3: u32, 0x1F70);
+    offset_get!(fn conds_4: u32, 0x1F74);
+    offset_get!(fn invisibility: f32, 0x1FE8);
 
     pub fn is_on_ground(&self) -> bool {
         (self.flags() & 1) == 0
@@ -111,6 +117,30 @@ impl Player {
             _ => 6,
         }
     }
+
+    pub fn in_cond(&self, cond: Cond) -> bool {
+        let cond = cond as u32;
+        let group = cond / 32;
+
+        let bit = 1u32 << (cond % 32);
+
+        match group {
+            0 => (self.conds_0() & bit) != 0,
+            1 => (self.conds_1() & bit) != 0,
+            2 => (self.conds_2() & bit) != 0,
+            3 => (self.conds_3() & bit) != 0,
+            4 => (self.conds_4() & bit) != 0,
+            _ => false,
+        }
+    }
+
+    pub fn is_invisible(&self) -> bool {
+        if self.in_cond(Cond::Burning) || self.in_cond(Cond::MadMilk) || self.in_cond(Cond::Urine) {
+            return false;
+        }
+
+        self.invisibility() > 0.9
+    }
 }
 
 // Warns for unconstructed variants since we always use it through ffi
@@ -127,4 +157,15 @@ enum PlayerClass {
     Pyro = 7,
     Spy = 8,
     Engineer = 9,
+}
+
+#[allow(dead_code)]
+#[repr(u32)]
+pub enum Cond {
+    Zoomed = 1,
+    Disguised = 3,
+    Taunting = 7,
+    Burning = 22,
+    Urine = 24,
+    MadMilk = 27,
 }
