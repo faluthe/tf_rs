@@ -33,28 +33,52 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
 
             match entity.class_id() {
                 ClassID::Player => {
-                    let Some(bbox) = helpers::get_bounding_box(&entity) else {
+                    let player = Player { ent: entity };
+
+                    if player.is_dead() {
+                        continue;
+                    }
+
+                    if player.team() == localplayer.team() && config.esp.player_friendly == 0 {
+                        continue;
+                    }
+
+                    let Some(bbox) = helpers::get_bounding_box(&player) else {
                         continue;
                     };
 
-                    let team_color = entity.team().as_rgba();
+                    let team_color = player.team().as_rgba();
 
                     if config.esp.player_boxes != 0 {
                         draw_box(&bbox, &team_color, surface);
                     }
+
                     if config.esp.player_names != 0 {
                         let name = Interfaces::engine_client().get_player_info(i).name;
                         let name = str::from_utf8(&name).unwrap_or("");
 
                         draw_name(&bbox, name, &team_color, surface);
                     }
+
                     if config.esp.player_health != 0 {
-                        draw_health(&bbox, &entity, surface);
+                        draw_health(&bbox, &player, surface);
                     }
                 }
-                ClassID::Sentry => building_esp(&entity, "Sentry", config, surface),
-                ClassID::Dispenser => building_esp(&entity, "Dispenser", config, surface),
-                ClassID::Teleporter => building_esp(&entity, "Teleporter", config, surface),
+                ClassID::Sentry => {
+                    if entity.team() != localplayer.team() || config.esp.building_friendly != 0 {
+                        building_esp(&entity, "Sentry", config, surface)
+                    }
+                }
+                ClassID::Dispenser => {
+                    if entity.team() != localplayer.team() || config.esp.building_friendly != 0 {
+                        building_esp(&entity, "Dispenser", config, surface)
+                    }
+                }
+                ClassID::Teleporter => {
+                    if entity.team() != localplayer.team() || config.esp.building_friendly != 0 {
+                        building_esp(&entity, "Teleporter", config, surface)
+                    }
+                }
                 _ => {}
             }
         }
@@ -71,9 +95,11 @@ fn building_esp(entity: &Entity, name: &str, config: &Config, surface: &Surface)
     if config.esp.building_boxes != 0 {
         draw_box(&bbox, &team_color, surface);
     }
+
     if config.esp.building_names != 0 {
         draw_name(&bbox, name, &team_color, surface);
     }
+
     if config.esp.building_health != 0 {
         draw_health(&bbox, entity, surface);
     }

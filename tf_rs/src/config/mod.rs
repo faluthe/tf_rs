@@ -19,9 +19,11 @@ pub struct Config {
 #[derive(Default)]
 pub struct ESPConfig {
     pub master: i32,
+    pub player_friendly: i32,
     pub player_boxes: i32,
     pub player_names: i32,
     pub player_health: i32,
+    pub building_friendly: i32,
     pub building_boxes: i32,
     pub building_names: i32,
     pub building_health: i32,
@@ -169,9 +171,11 @@ impl fmt::Display for Config {
         writeln!(f, "bunnyhop: {}", self.bunnyhop)?;
 
         writeln!(f, "esp.master: {}", self.esp.master)?;
+        writeln!(f, "esp.player_friendly: {}", self.esp.player_friendly)?;
         writeln!(f, "esp.player_boxes: {}", self.esp.player_boxes)?;
         writeln!(f, "esp.player_names: {}", self.esp.player_names)?;
         writeln!(f, "esp.player_health: {}", self.esp.player_health)?;
+        writeln!(f, "esp.building_friendly: {}", self.esp.building_friendly)?;
         writeln!(f, "esp.building_boxes: {}", self.esp.building_boxes)?;
         writeln!(f, "esp.building_names: {}", self.esp.building_names)?;
         writeln!(f, "esp.building_health: {}", self.esp.building_health)?;
@@ -216,9 +220,11 @@ impl FromStr for Config {
                 "bunnyhop" => cfg.bunnyhop = value,
 
                 "esp.master" => cfg.esp.master = value,
+                "esp.player_friendly" => cfg.esp.player_friendly = value,
                 "esp.player_boxes" => cfg.esp.player_boxes = value,
                 "esp.player_names" => cfg.esp.player_names = value,
                 "esp.player_health" => cfg.esp.player_health = value,
+                "esp.building_friendly" => cfg.esp.building_friendly = value,
                 "esp.building_boxes" => cfg.esp.building_boxes = value,
                 "esp.building_names" => cfg.esp.building_names = value,
                 "esp.building_health" => cfg.esp.building_health = value,
