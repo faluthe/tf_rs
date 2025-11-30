@@ -27,8 +27,8 @@ pub fn draw(nk: &Nuklear) {
         Rect {
             x: 200.0,
             y: 200.0,
-            w: 600.0,
-            h: 400.0,
+            w: 700.0,
+            h: 500.0,
         },
     ) {
         let mut config = Config::write();
@@ -102,12 +102,14 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
         .checkbox("Master", &mut config.esp.master);
 
     if config.esp.master != 0 {
-        nk.row_dynamic(30.0, 5)
+        nk.row_dynamic(30.0, 3)
             .checkbox("Player boxes", &mut config.esp.player_boxes)
             .checkbox("Player names", &mut config.esp.player_names)
             .checkbox("Player health", &mut config.esp.player_health)
+            .row_dynamic(30.0, 3)
             .checkbox("Aimbot target", &mut config.esp.aimbot_target)
-            .checkbox("Building boxes", &mut config.esp.building_boxes);
+            .checkbox("Building boxes", &mut config.esp.building_boxes)
+            .checkbox("Building health", &mut config.esp.building_health);
     }
 }
 

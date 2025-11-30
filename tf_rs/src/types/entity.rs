@@ -16,8 +16,6 @@ impl FromRaw for Entity {
 }
 
 impl Entity {
-    offset_get!(pub fn health: i32, 0xD4);
-    offset_get!(pub fn max_health: i32, 0x1DF8);
     offset_get!(pub fn team: i32, 0xDC);
     offset_get!(pub fn origin: Vec3, 0x328);
 
@@ -34,6 +32,16 @@ impl Entity {
         let vtable = unsafe { *(networkable as *mut *mut *mut c_void) };
         let f = vfunc!(vtable, 2, extern "C" fn(*mut c_void) -> *mut c_void);
         f(networkable)
+    }
+
+    pub fn health(&self) -> i32 {
+        let f = vfunc!(self.vtable, 152, extern "C" fn(*mut c_void) -> i32);
+        f(self.this)
+    }
+
+    pub fn max_health(&self) -> i32 {
+        let f = vfunc!(self.vtable, 153, extern "C" fn(*mut c_void) -> i32);
+        f(self.this)
     }
 
     pub fn mins(&self) -> Vec3 {
