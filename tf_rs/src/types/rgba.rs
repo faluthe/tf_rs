@@ -18,6 +18,12 @@ impl RGBA {
         b: 140,
         a: 255,
     };
+    pub const ORANGE: Self = Self {
+        r: 239,
+        g: 152,
+        b: 73,
+        a: 255,
+    };
     pub const WHITE: Self = Self {
         r: 255,
         g: 255,
