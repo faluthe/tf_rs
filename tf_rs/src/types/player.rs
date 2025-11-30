@@ -10,7 +10,7 @@ use crate::{
 
 #[derive(PartialEq, Eq)]
 pub struct Player {
-    ent: Entity,
+    pub ent: Entity,
 }
 
 impl FromRaw for Player {

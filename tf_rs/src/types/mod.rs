@@ -1,7 +1,9 @@
+pub mod bbox;
 pub mod entity;
 pub mod player;
 pub mod player_info;
 pub mod ray;
+pub mod rgba;
 pub mod trace_filter;
 pub mod trace_result;
 pub mod user_cmd;
@@ -10,10 +12,13 @@ pub mod vec3;
 pub mod vec3_aligned;
 pub mod weapon;
 
+pub use bbox::BBox;
+pub use entity::ClassID;
 pub use entity::Entity;
 pub use player::Player;
 pub use player_info::PlayerInfo;
 pub use ray::Ray;
+pub use rgba::RGBA;
 pub use trace_filter::TraceFilter;
 pub use trace_result::TraceResult;
 pub use user_cmd::UserCmd;
