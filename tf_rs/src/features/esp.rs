@@ -2,10 +2,9 @@ use std::sync::OnceLock;
 
 use crate::{
     config::Config,
-    globals::{Globals, Target},
     helpers,
     interfaces::Interfaces,
-    types::{Entity, Player, entity::EntityClassID},
+    types::{BBox, ClassID, Entity, Player, RGBA},
 };
 
 static ESP_FONT: OnceLock<u64> = OnceLock::new();
@@ -18,118 +17,94 @@ pub fn esp_font() -> u64 {
     })
 }
 
-pub fn player_esp(localplayer: &Player, config: &Config) {
+pub fn run(localplayer: &Player, config: &Config) {
     if config.esp.master == 0 {
         return;
     }
 
-    let globals = Globals::read();
-    let target = globals.target.as_ref();
+    // let globals = Globals::read();
+    // let target = globals.target.as_ref(); // TODO: Add this back lol but smarter
 
-    for i in 1..Interfaces::engine_client().get_max_clients() {
-        if let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i) {
-            if &player == localplayer
-                || player.is_dormant()
-                || player.is_dead()
-                || player.team() == localplayer.team()
-            // TODO: Add friendly ESP?
-            {
-                continue;
-            }
-
-            if let Some((left, top, right, bottom)) = helpers::get_bounding_box(&player) {
-                if config.esp.player_boxes != 0 {
-                    draw_box(left, top, right, bottom);
-                }
-                if config.esp.player_names != 0 {
-                    let name = Interfaces::engine_client().get_player_info(i).name;
-                    let name = str::from_utf8(&name).unwrap_or("");
-
-                    draw_name(left, top, right, bottom, name);
-                }
-                if config.esp.player_health != 0 {
-                    draw_health(&player, top, bottom, right);
-                }
-
-                // TODO: Move this to its own function prontly lol
-                if Some(i) == target.map(|t| t.target_index) {
-                    draw_target(left, top, right, bottom, target, config);
-                }
-            }
-        }
-    }
-}
-
-pub fn entity_esp(_localplayer: &Player, config: &Config) {
-    if config.esp.master == 0 {
-        return;
-    }
-
-    let globals = Globals::read();
-    let target = globals.target.as_ref();
-
-    for i in Interfaces::engine_client().get_max_clients()..Interfaces::entity_list().max_entities()
-    {
+    for i in 1..Interfaces::entity_list().max_entities() {
         if let Some(entity) = Interfaces::entity_list().get_client_entity::<Entity>(i) {
-            if entity.is_dormant() {
+            if entity.is_dormant() || entity == localplayer.ent {
                 continue;
             }
 
             match entity.class_id() {
-                EntityClassID::Sentry | EntityClassID::Dispenser | EntityClassID::Teleporter => {
-                    if let Some((left, top, right, bottom)) = helpers::get_bounding_box(&entity) {
-                        if config.esp.building_boxes != 0 {
-                            draw_box(left, top, right, bottom);
-                        }
-                        if config.esp.building_names != 0 {
-                            // TODO: This is shit, tbh re write both player and entity esp into one loop and do a match
-                            let name = match entity.class_id() {
-                                EntityClassID::Sentry => "Sentry",
-                                EntityClassID::Dispenser => "Dispenser",
-                                EntityClassID::Teleporter => "Teleporter",
-                                _ => "Building",
-                            };
-                            draw_name(left, top, right, bottom, name);
-                        }
-                        if config.esp.building_health != 0 {
-                            draw_health(&entity, top, bottom, right);
-                        }
+                ClassID::Player => {
+                    let Some(bbox) = helpers::get_bounding_box(&entity) else {
+                        continue;
+                    };
 
-                        if Some(i) == target.map(|t| t.target_index) {
-                            draw_target(left, top, right, bottom, target, config);
-                        }
+                    let team_color = entity.team().as_rgba();
+
+                    if config.esp.player_boxes != 0 {
+                        draw_box(&bbox, &team_color);
+                    }
+                    if config.esp.player_names != 0 {
+                        let name = Interfaces::engine_client().get_player_info(i).name;
+                        let name = str::from_utf8(&name).unwrap_or("");
+
+                        draw_name(&bbox, name, &team_color);
+                    }
+                    if config.esp.player_health != 0 {
+                        draw_health(&bbox, &entity);
                     }
                 }
+                ClassID::Sentry => building_esp(&entity, "Sentry", config),
+                ClassID::Dispenser => building_esp(&entity, "Dispenser", config),
+                ClassID::Teleporter => building_esp(&entity, "Teleporter", config),
                 _ => {}
             }
         }
     }
 }
 
-fn draw_box(left: i32, top: i32, right: i32, bottom: i32) {
-    Interfaces::surface().draw_set_color(255, 255, 255, 255);
-    Interfaces::surface().draw_outlined_rect(left, top, right, bottom);
+fn building_esp(entity: &Entity, name: &str, config: &Config) {
+    let Some(bbox) = helpers::get_bounding_box(entity) else {
+        return;
+    };
+
+    let team_color = entity.team().as_rgba();
+
+    if config.esp.building_boxes != 0 {
+        draw_box(&bbox, &team_color);
+    }
+    if config.esp.building_names != 0 {
+        draw_name(&bbox, name, &team_color);
+    }
+    if config.esp.building_health != 0 {
+        draw_health(&bbox, entity);
+    }
 }
 
-fn draw_name(left: i32, top: i32, _right: i32, _bottom: i32, name: &str) {
-    Interfaces::surface().draw_set_text_color(255, 255, 255, 255);
-    Interfaces::surface().draw_set_text_pos(left as u32, (top - 20) as u32);
+// TODO: Outline in black for visibility
+fn draw_box(bbox: &BBox, color: &RGBA) {
+    Interfaces::surface().draw_set_color(color.r, color.g, color.b, color.a);
+    Interfaces::surface().draw_outlined_rect(bbox.left, bbox.top, bbox.right, bbox.bottom);
+}
+
+// TODO: Add custom positioning
+fn draw_name(bbox: &BBox, name: &str, color: &RGBA) {
+    Interfaces::surface().draw_set_text_color(color.r, color.g, color.b, color.a);
+    Interfaces::surface().draw_set_text_pos(bbox.left as u32, (bbox.top - 20) as u32);
     Interfaces::surface().draw_print_text(name);
 }
 
-// TODO: Add overheal
-fn draw_health(player: &Entity, top: i32, bottom: i32, right: i32) {
-    let max_health = player.max_health();
+// TODO: Add overheal + custom positioning
+fn draw_health(bbox: &BBox, entity: &Entity) {
+    let max_health = entity.max_health();
     if max_health <= 0 {
         return;
     }
 
-    let height = bottom - top;
+    let height = bbox.bottom - bbox.top;
     if height <= 0 {
         return;
     }
 
-    let health_raw = player.health();
+    let health_raw = entity.health();
     let health = health_raw.clamp(0, max_health);
 
     let mut health_percent = health as f32 / max_health as f32;
@@ -142,47 +117,52 @@ fn draw_health(player: &Entity, top: i32, bottom: i32, right: i32) {
         .clamp(0.0, height as f32)
         .round() as i32;
 
-    let bg_top = bottom - height;
-    if bg_top >= bottom {
+    let bg_top = bbox.bottom - height;
+    if bg_top >= bbox.bottom {
         return;
     }
 
     Interfaces::surface().draw_set_color(0, 0, 0, 255 / 2);
-    Interfaces::surface().draw_filled_rect(right + 1, bg_top, right + 4, bottom);
+    Interfaces::surface().draw_filled_rect(bbox.right + 1, bg_top, bbox.right + 4, bbox.bottom);
 
     let green = (health_percent * 2.0 * 255.0).min(255.0).max(0.0) as i32;
     let red = ((1.0 - health_percent) * 2.0 * 255.0).min(255.0).max(0.0) as i32;
 
-    let bar_top = bottom - bar_height;
-    if bar_top >= bottom {
+    let bar_top = bbox.bottom - bar_height;
+    if bar_top >= bbox.bottom {
         return;
     }
 
     Interfaces::surface().draw_set_color(red, green, 0, 255);
-    Interfaces::surface().draw_filled_rect(right + 2, bar_top, right + 3, bottom - 1);
+    Interfaces::surface().draw_filled_rect(
+        bbox.right + 2,
+        bar_top,
+        bbox.right + 3,
+        bbox.bottom - 1,
+    );
 }
 
-fn draw_target(
-    _left: i32,
-    top: i32,
-    right: i32,
-    _bottom: i32,
-    target: Option<&Target>,
-    config: &Config,
-) {
-    if config.esp.aimbot_target == 0 {
-        return;
-    }
+// fn draw_target(
+//     _left: i32,
+//     top: i32,
+//     right: i32,
+//     _bottom: i32,
+//     target: Option<&Target>,
+//     config: &Config,
+// ) {
+//     if config.esp.aimbot_target == 0 {
+//         return;
+//     }
 
-    Interfaces::surface().draw_set_text_color(255, 255, 255, 255);
-    Interfaces::surface().draw_set_text_pos((right + 10) as u32, top as u32);
-    Interfaces::surface().draw_print_text("TARGET");
+//     Interfaces::surface().draw_set_text_color(255, 255, 255, 255);
+//     Interfaces::surface().draw_set_text_pos((right + 10) as u32, top as u32);
+//     Interfaces::surface().draw_print_text("TARGET");
 
-    if Some(true) == target.map(|t| t.should_headshot) {
-        Interfaces::surface().draw_set_text_pos((right + 10) as u32, (top + 10) as u32);
-        Interfaces::surface().draw_print_text("HS");
-    }
-}
+//     if Some(true) == target.map(|t| t.should_headshot) {
+//         Interfaces::surface().draw_set_text_pos((right + 10) as u32, (top + 10) as u32);
+//         Interfaces::surface().draw_print_text("HS");
+//     }
+// }
 
 // TODO: Fix for scoped weapons
 pub fn draw_fov(config: &Config) {

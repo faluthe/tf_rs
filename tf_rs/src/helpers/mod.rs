@@ -1,6 +1,6 @@
 use crate::{
     interfaces::Interfaces,
-    types::{Entity, Player, Vec2, Vec3},
+    types::{BBox, Entity, Player, Vec2, Vec3},
 };
 
 pub mod macros;
@@ -15,11 +15,10 @@ pub fn get_localplayer() -> Option<Player> {
     Interfaces::entity_list().get_client_entity(index)
 }
 
-// left, top, right, bottom
-pub fn get_bounding_box(player: &Entity) -> Option<(i32, i32, i32, i32)> {
-    let origin = player.origin();
-    let mins = player.mins();
-    let maxs = player.maxs();
+pub fn get_bounding_box(entity: &Entity) -> Option<BBox> {
+    let origin = entity.origin();
+    let mins = entity.mins();
+    let maxs = entity.maxs();
 
     let offsets = [
         (maxs.x, maxs.y, maxs.z), // frt
@@ -53,7 +52,12 @@ pub fn get_bounding_box(player: &Entity) -> Option<(i32, i32, i32, i32)> {
         bottom = bottom.max(p.y);
     }
 
-    Some((left as i32, top as i32, right as i32, bottom as i32))
+    Some(BBox {
+        left: left as i32,
+        top: top as i32,
+        right: right as i32,
+        bottom: bottom as i32,
+    })
 }
 
 pub fn calculate_angle(from: &Vec3, to: &Vec3) -> Vec3 {

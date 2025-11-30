@@ -1,6 +1,11 @@
 use std::ffi::c_void;
 
-use crate::{offset_get, traits::FromRaw, types::Vec3, vfunc};
+use crate::{
+    offset_get,
+    traits::FromRaw,
+    types::{RGBA, Vec3},
+    vfunc,
+};
 
 #[derive(PartialEq, Eq)]
 pub struct Entity {
@@ -16,7 +21,7 @@ impl FromRaw for Entity {
 }
 
 impl Entity {
-    offset_get!(pub fn team: i32, 0xDC);
+    offset_get!(pub fn team: Team, 0xDC);
     offset_get!(pub fn origin: Vec3, 0x328);
 
     fn get_networkable(&self) -> *mut c_void {
@@ -58,9 +63,9 @@ impl Entity {
         unsafe { *(f(collideable)) }
     }
 
-    pub fn class_id(&self) -> EntityClassID {
+    pub fn class_id(&self) -> ClassID {
         let client_class = self.client_class();
-        unsafe { *((client_class as usize + 0x28) as *const EntityClassID) }
+        unsafe { *((client_class as usize + 0x28) as *const ClassID) }
     }
 
     pub fn is_dormant(&self) -> bool {
@@ -74,7 +79,7 @@ impl Entity {
 #[allow(dead_code)]
 #[repr(i32)]
 #[derive(Copy, Clone)]
-pub enum EntityClassID {
+pub enum ClassID {
     AmmoHealth = 1,
     Dispenser = 86,
     Sentry = 88,
@@ -82,6 +87,26 @@ pub enum EntityClassID {
     Arrow = 112,
     Rocket = 264,
     PillOrSticky = 217,
+    Player = 247,
     Flare = 257,
     CrossbowBolt = 258,
+}
+
+#[allow(dead_code)]
+#[repr(i32)]
+#[derive(PartialEq, Eq)]
+pub enum Team {
+    Spectator = 1,
+    Red = 2,
+    Blue = 3,
+}
+
+impl Team {
+    pub fn as_rgba(&self) -> crate::types::RGBA {
+        match self {
+            Team::Red => RGBA::RED,
+            Team::Blue => RGBA::BLUE,
+            _ => RGBA::WHITE,
+        }
+    }
 }
