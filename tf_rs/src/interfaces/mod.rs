@@ -6,7 +6,7 @@ mod entity_list;
 mod factory;
 mod global_vars;
 mod panel;
-mod surface;
+pub mod surface;
 
 pub use core::*;
 use debug_overlay::*;
@@ -16,4 +16,4 @@ use entity_list::*;
 use factory::*;
 use global_vars::*;
 use panel::*;
-use surface::*;
+pub use surface::*;
