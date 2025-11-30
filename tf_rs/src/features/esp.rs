@@ -42,7 +42,10 @@ pub fn player_esp(localplayer: &Player, config: &Config) {
                     draw_box(left, top, right, bottom);
                 }
                 if config.esp.player_names != 0 {
-                    draw_name(left, top, right, bottom, i as i32);
+                    let name = Interfaces::engine_client().get_player_info(i).name;
+                    let name = str::from_utf8(&name).unwrap_or("");
+
+                    draw_name(left, top, right, bottom, name);
                 }
                 if config.esp.player_health != 0 {
                     draw_health(&player, top, bottom, right);
@@ -78,6 +81,16 @@ pub fn entity_esp(_localplayer: &Player, config: &Config) {
                         if config.esp.building_boxes != 0 {
                             draw_box(left, top, right, bottom);
                         }
+                        if config.esp.building_names != 0 {
+                            // TODO: This is shit, tbh re write both player and entity esp into one loop and do a match
+                            let name = match entity.class_id() {
+                                EntityClassID::Sentry => "Sentry",
+                                EntityClassID::Dispenser => "Dispenser",
+                                EntityClassID::Teleporter => "Teleporter",
+                                _ => "Building",
+                            };
+                            draw_name(left, top, right, bottom, name);
+                        }
                         if config.esp.building_health != 0 {
                             draw_health(&entity, top, bottom, right);
                         }
@@ -98,12 +111,7 @@ fn draw_box(left: i32, top: i32, right: i32, bottom: i32) {
     Interfaces::surface().draw_outlined_rect(left, top, right, bottom);
 }
 
-fn draw_name(left: i32, top: i32, _right: i32, _bottom: i32, player_index: i32) {
-    let name = Interfaces::engine_client()
-        .get_player_info(player_index)
-        .name;
-    let name = str::from_utf8(&name).unwrap_or("");
-
+fn draw_name(left: i32, top: i32, _right: i32, _bottom: i32, name: &str) {
     Interfaces::surface().draw_set_text_color(255, 255, 255, 255);
     Interfaces::surface().draw_set_text_pos(left as u32, (top - 20) as u32);
     Interfaces::surface().draw_print_text(name);

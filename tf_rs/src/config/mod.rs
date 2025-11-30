@@ -23,6 +23,7 @@ pub struct ESPConfig {
     pub player_names: i32,
     pub player_health: i32,
     pub building_boxes: i32,
+    pub building_names: i32,
     pub building_health: i32,
     pub aimbot_target: i32,
 }
@@ -172,6 +173,7 @@ impl fmt::Display for Config {
         writeln!(f, "esp.player_names: {}", self.esp.player_names)?;
         writeln!(f, "esp.player_health: {}", self.esp.player_health)?;
         writeln!(f, "esp.building_boxes: {}", self.esp.building_boxes)?;
+        writeln!(f, "esp.building_names: {}", self.esp.building_names)?;
         writeln!(f, "esp.building_health: {}", self.esp.building_health)?;
         writeln!(f, "esp.aimbot_target: {}", self.esp.aimbot_target)?;
 
@@ -218,6 +220,7 @@ impl FromStr for Config {
                 "esp.player_names" => cfg.esp.player_names = value,
                 "esp.player_health" => cfg.esp.player_health = value,
                 "esp.building_boxes" => cfg.esp.building_boxes = value,
+                "esp.building_names" => cfg.esp.building_names = value,
                 "esp.building_health" => cfg.esp.building_health = value,
                 "esp.aimbot_target" => cfg.esp.aimbot_target = value,
 
