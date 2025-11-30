@@ -5,7 +5,7 @@ use crate::{
     globals::Globals,
     helpers,
     interfaces::{Interfaces, Surface},
-    types::{BBox, ClassID, Entity, Player, RGBA},
+    types::{BBox, ClassID, Cond, Entity, Player, RGBA},
 };
 
 static ESP_FONT: OnceLock<u64> = OnceLock::new();
@@ -76,6 +76,22 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
 
                     if config.esp.player_health != 0 {
                         draw_health(&bbox, &player, surface);
+                    }
+
+                    if player.in_cond(Cond::Disguised) {
+                        conds.push(("DISGUISED", RGBA::WHITE));
+                    }
+
+                    if player.in_cond(Cond::Taunting) {
+                        conds.push(("TAUNTING", RGBA::WHITE));
+                    }
+
+                    if player.in_cond(Cond::Zoomed) {
+                        conds.push(("ZOOMED", RGBA::WHITE));
+                    }
+
+                    if player.is_invisible() {
+                        conds.push(("INVISIBLE", RGBA::WHITE));
                     }
 
                     Some(bbox)

@@ -113,6 +113,8 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
             .checkbox("Names", &mut config.esp.player_names)
             .row_dynamic(30.0, 1)
             .checkbox("Health bar", &mut config.esp.player_health)
+            .row_dynamic(30.0, 1)
+            .checkbox("Conditions", &mut config.esp.player_conds)
             .row_dynamic(2.0, 1)
             .label("", TextAlignment::LEFT);
 
