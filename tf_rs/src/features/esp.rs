@@ -78,7 +78,10 @@ pub fn entity_esp(_localplayer: &Player, config: &Config) {
                         if config.esp.building_boxes != 0 {
                             draw_box(left, top, right, bottom);
                         }
-                        // TODO: draw_health(config, &entity, top, bottom, right);
+                        if config.esp.building_health != 0 {
+                            draw_health(&entity, top, bottom, right);
+                        }
+
                         if Some(i) == target.map(|t| t.target_index) {
                             draw_target(left, top, right, bottom, target, config);
                         }
@@ -108,9 +111,7 @@ fn draw_name(left: i32, top: i32, _right: i32, _bottom: i32, player_index: i32) 
 
 // TODO: Add overheal
 fn draw_health(player: &Entity, top: i32, bottom: i32, right: i32) {
-    // TODO: Max health doesn't work for non-player entities
     let max_health = player.max_health();
-
     if max_health <= 0 {
         return;
     }
