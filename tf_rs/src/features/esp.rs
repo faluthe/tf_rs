@@ -2,6 +2,7 @@ use std::sync::OnceLock;
 
 use crate::{
     config::Config,
+    globals::Globals,
     helpers,
     interfaces::{Interfaces, Surface},
     types::{BBox, ClassID, Entity, Player, RGBA},
@@ -22,8 +23,8 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
         return;
     }
 
-    // let globals = Globals::read();
-    // let target = globals.target.as_ref(); // TODO: Add this back lol but smarter
+    let globals = Globals::read();
+    let target = globals.target.as_ref();
 
     for i in 1..Interfaces::entity_list().max_entities() {
         if let Some(entity) = Interfaces::entity_list().get_client_entity::<Entity>(i) {
@@ -31,7 +32,9 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                 continue;
             }
 
-            match entity.class_id() {
+            let mut conds = Vec::new();
+
+            let bbox = match entity.class_id() {
                 ClassID::Player => {
                     let player = Player { ent: entity };
 
@@ -63,31 +66,64 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     if config.esp.player_health != 0 {
                         draw_health(&bbox, &player, surface);
                     }
+
+                    conds.push("PLAYER");
+
+                    Some(bbox)
                 }
                 ClassID::Sentry => {
                     if entity.team() != localplayer.team() || config.esp.building_friendly != 0 {
                         building_esp(&entity, "Sentry", config, surface)
+                    } else {
+                        continue;
                     }
                 }
                 ClassID::Dispenser => {
                     if entity.team() != localplayer.team() || config.esp.building_friendly != 0 {
                         building_esp(&entity, "Dispenser", config, surface)
+                    } else {
+                        continue;
                     }
                 }
                 ClassID::Teleporter => {
                     if entity.team() != localplayer.team() || config.esp.building_friendly != 0 {
                         building_esp(&entity, "Teleporter", config, surface)
+                    } else {
+                        continue;
                     }
                 }
-                _ => {}
+                _ => continue,
+            };
+
+            let Some(bbox) = bbox else {
+                continue;
+            };
+
+            if config.esp.aimbot_target != 0 {
+                if Some(i) == target.map(|t| t.target_index) {
+                    conds.push("TARGET");
+
+                    if Some(true) == target.map(|t| t.should_headshot) {
+                        conds.push("HS");
+                    }
+                }
+            }
+
+            for (j, cond) in conds.iter().enumerate() {
+                surface.draw_set_text_color(255, 255, 255, 255);
+                surface.draw_set_text_pos(
+                    (bbox.right + 10) as u32,
+                    (bbox.top + (j as i32 * 10)) as u32,
+                );
+                surface.draw_print_text(cond);
             }
         }
     }
 }
 
-fn building_esp(entity: &Entity, name: &str, config: &Config, surface: &Surface) {
+fn building_esp(entity: &Entity, name: &str, config: &Config, surface: &Surface) -> Option<BBox> {
     let Some(bbox) = helpers::get_bounding_box(entity) else {
-        return;
+        return None;
     };
 
     let team_color = entity.team().as_rgba();
@@ -103,6 +139,8 @@ fn building_esp(entity: &Entity, name: &str, config: &Config, surface: &Surface)
     if config.esp.building_health != 0 {
         draw_health(&bbox, entity, surface);
     }
+
+    Some(bbox)
 }
 
 // TODO: Outline in black for visibility
@@ -162,28 +200,6 @@ fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface) {
     surface.draw_set_color(red, green, 0, 255);
     surface.draw_filled_rect(bbox.right + 2, bar_top, bbox.right + 3, bbox.bottom - 1);
 }
-
-// fn draw_target(
-//     _left: i32,
-//     top: i32,
-//     right: i32,
-//     _bottom: i32,
-//     target: Option<&Target>,
-//     config: &Config,
-// ) {
-//     if config.esp.aimbot_target == 0 {
-//         return;
-//     }
-
-//     surface.draw_set_text_color(255, 255, 255, 255);
-//     surface.draw_set_text_pos((right + 10) as u32, top as u32);
-//     surface.draw_print_text("TARGET");
-
-//     if Some(true) == target.map(|t| t.should_headshot) {
-//         surface.draw_set_text_pos((right + 10) as u32, (top + 10) as u32);
-//         surface.draw_print_text("HS");
-//     }
-// }
 
 // TODO: Fix for scoped weapons
 pub fn draw_fov(surface: &Surface, config: &Config) {
