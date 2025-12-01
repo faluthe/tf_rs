@@ -142,7 +142,24 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
 
 fn misc_tab(nk: &Nuklear, config: &mut Config) {
     nk.row_dynamic(30.0, 1)
-        .checkbox("Bunnyhop", &mut config.bunnyhop);
+        .checkbox("Bunnyhop", &mut config.bunnyhop)
+        .row_dynamic(30.0, 2)
+        .checkbox("Thirdperson", &mut config.thirdperson.use_key);
+
+    if config.thirdperson.use_key != 0 {
+        let mut g = Globals::write();
+        let label = if g.thirdperson_key_editing {
+            "Press a key...".to_string()
+        } else if config.thirdperson.is_mouse_button {
+            format!("Thirdperson key: Mouse {}", config.thirdperson.code as u32)
+        } else {
+            format!("Thirdperson key: {}", config.thirdperson.code as u32)
+        };
+
+        if nk.button_label(label.as_str()) {
+            g.thirdperson_key_editing = !g.thirdperson_key_editing;
+        }
+    }
 }
 
 fn config_tab(nk: &Nuklear, config: &mut Config) {

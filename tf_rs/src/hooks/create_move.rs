@@ -1,15 +1,18 @@
 use std::ffi::c_void;
 
-use log::info;
-
 use crate::{
     config::Config,
     features::{aimbot, movement},
+    globals::Globals,
     helpers,
     hooks::Hooks,
     interfaces::Interfaces,
     types::UserCmd,
 };
+
+// Thirdperson toggle state
+static mut TP: i32 = 0;
+static mut LAST_TP: bool = false;
 
 pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut UserCmd) -> i64 {
     let rc = Hooks::create_move()
@@ -22,11 +25,20 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
     }
 
     let localplayer = helpers::get_localplayer().expect("Failed to get localplayer");
-    info!("localplayer.this {:p}", localplayer.this);
     let config = Config::read();
 
     movement::bunnyhop(&localplayer, cmd, &config);
     aimbot::run(&localplayer, cmd, &config);
+
+    let pressed = Globals::read().thirdperson_pressed;
+    unsafe {
+        if pressed && !LAST_TP {
+            TP = if TP == 0 { 1 } else { 0 };
+            localplayer.set_thirdperson(TP);
+        }
+
+        LAST_TP = pressed;
+    }
 
     if config.aimbot.silent_aim != 0 { 0 } else { rc }
 }
