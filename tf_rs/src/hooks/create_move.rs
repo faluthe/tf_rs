@@ -25,6 +25,11 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
     }
 
     let localplayer = helpers::get_localplayer().expect("Failed to get localplayer");
+
+    if localplayer.is_dead() {
+        return rc;
+    }
+
     let config = Config::read();
 
     movement::bunnyhop(&localplayer, cmd, &config);
