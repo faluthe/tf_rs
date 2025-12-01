@@ -78,20 +78,26 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         draw_health(&bbox, &player, surface);
                     }
 
-                    if player.in_cond(Cond::Disguised) {
-                        conds.push(("DISGUISED", RGBA::WHITE));
-                    }
+                    if config.esp.player_conds != 0 {
+                        if player.in_cond(Cond::Disguised) {
+                            conds.push(("DISGUISED", RGBA::WHITE));
+                        }
 
-                    if player.in_cond(Cond::Taunting) {
-                        conds.push(("TAUNTING", RGBA::WHITE));
-                    }
+                        if player.in_cond(Cond::Taunting) {
+                            conds.push(("TAUNTING", RGBA::WHITE));
+                        }
 
-                    if player.in_cond(Cond::Zoomed) {
-                        conds.push(("ZOOMED", RGBA::WHITE));
-                    }
+                        if player.in_cond(Cond::Zoomed) {
+                            conds.push(("ZOOMED", RGBA::WHITE));
+                        }
 
-                    if player.is_invisible() {
-                        conds.push(("INVISIBLE", RGBA::WHITE));
+                        if player.is_invisible() {
+                            conds.push(("INVISIBLE", RGBA::WHITE));
+                        }
+
+                        if player.in_cond(Cond::MadMilk) {
+                            conds.push(("MILKED", RGBA::WHITE));
+                        }
                     }
 
                     Some(bbox)
