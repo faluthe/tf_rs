@@ -9,9 +9,14 @@ struct Message {
     filenames: Vec<String>,
 }
 
-fn get_lib_path() -> String {
+fn get_lib_path(release: bool) -> String {
+    let mut args = vec!["build", "-p", "tf_rs", "--message-format=json"];
+    if release {
+        args.push("--release");
+    }
+
     let output = Command::new("cargo")
-        .args(["build", "-p", "tf_rs", "--message-format=json"])
+        .args(&args)
         .output()
         .expect("Failed to execute cargo build");
 
@@ -68,7 +73,8 @@ fn open_debug_terminal() {
 
 fn main() -> ExitCode {
     let debug = std::env::args().any(|arg| arg == "--debug");
-    let lib_path = get_lib_path();
+    let release = std::env::args().any(|arg| arg == "--release");
+    let lib_path = get_lib_path(release);
     let pid = get_pid();
     if debug {
         open_debug_terminal();

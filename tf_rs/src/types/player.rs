@@ -45,7 +45,7 @@ impl Player {
     offset_get!(fn invisibility: f32, 0x1FE8);
 
     pub fn is_on_ground(&self) -> bool {
-        (self.flags() & 1) == 0
+        (self.flags() & 1) != 0
     }
 
     pub fn is_dead(&self) -> bool {
