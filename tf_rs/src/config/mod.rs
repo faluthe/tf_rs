@@ -14,6 +14,7 @@ pub struct Config {
     pub bunnyhop: i32, // nuklear expects i32 :P
     pub esp: ESPConfig,
     pub aimbot: AimbotConfig,
+    pub thirdperson: KeyConfig,
 }
 
 #[derive(Default)]
@@ -36,13 +37,13 @@ pub struct AimbotConfig {
     pub master: i32,
     pub silent_aim: i32,
     pub building_aim: i32,
-    pub key: AimbotKey,
+    pub key: KeyConfig,
     pub fov: i32,
     pub draw_fov: i32,
 }
 
 #[derive(Default)]
-pub struct AimbotKey {
+pub struct KeyConfig {
     pub use_key: i32,
     pub is_mouse_button: bool,
     pub code: u32,
@@ -196,6 +197,14 @@ impl fmt::Display for Config {
         writeln!(f, "aimbot.fov: {}", self.aimbot.fov)?;
         writeln!(f, "aimbot.draw_fov: {}", self.aimbot.draw_fov)?;
 
+        writeln!(f, "thirdperson.use_key: {}", self.thirdperson.use_key)?;
+        writeln!(
+            f,
+            "thirdperson.is_mouse_button: {}",
+            self.thirdperson.is_mouse_button as i32,
+        )?;
+        writeln!(f, "thirdperson.code: {}", self.thirdperson.code)?;
+
         Ok(())
     }
 }
@@ -241,6 +250,10 @@ impl FromStr for Config {
                 "aimbot.key.code" => cfg.aimbot.key.code = value as u32,
                 "aimbot.fov" => cfg.aimbot.fov = value,
                 "aimbot.draw_fov" => cfg.aimbot.draw_fov = value,
+
+                "thirdperson.use_key" => cfg.thirdperson.use_key = value,
+                "thirdperson.is_mouse_button" => cfg.thirdperson.is_mouse_button = value != 0,
+                "thirdperson.code" => cfg.thirdperson.code = value as u32,
                 _ => return Err(format!("Unknown config key: {}", key)),
             }
         }

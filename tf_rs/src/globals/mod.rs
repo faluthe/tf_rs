@@ -7,6 +7,8 @@ pub struct Globals {
     pub target: Option<Target>,
     pub aimbot_key_down: bool,
     pub aimbot_key_editing: bool,
+    pub thirdperson_pressed: bool,
+    pub thirdperson_key_editing: bool,
 }
 
 #[derive(Default)]

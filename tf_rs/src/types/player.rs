@@ -1,4 +1,4 @@
-use std::{ffi::c_void, ops::Deref};
+use std::{ffi::c_void, ops::Deref, ptr};
 
 use crate::{
     interfaces::Interfaces,
@@ -140,6 +140,13 @@ impl Player {
         }
 
         self.invisibility() > 0.9
+    }
+
+    pub fn set_thirdperson(&self, enabled: i32) {
+        unsafe {
+            let p = (self.this as *const u8).add(0x240C as usize) as *mut i32;
+            ptr::write(p, enabled);
+        }
     }
 }
 
