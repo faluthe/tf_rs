@@ -25,7 +25,9 @@ pub extern "C" fn hk_paint_traverse(
         return rc;
     }
 
-    let localplayer = helpers::get_localplayer().expect("Failed to get localplayer");
+    let Some(localplayer) = helpers::get_localplayer() else {
+        return rc;
+    };
     let config = Config::read();
 
     esp::run(&localplayer, &surface, &config);

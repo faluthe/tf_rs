@@ -5,29 +5,30 @@ pub struct RGBA {
     pub a: i32,
 }
 
-impl RGBA {
-    pub const RED: Self = Self {
-        r: 157,
-        g: 49,
-        b: 47,
-        a: 255,
-    };
-    pub const BLUE: Self = Self {
-        r: 91,
-        g: 122,
-        b: 140,
-        a: 255,
-    };
-    pub const ORANGE: Self = Self {
-        r: 239,
-        g: 152,
-        b: 73,
-        a: 255,
-    };
-    pub const WHITE: Self = Self {
-        r: 255,
-        g: 255,
-        b: 255,
-        a: 255,
-    };
-}
+pub static RED: RGBA = RGBA {
+    r: 255,
+    g: 0,
+    b: 0,
+    a: 255,
+};
+
+pub static BLUE: RGBA = RGBA {
+    r: 0,
+    g: 0,
+    b: 255,
+    a: 255,
+};
+
+pub static WHITE: RGBA = RGBA {
+    r: 255,
+    g: 255,
+    b: 255,
+    a: 255,
+};
+
+pub static ORANGE: RGBA = RGBA {
+    r: 255,
+    g: 165,
+    b: 0,
+    a: 255,
+};

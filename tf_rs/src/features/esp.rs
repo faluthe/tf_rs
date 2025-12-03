@@ -5,7 +5,7 @@ use crate::{
     globals::Globals,
     helpers,
     interfaces::{Interfaces, Surface},
-    types::{BBox, ClassID, Cond, Entity, Player, RGBA},
+    types::{BBox, ClassId, Cond, Entity, Player, RGBA, rgba},
 };
 
 static ESP_FONT: OnceLock<u64> = OnceLock::new();
@@ -34,21 +34,28 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
 
             let mut conds = Vec::new();
 
-            let mut color = entity.team().as_rgba();
-
-            if config.esp.aimbot_target != 0 {
+            let is_target = if config.esp.aimbot_target != 0 {
                 if Some(i) == target.map(|t| t.target_index) {
-                    conds.push(("TARGET", RGBA::ORANGE));
-                    color = RGBA::ORANGE;
+                    conds.push(("TARGET", &rgba::WHITE));
 
                     if Some(true) == target.map(|t| t.should_headshot) {
-                        conds.push(("HS", RGBA::RED));
+                        conds.push(("HS", &rgba::RED));
                     }
+                    true
+                } else {
+                    false
                 }
-            }
+            } else {
+                false
+            };
 
-            let bbox = match entity.class_id() {
-                ClassID::Player => {
+            let class_id = match entity.class_id() {
+                Some(class_id) => class_id,
+                None => continue,
+            };
+
+            let bbox = match class_id {
+                ClassId::Player => {
                     let player = Player { ent: entity };
 
                     if player.is_dead() {
@@ -64,14 +71,31 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     };
 
                     if config.esp.player_boxes != 0 {
-                        draw_box(&bbox, &color, surface);
+                        draw_box(
+                            &bbox,
+                            if is_target {
+                                &rgba::ORANGE
+                            } else {
+                                player.team().as_rgba()
+                            },
+                            surface,
+                        );
                     }
 
                     if config.esp.player_names != 0 {
                         let name = Interfaces::engine_client().get_player_info(i).name;
                         let name = str::from_utf8(&name).unwrap_or("");
 
-                        draw_name(&bbox, name, &color, surface);
+                        draw_name(
+                            &bbox,
+                            name,
+                            if is_target {
+                                &rgba::ORANGE
+                            } else {
+                                player.team().as_rgba()
+                            },
+                            surface,
+                        );
                     }
 
                     if config.esp.player_health != 0 {
@@ -80,45 +104,63 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
 
                     if config.esp.player_conds != 0 {
                         if player.in_cond(Cond::Disguised) {
-                            conds.push(("DISGUISED", RGBA::WHITE));
+                            conds.push(("DISGUISED", &rgba::WHITE));
                         }
 
                         if player.in_cond(Cond::Taunting) {
-                            conds.push(("TAUNTING", RGBA::WHITE));
+                            conds.push(("TAUNTING", &rgba::WHITE));
                         }
 
                         if player.in_cond(Cond::Zoomed) {
-                            conds.push(("ZOOMED", RGBA::WHITE));
+                            conds.push(("ZOOMED", &rgba::WHITE));
                         }
 
                         if player.is_invisible() {
-                            conds.push(("INVISIBLE", RGBA::WHITE));
+                            conds.push(("INVISIBLE", &rgba::WHITE));
                         }
 
                         if player.in_cond(Cond::MadMilk) {
-                            conds.push(("MILKED", RGBA::WHITE));
+                            conds.push(("MILKED", &rgba::WHITE));
                         }
                     }
 
                     Some(bbox)
                 }
-                ClassID::Sentry => {
+                ClassId::Sentry => {
                     if entity.team() != localplayer.team() || config.esp.building_friendly != 0 {
-                        building_esp(&entity, "Sentry", config, surface, &color)
+                        building_esp(
+                            &entity,
+                            "Sentry Gun",
+                            config,
+                            surface,
+                            entity.team().as_rgba(),
+                        )
                     } else {
                         continue;
                     }
                 }
-                ClassID::Dispenser => {
+                ClassId::Dispenser => {
                     if entity.team() != localplayer.team() || config.esp.building_friendly != 0 {
-                        building_esp(&entity, "Dispenser", config, surface, &color)
+                        building_esp(
+                            &entity,
+                            "Dispenser",
+                            config,
+                            surface,
+                            entity.team().as_rgba(),
+                        )
                     } else {
                         continue;
                     }
                 }
-                ClassID::Teleporter => {
+                ClassId::Teleporter => {
                     if entity.team() != localplayer.team() || config.esp.building_friendly != 0 {
-                        building_esp(&entity, "Teleporter", config, surface, &color)
+                        building_esp(
+                            &entity,
+                            "Teleporter",
+                            config,
+                            surface,
+                            entity.team().as_rgba(),
+                        )
                     } else {
                         continue;
                     }
