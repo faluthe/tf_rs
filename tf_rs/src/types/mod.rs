@@ -13,7 +13,7 @@ pub mod vec3_aligned;
 pub mod weapon;
 
 pub use bbox::BBox;
-pub use entity::ClassID;
+pub use entity::ClassId;
 pub use entity::Entity;
 pub use player::Cond;
 pub use player::Player;

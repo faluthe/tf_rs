@@ -3,7 +3,7 @@ use std::ffi::c_void;
 use crate::{
     offset_get,
     traits::FromRaw,
-    types::{RGBA, Vec3},
+    types::{RGBA, Vec3, rgba},
     vfunc,
 };
 
@@ -63,9 +63,22 @@ impl Entity {
         unsafe { *(f(collideable)) }
     }
 
-    pub fn class_id(&self) -> ClassID {
+    pub fn class_id(&self) -> Option<ClassId> {
         let client_class = self.client_class();
-        unsafe { *((client_class as usize + 0x28) as *const ClassID) }
+        let i = unsafe { *((client_class as usize + 0x28) as *const i32) };
+        match i {
+            1 => Some(ClassId::AmmoHealth),
+            86 => Some(ClassId::Dispenser),
+            88 => Some(ClassId::Sentry),
+            89 => Some(ClassId::Teleporter),
+            112 => Some(ClassId::Arrow),
+            217 => Some(ClassId::PillOrSticky),
+            247 => Some(ClassId::Player),
+            257 => Some(ClassId::Flare),
+            258 => Some(ClassId::CrossbowBolt),
+            264 => Some(ClassId::Rocket),
+            _ => return None,
+        }
     }
 
     pub fn is_dormant(&self) -> bool {
@@ -77,9 +90,8 @@ impl Entity {
 }
 
 #[allow(dead_code)]
-#[repr(i32)]
-#[derive(Copy, Clone)]
-pub enum ClassID {
+#[derive(Copy, Clone, Debug)]
+pub enum ClassId {
     AmmoHealth = 1,
     Dispenser = 86,
     Sentry = 88,
@@ -102,11 +114,11 @@ pub enum Team {
 }
 
 impl Team {
-    pub fn as_rgba(&self) -> crate::types::RGBA {
+    pub fn as_rgba(&self) -> &'static RGBA {
         match self {
-            Team::Red => RGBA::RED,
-            Team::Blue => RGBA::BLUE,
-            _ => RGBA::WHITE,
+            Team::Red => &rgba::RED,
+            Team::Blue => &rgba::BLUE,
+            Team::Spectator => &rgba::WHITE,
         }
     }
 }

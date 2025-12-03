@@ -5,7 +5,7 @@ use crate::{
     globals::{Globals, Target},
     helpers,
     interfaces::Interfaces,
-    types::{ClassID, Entity, Player, UserCmd, Vec3, user_cmd::Buttons},
+    types::{ClassId, Entity, Player, UserCmd, Vec3, user_cmd::Buttons},
 };
 
 pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
@@ -90,7 +90,7 @@ fn get_target(
 
             if !matches!(
                 entity.class_id(),
-                ClassID::Sentry | ClassID::Dispenser | ClassID::Teleporter
+                Some(ClassId::Sentry) | Some(ClassId::Dispenser) | Some(ClassId::Teleporter)
             ) {
                 continue;
             }
