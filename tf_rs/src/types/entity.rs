@@ -7,7 +7,7 @@ use crate::{
     vfunc,
 };
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Copy, Clone)]
 pub struct Entity {
     pub this: *mut c_void,
     pub vtable: *mut *mut c_void,

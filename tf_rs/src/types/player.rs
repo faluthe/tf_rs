@@ -32,6 +32,7 @@ impl Deref for Player {
 
 impl Player {
     offset_get!(pub fn flags: i32, 0x460);
+    offset_get!(pub fn observer_mode: i32, 0x1644);
     offset_get!(fn lifestate: i8, 0x746);
     offset_get!(fn active_weapon_: i32, 0x11D0);
     offset_get!(fn tick_base: i32, 0x1718);
@@ -43,6 +44,7 @@ impl Player {
     offset_get!(fn conds_3: u32, 0x1F70);
     offset_get!(fn conds_4: u32, 0x1F74);
     offset_get!(fn invisibility: f32, 0x1FE8);
+    offset_get!(fn observer_target_: i32, 0x1648);
 
     pub fn is_on_ground(&self) -> bool {
         (self.flags() & 1) != 0
@@ -147,6 +149,11 @@ impl Player {
             let p = (self.this as *const u8).add(0x240C as usize) as *mut i32;
             ptr::write(p, enabled);
         }
+    }
+
+    pub fn observer_target(&self) -> Option<Entity> {
+        let index = self.observer_target_() & 0xFFF;
+        Interfaces::entity_list().get_client_entity::<Entity>(index)
     }
 }
 

@@ -15,6 +15,7 @@ pub struct Config {
     pub esp: ESPConfig,
     pub aimbot: AimbotConfig,
     pub thirdperson: KeyConfig,
+    pub spectator_list: i32,
 }
 
 #[derive(Default)]
@@ -205,6 +206,7 @@ impl fmt::Display for Config {
         )?;
         writeln!(f, "thirdperson.code: {}", self.thirdperson.code)?;
 
+        writeln!(f, "spectator_list: {}", self.spectator_list)?;
         Ok(())
     }
 }
@@ -254,6 +256,8 @@ impl FromStr for Config {
                 "thirdperson.use_key" => cfg.thirdperson.use_key = value,
                 "thirdperson.is_mouse_button" => cfg.thirdperson.is_mouse_button = value != 0,
                 "thirdperson.code" => cfg.thirdperson.code = value as u32,
+
+                "spectator_list" => cfg.spectator_list = value,
                 _ => return Err(format!("Unknown config key: {}", key)),
             }
         }
