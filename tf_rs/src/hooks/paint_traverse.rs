@@ -31,6 +31,7 @@ pub extern "C" fn hk_paint_traverse(
     let config = Config::read();
 
     esp::run(&localplayer, &surface, &config);
+    esp::spectator_list(&localplayer, &surface, &config);
 
     if localplayer.is_dead() {
         return rc;

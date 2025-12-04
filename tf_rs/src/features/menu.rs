@@ -143,6 +143,8 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
 fn misc_tab(nk: &Nuklear, config: &mut Config) {
     nk.row_dynamic(30.0, 1)
         .checkbox("Bunnyhop", &mut config.bunnyhop)
+        .row_dynamic(30.0, 1)
+        .checkbox("Spectator list", &mut config.spectator_list)
         .row_dynamic(30.0, 2)
         .checkbox("Thirdperson", &mut config.thirdperson.use_key);
 

@@ -133,7 +133,11 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                             "Sentry Gun",
                             config,
                             surface,
-                            entity.team().as_rgba(),
+                            if is_target {
+                                &rgba::ORANGE
+                            } else {
+                                entity.team().as_rgba()
+                            },
                         )
                     } else {
                         continue;
@@ -146,7 +150,11 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                             "Dispenser",
                             config,
                             surface,
-                            entity.team().as_rgba(),
+                            if is_target {
+                                &rgba::ORANGE
+                            } else {
+                                entity.team().as_rgba()
+                            },
                         )
                     } else {
                         continue;
@@ -159,7 +167,11 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                             "Teleporter",
                             config,
                             surface,
-                            entity.team().as_rgba(),
+                            if is_target {
+                                &rgba::ORANGE
+                            } else {
+                                entity.team().as_rgba()
+                            },
                         )
                     } else {
                         continue;
@@ -282,4 +294,73 @@ pub fn draw_fov(surface: &Surface, config: &Config) {
 
     surface.draw_set_color(255, 255, 255, 255);
     surface.draw_circle(width / 2, height / 2, radius as i32, 255);
+}
+
+pub fn spectator_list(localplayer: &Player, surface: &Surface, config: &Config) {
+    if config.spectator_list == 0 {
+        return;
+    }
+
+    let (width, height) = Interfaces::engine_client().get_screen_size();
+    let x = width - 300;
+    let y = height / 3;
+    let mut y_offset = 1;
+    let mut first_spectator = true;
+
+    let local = if localplayer.is_dead() {
+        localplayer.observer_target()
+    } else {
+        Some(localplayer.ent)
+    };
+
+    let Some(local) = local else {
+        return;
+    };
+
+    for i in 1..Interfaces::engine_client().get_max_clients() {
+        if let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i) {
+            if player.is_dormant()
+                || player == *localplayer
+                || player.ent == local
+                || !player.is_dead()
+            {
+                continue;
+            }
+
+            let (observer_mode, color) = match player.observer_mode() {
+                1 => ("Deathcam", &rgba::WHITE),
+                2 => ("Freecam", &rgba::WHITE),
+                3 => ("Fixed", &rgba::WHITE),
+                4 => ("First Person", &rgba::RED),
+                5 => ("Third Person", &rgba::WHITE),
+                6 => ("Point of Interest", &rgba::WHITE),
+                7 => ("Roaming", &rgba::WHITE),
+                _ => continue,
+            };
+
+            let Some(obs_target) = player.observer_target() else {
+                continue;
+            };
+
+            if obs_target != local {
+                continue;
+            }
+
+            if first_spectator {
+                first_spectator = false;
+                surface.draw_set_text_color(255, 255, 255, 255);
+                surface.draw_set_text_pos(x as u32, y as u32);
+                surface.draw_print_text("Spectators:");
+            }
+
+            let name = Interfaces::engine_client().get_player_info(i).name;
+            let name = format!("{}: {}", observer_mode, str::from_utf8(&name).unwrap_or(""));
+
+            surface.draw_set_text_color(color.r, color.g, color.b, color.a);
+            surface.draw_set_text_pos(x as u32, (y + 16 * y_offset) as u32);
+            surface.draw_print_text(name.as_str());
+
+            y_offset += 1;
+        }
+    }
 }
