@@ -21,6 +21,32 @@ impl Weapon {
         let f = vfunc!(self.vtable, 451, extern "C" fn(*mut c_void) -> WeaponClass);
         f(self.this)
     }
+
+    pub fn is_hitscan(&self) -> bool {
+        matches!(
+            self.weapon_class(),
+            WeaponClass::ShotgunPrimary
+                | WeaponClass::ShotgunSoldier
+                | WeaponClass::ShotgunHwg
+                | WeaponClass::ShotgunPyro
+                | WeaponClass::Scattergun
+                | WeaponClass::Sniperrifle
+                | WeaponClass::Smg
+                | WeaponClass::SyringegunMedic
+                | WeaponClass::Tranq
+                | WeaponClass::Pistol
+                | WeaponClass::PistolScout
+                | WeaponClass::Revolver
+                | WeaponClass::Nailgun
+                | WeaponClass::HandgunScoutPrimary
+                | WeaponClass::HandgunScoutSecondary
+                | WeaponClass::SodaPopper
+                | WeaponClass::SniperrifleDecap
+                | WeaponClass::Raygun
+                | WeaponClass::MechanicalArm
+                | WeaponClass::SniperrifleClassic
+        )
+    }
 }
 
 #[allow(dead_code)]
