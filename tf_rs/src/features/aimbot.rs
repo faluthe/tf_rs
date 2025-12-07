@@ -11,6 +11,17 @@ use crate::{
 pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
     let cmd = unsafe { &mut *cmd };
     if config.aimbot.master == 0 {
+        Globals::write().target = None;
+        return;
+    }
+
+    let Some(weapon) = localplayer.active_weapon() else {
+        Globals::write().target = None;
+        return;
+    };
+
+    if !weapon.is_hitscan() {
+        Globals::write().target = None;
         return;
     }
 
