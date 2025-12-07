@@ -76,14 +76,13 @@ fn get_target(
                 continue;
             };
 
-            if !helpers::is_ent_visible(&shoot_pos, &player_pos, &player, localplayer) {
-                continue;
-            }
-
             let aim_angle = helpers::calculate_angle(&shoot_pos, &player_pos);
             let fov = view_angle.fov_to(&aim_angle);
 
-            if fov < smallest_fov && fov <= config.aimbot.fov as f32 {
+            if fov < smallest_fov
+                && fov <= config.aimbot.fov as f32
+                && helpers::is_ent_visible(&shoot_pos, &player_pos, &player, localplayer)
+            {
                 smallest_fov = fov;
                 target_angle = Some(aim_angle);
                 target = Some(Target {
@@ -115,14 +114,13 @@ fn get_target(
                 z: entity_pos.z + (mins.z + maxs.z) / 2.,
             };
 
-            if !helpers::is_ent_visible(&shoot_pos, &entity_pos, &entity, localplayer) {
-                continue;
-            }
-
             let aim_angle = helpers::calculate_angle(&shoot_pos, &entity_pos);
             let fov = view_angle.fov_to(&aim_angle);
 
-            if fov < smallest_fov && fov <= config.aimbot.fov as f32 {
+            if fov < smallest_fov
+                && fov <= config.aimbot.fov as f32
+                && helpers::is_ent_visible(&shoot_pos, &entity_pos, &entity, localplayer)
+            {
                 smallest_fov = fov;
                 target_angle = Some(aim_angle);
                 target = Some(Target {
