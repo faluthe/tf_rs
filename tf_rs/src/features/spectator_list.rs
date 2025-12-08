@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub fn draw(localplayer: &Player, config: &Config, nk: &Nuklear) {
-    if config.spectator_list == 0 {
+    if !config.spectator_list {
         return;
     }
 

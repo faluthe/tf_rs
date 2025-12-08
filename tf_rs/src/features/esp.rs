@@ -19,7 +19,7 @@ pub fn esp_font(surface: &Surface) -> u64 {
 }
 
 pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
-    if config.esp.master == 0 {
+    if !config.esp.master {
         return;
     }
 
@@ -34,7 +34,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
 
             let mut conds = Vec::new();
 
-            let is_target = if config.esp.aimbot_target != 0 {
+            let is_target = if config.esp.aimbot_target {
                 if Some(i) == target.map(|t| t.target_index) {
                     conds.push(("TARGET", &rgba::WHITE));
 
@@ -78,7 +78,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         &config.esp.player_enemy
                     };
 
-                    if cfg.boxes != 0 {
+                    if cfg.boxes {
                         draw_box(
                             &bbox,
                             if is_target {
@@ -90,7 +90,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         );
                     }
 
-                    if cfg.names != 0 {
+                    if cfg.names {
                         let name = Interfaces::engine_client().get_player_info(i).name;
                         let name = str::from_utf8(&name).unwrap_or("");
 
@@ -106,11 +106,11 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         );
                     }
 
-                    if cfg.health != 0 {
+                    if cfg.health {
                         draw_health(&bbox, &player, surface, false);
                     }
 
-                    if cfg.conds != 0 {
+                    if cfg.conds {
                         if player.in_cond(Cond::Disguised) {
                             conds.push(("DISGUISED", &rgba::WHITE));
                         }
@@ -233,15 +233,15 @@ fn building_esp(
         return None;
     };
 
-    if cfg.boxes != 0 {
+    if cfg.boxes {
         draw_box(&bbox, color, surface);
     }
 
-    if cfg.names != 0 {
+    if cfg.names {
         draw_name(&bbox, name, color, surface);
     }
 
-    if cfg.health != 0 {
+    if cfg.health {
         draw_health(&bbox, entity, surface, true);
     }
 
@@ -291,9 +291,6 @@ fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface, horizontal: bool
     let red = ((1.0 - hp_pct) * 2.0 * 255.0).min(255.0).max(0.0) as i32;
 
     if horizontal {
-        //
-        // HORIZONTAL BAR (bottom of bbox)
-        //
         let bar_width = (width as f32 * hp_pct).round().clamp(0.0, width as f32) as i32;
 
         let bar_left = bbox.left;
@@ -309,9 +306,6 @@ fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface, horizontal: bool
         surface.draw_set_color(red, green, 0, 255);
         surface.draw_filled_rect(bar_left, bar_top + 1, bar_right, bar_bot - 1);
     } else {
-        //
-        // VERTICAL BAR (original behavior)
-        //
         let bar_height = (height as f32 * hp_pct).round().clamp(0.0, height as f32) as i32;
 
         let bg_top = bbox.bottom - height;
@@ -326,53 +320,9 @@ fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface, horizontal: bool
     }
 }
 
-// fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface, horizontal: bool) {
-//     let max_health = entity.max_health();
-//     if max_health <= 0 {
-//         return;
-//     }
-
-//     let height = bbox.bottom - bbox.top;
-//     if height <= 0 {
-//         return;
-//     }
-
-//     let health_raw = entity.health();
-//     let health = health_raw.clamp(0, max_health);
-
-//     let mut health_percent = health as f32 / max_health as f32;
-//     if !health_percent.is_finite() {
-//         return;
-//     }
-//     health_percent = health_percent.clamp(0.0, 1.0);
-
-//     let bar_height = (height as f32 * health_percent)
-//         .clamp(0.0, height as f32)
-//         .round() as i32;
-
-//     let bg_top = bbox.bottom - height;
-//     if bg_top >= bbox.bottom {
-//         return;
-//     }
-
-//     surface.draw_set_color(0, 0, 0, 255 / 2);
-//     surface.draw_filled_rect(bbox.right + 1, bg_top, bbox.right + 4, bbox.bottom);
-
-//     let green = (health_percent * 2.0 * 255.0).min(255.0).max(0.0) as i32;
-//     let red = ((1.0 - health_percent) * 2.0 * 255.0).min(255.0).max(0.0) as i32;
-
-//     let bar_top = bbox.bottom - bar_height;
-//     if bar_top >= bbox.bottom {
-//         return;
-//     }
-
-//     surface.draw_set_color(red, green, 0, 255);
-//     surface.draw_filled_rect(bbox.right + 2, bar_top, bbox.right + 3, bbox.bottom - 1);
-// }
-
 // TODO: Fix for scoped weapons
 pub fn draw_fov(surface: &Surface, config: &Config) {
-    if config.aimbot.master == 0 || config.aimbot.draw_fov == 0 {
+    if config.aimbot.master || config.aimbot.draw_fov {
         return;
     }
 

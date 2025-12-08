@@ -45,5 +45,5 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
         LAST_TP = pressed;
     }
 
-    if config.aimbot.silent_aim != 0 { 0 } else { rc }
+    if config.aimbot.silent_aim { 0 } else { rc }
 }

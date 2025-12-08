@@ -1,57 +1,13 @@
-use core::fmt;
 use std::{
     env, fs,
     path::PathBuf,
-    str::FromStr,
     sync::{RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
 use log::error;
 use once_cell::sync::Lazy;
 
-#[derive(Default)]
-pub struct Config {
-    pub bunnyhop: i32, // nuklear expects i32 :P
-    pub esp: ESPConfig,
-    pub aimbot: AimbotConfig,
-    pub thirdperson: KeyConfig,
-    pub spectator_list: i32,
-}
-
-#[derive(Default)]
-pub struct ESPConfig {
-    pub master: i32,
-    pub player_enemy: EntityESPConfig,
-    pub player_friendly: EntityESPConfig,
-    pub building_enemy: EntityESPConfig,
-    pub building_friendly: EntityESPConfig,
-    pub aimbot_target: i32,
-}
-
-#[derive(Default)]
-pub struct EntityESPConfig {
-    pub boxes: i32,
-    pub names: i32,
-    pub health: i32,
-    pub conds: i32,
-}
-
-#[derive(Default)]
-pub struct AimbotConfig {
-    pub master: i32,
-    pub silent_aim: i32,
-    pub building_aim: i32,
-    pub key: KeyConfig,
-    pub fov: i32,
-    pub draw_fov: i32,
-}
-
-#[derive(Default)]
-pub struct KeyConfig {
-    pub use_key: i32,
-    pub is_mouse_button: bool,
-    pub code: u32,
-}
+use crate::struct_with_serialize;
 
 static C: Lazy<RwLock<Config>> = Lazy::new(|| {
     let cfg = Config::load_or_create("default").unwrap_or_else(|e| {
@@ -62,6 +18,60 @@ static C: Lazy<RwLock<Config>> = Lazy::new(|| {
 });
 
 static L: Lazy<RwLock<Vec<String>>> = Lazy::new(|| RwLock::new(Config::get_config_names()));
+
+struct_with_serialize! {
+    #[derive(Default)]
+    pub struct Config {
+        pub bunnyhop: bool,
+        pub esp: ESPConfig,
+        pub aimbot: AimbotConfig,
+        pub thirdperson: KeyConfig,
+        pub spectator_list: bool,
+    }
+}
+
+struct_with_serialize! {
+    #[derive(Default)]
+    pub struct ESPConfig {
+        pub master: bool,
+        pub player_enemy: EntityESPConfig,
+        pub player_friendly: EntityESPConfig,
+        pub building_enemy: EntityESPConfig,
+        pub building_friendly: EntityESPConfig,
+        pub aimbot_target: bool,
+    }
+}
+
+struct_with_serialize! {
+    #[derive(Default)]
+    pub struct EntityESPConfig {
+        pub boxes: bool,
+        pub names: bool,
+        pub health: bool,
+        pub conds: bool,
+    }
+}
+
+struct_with_serialize! {
+    #[derive(Default)]
+    pub struct AimbotConfig {
+        pub master: bool,
+        pub silent_aim: bool,
+        pub building_aim: bool,
+        pub key: KeyConfig,
+        pub fov: i32,
+        pub draw_fov: bool,
+    }
+}
+
+struct_with_serialize! {
+    #[derive(Default)]
+    pub struct KeyConfig {
+        pub use_key: bool,
+        pub is_mouse_button: bool,
+        pub code: u32,
+    }
+}
 
 impl Config {
     pub fn write() -> RwLockWriteGuard<'static, Config> {
@@ -172,170 +182,8 @@ impl Config {
     }
 }
 
-impl fmt::Display for Config {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "bunnyhop: {}", self.bunnyhop)?;
-
-        writeln!(f, "esp.master: {}", self.esp.master)?;
-        writeln!(f, "esp.player_enemy.boxes: {}", self.esp.player_enemy.boxes)?;
-        writeln!(f, "esp.player_enemy.names: {}", self.esp.player_enemy.names)?;
-        writeln!(
-            f,
-            "esp.player_enemy.health: {}",
-            self.esp.player_enemy.health
-        )?;
-        writeln!(f, "esp.player_enemy.conds: {}", self.esp.player_enemy.conds)?;
-        writeln!(
-            f,
-            "esp.player_friendly.boxes: {}",
-            self.esp.player_friendly.boxes
-        )?;
-        writeln!(
-            f,
-            "esp.player_friendly.names: {}",
-            self.esp.player_friendly.names
-        )?;
-        writeln!(
-            f,
-            "esp.player_friendly.health: {}",
-            self.esp.player_friendly.health
-        )?;
-        writeln!(
-            f,
-            "esp.player_friendly.conds: {}",
-            self.esp.player_friendly.conds
-        )?;
-        writeln!(
-            f,
-            "esp.building_enemy.boxes: {}",
-            self.esp.building_enemy.boxes
-        )?;
-        writeln!(
-            f,
-            "esp.building_enemy.names: {}",
-            self.esp.building_enemy.names
-        )?;
-        writeln!(
-            f,
-            "esp.building_enemy.health: {}",
-            self.esp.building_enemy.health
-        )?;
-        writeln!(
-            f,
-            "esp.building_enemy.conds: {}",
-            self.esp.building_enemy.conds
-        )?;
-        writeln!(
-            f,
-            "esp.building_friendly.boxes: {}",
-            self.esp.building_friendly.boxes
-        )?;
-        writeln!(
-            f,
-            "esp.building_friendly.names: {}",
-            self.esp.building_friendly.names
-        )?;
-        writeln!(
-            f,
-            "esp.building_friendly.health: {}",
-            self.esp.building_friendly.health
-        )?;
-        writeln!(
-            f,
-            "esp.building_friendly.conds: {}",
-            self.esp.building_friendly.conds
-        )?;
-        writeln!(f, "esp.aimbot_target: {}", self.esp.aimbot_target)?;
-
-        writeln!(f, "aimbot.master: {}", self.aimbot.master)?;
-        writeln!(f, "aimbot.silent_aim: {}", self.aimbot.silent_aim)?;
-        writeln!(f, "aimbot.building_aim: {}", self.aimbot.building_aim)?;
-        writeln!(f, "aimbot.key.use_key: {}", self.aimbot.key.use_key)?;
-        writeln!(
-            f,
-            "aimbot.key.is_mouse_button: {}",
-            self.aimbot.key.is_mouse_button as i32,
-        )?;
-        writeln!(f, "aimbot.key.code: {}", self.aimbot.key.code)?;
-        writeln!(f, "aimbot.fov: {}", self.aimbot.fov)?;
-        writeln!(f, "aimbot.draw_fov: {}", self.aimbot.draw_fov)?;
-
-        writeln!(f, "thirdperson.use_key: {}", self.thirdperson.use_key)?;
-        writeln!(
-            f,
-            "thirdperson.is_mouse_button: {}",
-            self.thirdperson.is_mouse_button as i32,
-        )?;
-        writeln!(f, "thirdperson.code: {}", self.thirdperson.code)?;
-
-        writeln!(f, "spectator_list: {}", self.spectator_list)?;
-        Ok(())
-    }
-}
-
-impl FromStr for Config {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut cfg = Config::default();
-        for line in s.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            let mut parts = line.splitn(2, ":");
-            let key = parts.next().ok_or("Missing key")?.trim();
-            let value_str = parts.next().ok_or("Missing value")?.trim();
-            let value: i32 = value_str
-                .parse()
-                .map_err(|_| format!("Invalid value for {}: {}", key, value_str))?;
-
-            match key {
-                "bunnyhop" => cfg.bunnyhop = value,
-
-                "esp.master" => cfg.esp.master = value,
-                "esp.player_enemy.boxes" => cfg.esp.player_enemy.boxes = value,
-                "esp.player_enemy.names" => cfg.esp.player_enemy.names = value,
-                "esp.player_enemy.health" => cfg.esp.player_enemy.health = value,
-                "esp.player_enemy.conds" => cfg.esp.player_enemy.conds = value,
-                "esp.player_friendly.boxes" => cfg.esp.player_friendly.boxes = value,
-                "esp.player_friendly.names" => cfg.esp.player_friendly.names = value,
-                "esp.player_friendly.health" => cfg.esp.player_friendly.health = value,
-                "esp.player_friendly.conds" => cfg.esp.player_friendly.conds = value,
-                "esp.building_enemy.boxes" => cfg.esp.building_enemy.boxes = value,
-                "esp.building_enemy.names" => cfg.esp.building_enemy.names = value,
-                "esp.building_enemy.health" => cfg.esp.building_enemy.health = value,
-                "esp.building_enemy.conds" => cfg.esp.building_enemy.conds = value,
-                "esp.building_friendly.boxes" => cfg.esp.building_friendly.boxes = value,
-                "esp.building_friendly.names" => cfg.esp.building_friendly.names = value,
-                "esp.building_friendly.health" => cfg.esp.building_friendly.health = value,
-                "esp.building_friendly.conds" => cfg.esp.building_friendly.conds = value,
-                "esp.aimbot_target" => cfg.esp.aimbot_target = value,
-
-                "aimbot.master" => cfg.aimbot.master = value,
-                "aimbot.silent_aim" => cfg.aimbot.silent_aim = value,
-                "aimbot.building_aim" => cfg.aimbot.building_aim = value,
-                "aimbot.key.use_key" => cfg.aimbot.key.use_key = value,
-                "aimbot.key.is_mouse_button" => cfg.aimbot.key.is_mouse_button = value != 0,
-                "aimbot.key.code" => cfg.aimbot.key.code = value as u32,
-                "aimbot.fov" => cfg.aimbot.fov = value,
-                "aimbot.draw_fov" => cfg.aimbot.draw_fov = value,
-
-                "thirdperson.use_key" => cfg.thirdperson.use_key = value,
-                "thirdperson.is_mouse_button" => cfg.thirdperson.is_mouse_button = value != 0,
-                "thirdperson.code" => cfg.thirdperson.code = value as u32,
-
-                "spectator_list" => cfg.spectator_list = value,
-                _ => return Err(format!("Unknown config key: {}", key)),
-            }
-        }
-        Ok(cfg)
-    }
-}
-
 impl EntityESPConfig {
     pub fn bool(&self) -> bool {
-        self.boxes != 0 || self.names != 0 || self.health != 0 || self.conds != 0
+        self.boxes || self.names || self.health || self.conds
     }
 }
