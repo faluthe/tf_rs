@@ -6,7 +6,7 @@ use crate::{
 static mut WAS_JUMPING: bool = false;
 
 pub fn bunnyhop(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
-    if config.bunnyhop == 0 {
+    if !config.bunnyhop {
         return;
     }
 

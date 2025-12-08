@@ -10,7 +10,7 @@ use crate::{
 
 pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
     let cmd = unsafe { &mut *cmd };
-    if config.aimbot.master == 0 {
+    if !config.aimbot.master {
         Globals::write().target = None;
         return;
     }
@@ -31,7 +31,7 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
         return;
     };
 
-    let use_key = config.aimbot.key.use_key != 0;
+    let use_key = config.aimbot.key.use_key;
     let wants_shot = (use_key && Globals::read().aimbot_key_down)
         || (!use_key && (cmd.buttons & Buttons::InAttack as i32) != 0);
 
@@ -91,7 +91,7 @@ fn get_target(
                 });
             }
         } else if let Some(entity) = Interfaces::entity_list().get_client_entity::<Entity>(i) {
-            if config.aimbot.building_aim == 0
+            if !config.aimbot.building_aim
                 || entity.is_dormant()
                 || entity.team() == localplayer.team()
             {

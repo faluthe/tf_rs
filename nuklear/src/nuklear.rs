@@ -69,9 +69,11 @@ impl Nuklear {
         self
     }
 
-    pub fn checkbox<T: Into<Vec<u8>>>(&self, text: T, active: *mut i32) -> &Self {
+    pub fn checkbox<T: Into<Vec<u8>>>(&self, text: T, active: &mut bool) -> &Self {
+        let mut active_i32 = if *active { 1 } else { 0 };
         self.context
-            .checkbox_label(CString::new(text).unwrap(), active);
+            .checkbox_label(CString::new(text).unwrap(), &mut active_i32);
+        *active = active_i32 != 0;
         self
     }
 
@@ -203,10 +205,10 @@ impl Nuklear {
         Input::None
     }
 
-    pub fn multi_select_combo(&self, items: &[&str], selected: &[*mut i32]) -> &Self {
+    pub fn multi_select_combo(&self, items: &[&str], selected: &mut [&mut bool]) -> &Self {
         assert_eq!(items.len(), selected.len());
 
-        let selected_count = selected.iter().filter(|&&s| unsafe { *s } != 0).count();
+        let selected_count = selected.iter().filter(|&s| **s).count();
         let header = if selected_count == 0 {
             "None".to_string()
         } else {
@@ -218,12 +220,14 @@ impl Nuklear {
             .combo_begin_label(CString::new(header).unwrap())
         {
             for (i, item) in items.iter().enumerate() {
+                let mut selected_i32 = if *selected[i] { 1 } else { 0 };
                 self.context.row_dynamic(25.0, 1);
                 self.context.selectable_label(
                     CString::new(*item).unwrap(),
                     TextAlignment::CENTER as u32,
-                    selected[i],
+                    &mut selected_i32,
                 );
+                *selected[i] = selected_i32 != 0;
             }
             self.context.combo_end();
         }

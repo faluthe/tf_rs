@@ -64,13 +64,13 @@ fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
     nk.row_dynamic(30.0, 1)
         .checkbox("Master", &mut config.aimbot.master);
 
-    if config.aimbot.master != 0 {
+    if config.aimbot.master {
         nk.row_dynamic(30.0, 1)
             .checkbox("Silent aim", &mut config.aimbot.silent_aim)
             .row_dynamic(30.0, 2)
             .checkbox("Use key", &mut config.aimbot.key.use_key);
 
-        if config.aimbot.key.use_key != 0 {
+        if config.aimbot.key.use_key {
             let mut g = Globals::write();
             let label = if g.aimbot_key_editing {
                 "Press a key...".to_string()
@@ -106,7 +106,7 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
             .label(title, TextAlignment::LEFT)
             .multi_select_combo(
                 &["Boxes", "Names", "Health bar", "Conditions"],
-                &[
+                &mut [
                     &mut esp_cfg.boxes,
                     &mut esp_cfg.names,
                     &mut esp_cfg.health,
@@ -118,7 +118,7 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
     nk.row_dynamic(30.0, 1)
         .checkbox("Master", &mut config.esp.master);
 
-    if config.esp.master == 0 {
+    if !config.esp.master {
         return;
     }
 
@@ -151,7 +151,7 @@ fn misc_tab(nk: &Nuklear, config: &mut Config) {
         .row_dynamic(30.0, 2)
         .checkbox("Thirdperson", &mut config.thirdperson.use_key);
 
-    if config.thirdperson.use_key != 0 {
+    if config.thirdperson.use_key {
         let mut g = Globals::write();
         let label = if g.thirdperson_key_editing {
             "Press a key...".to_string()
