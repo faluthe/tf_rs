@@ -16,9 +16,22 @@ pub fn get_localplayer() -> Option<Player> {
 }
 
 pub fn get_bounding_box(entity: &Entity) -> Option<BBox> {
+    let shrink_xy = 0.75;
+    let shrink_z = 0.95;
     let origin = entity.origin();
     let mins = entity.mins();
     let maxs = entity.maxs();
+
+    let mins = Vec3 {
+        x: mins.x * shrink_xy,
+        y: mins.y * shrink_xy,
+        z: mins.z * shrink_z,
+    };
+    let maxs = Vec3 {
+        x: maxs.x * shrink_xy,
+        y: maxs.y * shrink_xy,
+        z: maxs.z * shrink_z,
+    };
 
     let offsets = [
         (maxs.x, maxs.y, maxs.z), // frt
