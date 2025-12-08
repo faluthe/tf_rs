@@ -21,16 +21,19 @@ pub struct Config {
 #[derive(Default)]
 pub struct ESPConfig {
     pub master: i32,
-    pub player_friendly: i32,
-    pub player_boxes: i32,
-    pub player_names: i32,
-    pub player_health: i32,
-    pub player_conds: i32,
-    pub building_friendly: i32,
-    pub building_boxes: i32,
-    pub building_names: i32,
-    pub building_health: i32,
+    pub player_enemy: EntityESPConfig,
+    pub player_friendly: EntityESPConfig,
+    pub building_enemy: EntityESPConfig,
+    pub building_friendly: EntityESPConfig,
     pub aimbot_target: i32,
+}
+
+#[derive(Default)]
+pub struct EntityESPConfig {
+    pub boxes: i32,
+    pub names: i32,
+    pub health: i32,
+    pub conds: i32,
 }
 
 #[derive(Default)]
@@ -174,15 +177,74 @@ impl fmt::Display for Config {
         writeln!(f, "bunnyhop: {}", self.bunnyhop)?;
 
         writeln!(f, "esp.master: {}", self.esp.master)?;
-        writeln!(f, "esp.player_friendly: {}", self.esp.player_friendly)?;
-        writeln!(f, "esp.player_boxes: {}", self.esp.player_boxes)?;
-        writeln!(f, "esp.player_names: {}", self.esp.player_names)?;
-        writeln!(f, "esp.player_health: {}", self.esp.player_health)?;
-        writeln!(f, "esp.player_conds: {}", self.esp.player_conds)?;
-        writeln!(f, "esp.building_friendly: {}", self.esp.building_friendly)?;
-        writeln!(f, "esp.building_boxes: {}", self.esp.building_boxes)?;
-        writeln!(f, "esp.building_names: {}", self.esp.building_names)?;
-        writeln!(f, "esp.building_health: {}", self.esp.building_health)?;
+        writeln!(f, "esp.player_enemy.boxes: {}", self.esp.player_enemy.boxes)?;
+        writeln!(f, "esp.player_enemy.names: {}", self.esp.player_enemy.names)?;
+        writeln!(
+            f,
+            "esp.player_enemy.health: {}",
+            self.esp.player_enemy.health
+        )?;
+        writeln!(f, "esp.player_enemy.conds: {}", self.esp.player_enemy.conds)?;
+        writeln!(
+            f,
+            "esp.player_friendly.boxes: {}",
+            self.esp.player_friendly.boxes
+        )?;
+        writeln!(
+            f,
+            "esp.player_friendly.names: {}",
+            self.esp.player_friendly.names
+        )?;
+        writeln!(
+            f,
+            "esp.player_friendly.health: {}",
+            self.esp.player_friendly.health
+        )?;
+        writeln!(
+            f,
+            "esp.player_friendly.conds: {}",
+            self.esp.player_friendly.conds
+        )?;
+        writeln!(
+            f,
+            "esp.building_enemy.boxes: {}",
+            self.esp.building_enemy.boxes
+        )?;
+        writeln!(
+            f,
+            "esp.building_enemy.names: {}",
+            self.esp.building_enemy.names
+        )?;
+        writeln!(
+            f,
+            "esp.building_enemy.health: {}",
+            self.esp.building_enemy.health
+        )?;
+        writeln!(
+            f,
+            "esp.building_enemy.conds: {}",
+            self.esp.building_enemy.conds
+        )?;
+        writeln!(
+            f,
+            "esp.building_friendly.boxes: {}",
+            self.esp.building_friendly.boxes
+        )?;
+        writeln!(
+            f,
+            "esp.building_friendly.names: {}",
+            self.esp.building_friendly.names
+        )?;
+        writeln!(
+            f,
+            "esp.building_friendly.health: {}",
+            self.esp.building_friendly.health
+        )?;
+        writeln!(
+            f,
+            "esp.building_friendly.conds: {}",
+            self.esp.building_friendly.conds
+        )?;
         writeln!(f, "esp.aimbot_target: {}", self.esp.aimbot_target)?;
 
         writeln!(f, "aimbot.master: {}", self.aimbot.master)?;
@@ -233,15 +295,22 @@ impl FromStr for Config {
                 "bunnyhop" => cfg.bunnyhop = value,
 
                 "esp.master" => cfg.esp.master = value,
-                "esp.player_friendly" => cfg.esp.player_friendly = value,
-                "esp.player_boxes" => cfg.esp.player_boxes = value,
-                "esp.player_names" => cfg.esp.player_names = value,
-                "esp.player_health" => cfg.esp.player_health = value,
-                "esp.player_conds" => cfg.esp.player_conds = value,
-                "esp.building_friendly" => cfg.esp.building_friendly = value,
-                "esp.building_boxes" => cfg.esp.building_boxes = value,
-                "esp.building_names" => cfg.esp.building_names = value,
-                "esp.building_health" => cfg.esp.building_health = value,
+                "esp.player_enemy.boxes" => cfg.esp.player_enemy.boxes = value,
+                "esp.player_enemy.names" => cfg.esp.player_enemy.names = value,
+                "esp.player_enemy.health" => cfg.esp.player_enemy.health = value,
+                "esp.player_enemy.conds" => cfg.esp.player_enemy.conds = value,
+                "esp.player_friendly.boxes" => cfg.esp.player_friendly.boxes = value,
+                "esp.player_friendly.names" => cfg.esp.player_friendly.names = value,
+                "esp.player_friendly.health" => cfg.esp.player_friendly.health = value,
+                "esp.player_friendly.conds" => cfg.esp.player_friendly.conds = value,
+                "esp.building_enemy.boxes" => cfg.esp.building_enemy.boxes = value,
+                "esp.building_enemy.names" => cfg.esp.building_enemy.names = value,
+                "esp.building_enemy.health" => cfg.esp.building_enemy.health = value,
+                "esp.building_enemy.conds" => cfg.esp.building_enemy.conds = value,
+                "esp.building_friendly.boxes" => cfg.esp.building_friendly.boxes = value,
+                "esp.building_friendly.names" => cfg.esp.building_friendly.names = value,
+                "esp.building_friendly.health" => cfg.esp.building_friendly.health = value,
+                "esp.building_friendly.conds" => cfg.esp.building_friendly.conds = value,
                 "esp.aimbot_target" => cfg.esp.aimbot_target = value,
 
                 "aimbot.master" => cfg.aimbot.master = value,
@@ -262,5 +331,11 @@ impl FromStr for Config {
             }
         }
         Ok(cfg)
+    }
+}
+
+impl EntityESPConfig {
+    pub fn bool(&self) -> bool {
+        self.boxes != 0 || self.names != 0 || self.health != 0 || self.conds != 0
     }
 }

@@ -188,4 +188,32 @@ impl Nuklear {
 
         Input::None
     }
+
+    pub fn multi_select_combo(&self, items: &[&str], selected: &[*mut i32]) -> &Self {
+        assert_eq!(items.len(), selected.len());
+
+        let selected_count = selected.iter().filter(|&&s| unsafe { *s } != 0).count();
+        let header = if selected_count == 0 {
+            "None".to_string()
+        } else {
+            format!("{} selected", selected_count)
+        };
+
+        if self
+            .context
+            .combo_begin_label(CString::new(header).unwrap())
+        {
+            for (i, item) in items.iter().enumerate() {
+                self.context.row_dynamic(25.0, 1);
+                self.context.selectable_label(
+                    CString::new(*item).unwrap(),
+                    TextAlignment::CENTER as u32,
+                    selected[i],
+                );
+            }
+            self.context.combo_end();
+        }
+
+        self
+    }
 }

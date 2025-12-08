@@ -1,7 +1,7 @@
 use std::sync::OnceLock;
 
 use crate::{
-    config::Config,
+    config::{Config, EntityESPConfig},
     globals::Globals,
     helpers,
     interfaces::{Interfaces, Surface},
@@ -62,7 +62,9 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         continue;
                     }
 
-                    if player.team() == localplayer.team() && config.esp.player_friendly == 0 {
+                    let friendly = player.team() == localplayer.team();
+
+                    if friendly && !config.esp.player_friendly.bool() {
                         continue;
                     }
 
@@ -70,7 +72,13 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         continue;
                     };
 
-                    if config.esp.player_boxes != 0 {
+                    let cfg = if friendly {
+                        &config.esp.player_friendly
+                    } else {
+                        &config.esp.player_enemy
+                    };
+
+                    if cfg.boxes != 0 {
                         draw_box(
                             &bbox,
                             if is_target {
@@ -82,7 +90,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         );
                     }
 
-                    if config.esp.player_names != 0 {
+                    if cfg.names != 0 {
                         let name = Interfaces::engine_client().get_player_info(i).name;
                         let name = str::from_utf8(&name).unwrap_or("");
 
@@ -98,11 +106,11 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         );
                     }
 
-                    if config.esp.player_health != 0 {
+                    if cfg.health != 0 {
                         draw_health(&bbox, &player, surface);
                     }
 
-                    if config.esp.player_conds != 0 {
+                    if cfg.conds != 0 {
                         if player.in_cond(Cond::Disguised) {
                             conds.push(("DISGUISED", &rgba::WHITE));
                         }
@@ -127,11 +135,17 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     Some(bbox)
                 }
                 ClassId::Sentry => {
-                    if entity.team() != localplayer.team() || config.esp.building_friendly != 0 {
+                    let friendly = entity.team() == localplayer.team();
+
+                    if !friendly || config.esp.building_friendly.bool() {
                         building_esp(
                             &entity,
                             "Sentry Gun",
-                            config,
+                            if friendly {
+                                &config.esp.building_friendly
+                            } else {
+                                &config.esp.building_enemy
+                            },
                             surface,
                             if is_target {
                                 &rgba::ORANGE
@@ -144,11 +158,17 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     }
                 }
                 ClassId::Dispenser => {
-                    if entity.team() != localplayer.team() || config.esp.building_friendly != 0 {
+                    let friendly = entity.team() == localplayer.team();
+
+                    if !friendly || config.esp.building_friendly.bool() {
                         building_esp(
                             &entity,
                             "Dispenser",
-                            config,
+                            if friendly {
+                                &config.esp.building_friendly
+                            } else {
+                                &config.esp.building_enemy
+                            },
                             surface,
                             if is_target {
                                 &rgba::ORANGE
@@ -161,11 +181,17 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     }
                 }
                 ClassId::Teleporter => {
-                    if entity.team() != localplayer.team() || config.esp.building_friendly != 0 {
+                    let friendly = entity.team() == localplayer.team();
+
+                    if !friendly || config.esp.building_friendly.bool() {
                         building_esp(
                             &entity,
                             "Teleporter",
-                            config,
+                            if friendly {
+                                &config.esp.building_friendly
+                            } else {
+                                &config.esp.building_enemy
+                            },
                             surface,
                             if is_target {
                                 &rgba::ORANGE
@@ -199,7 +225,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
 fn building_esp(
     entity: &Entity,
     name: &str,
-    config: &Config,
+    cfg: &EntityESPConfig,
     surface: &Surface,
     color: &RGBA,
 ) -> Option<BBox> {
@@ -207,15 +233,15 @@ fn building_esp(
         return None;
     };
 
-    if config.esp.building_boxes != 0 {
+    if cfg.boxes != 0 {
         draw_box(&bbox, color, surface);
     }
 
-    if config.esp.building_names != 0 {
+    if cfg.names != 0 {
         draw_name(&bbox, name, color, surface);
     }
 
-    if config.esp.building_health != 0 {
+    if cfg.health != 0 {
         draw_health(&bbox, entity, surface);
     }
 

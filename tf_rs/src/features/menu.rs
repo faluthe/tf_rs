@@ -5,7 +5,10 @@ use nuklear::{
     flags::{EditFlags, LayoutFormat, PanelFlags, TextAlignment},
 };
 
-use crate::{config::Config, globals::Globals};
+use crate::{
+    config::{Config, EntityESPConfig},
+    globals::Globals,
+};
 
 // TODO: Clean this up lol
 static mut TAB: MenuTab = MenuTab::Aimbot;
@@ -98,46 +101,46 @@ fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
 }
 
 fn esp_tab(nk: &Nuklear, config: &mut Config) {
+    fn entity_esp_combo(nk: &Nuklear, title: &str, esp_cfg: &mut EntityESPConfig) {
+        nk.row_dynamic(30.0, 2)
+            .label(title, TextAlignment::LEFT)
+            .multi_select_combo(
+                &["Boxes", "Names", "Health bar", "Conditions"],
+                &[
+                    &mut esp_cfg.boxes,
+                    &mut esp_cfg.names,
+                    &mut esp_cfg.health,
+                    &mut esp_cfg.conds,
+                ],
+            );
+    }
+
     nk.row_dynamic(30.0, 1)
         .checkbox("Master", &mut config.esp.master);
 
-    if config.esp.master != 0 {
-        nk.row_dynamic(30.0, 1)
-            .label("Players", TextAlignment::LEFT)
-            .horizontal_separator(1.0)
-            .row_dynamic(30.0, 1)
-            .checkbox("Friendly", &mut config.esp.player_friendly)
-            .row_dynamic(30.0, 1)
-            .checkbox("Boxes", &mut config.esp.player_boxes)
-            .row_dynamic(30.0, 1)
-            .checkbox("Names", &mut config.esp.player_names)
-            .row_dynamic(30.0, 1)
-            .checkbox("Health bar", &mut config.esp.player_health)
-            .row_dynamic(30.0, 1)
-            .checkbox("Conditions", &mut config.esp.player_conds)
-            .row_dynamic(2.0, 1)
-            .label("", TextAlignment::LEFT);
-
-        nk.row_dynamic(30.0, 1)
-            .label("Buildings", TextAlignment::LEFT)
-            .horizontal_separator(1.0)
-            .row_dynamic(30.0, 1)
-            .checkbox("Friendly", &mut config.esp.building_friendly)
-            .row_dynamic(30.0, 1)
-            .checkbox("Boxes", &mut config.esp.building_boxes)
-            .row_dynamic(30.0, 1)
-            .checkbox("Names", &mut config.esp.building_names)
-            .row_dynamic(30.0, 1)
-            .checkbox("Health bar", &mut config.esp.building_health)
-            .row_dynamic(2.0, 1)
-            .label("", TextAlignment::LEFT);
-
-        nk.row_dynamic(30.0, 1)
-            .label("Aimbot", TextAlignment::LEFT)
-            .horizontal_separator(1.0)
-            .row_dynamic(30.0, 1)
-            .checkbox("Show target", &mut config.esp.aimbot_target);
+    if config.esp.master == 0 {
+        return;
     }
+
+    nk.row_dynamic(30.0, 1)
+        .label("Players", TextAlignment::LEFT)
+        .horizontal_separator(1.0);
+
+    entity_esp_combo(nk, "Enemy Players", &mut config.esp.player_enemy);
+    entity_esp_combo(nk, "Friendly Players", &mut config.esp.player_friendly);
+
+    nk.row_dynamic(30.0, 1)
+        .label("Buildings", TextAlignment::LEFT)
+        .horizontal_separator(1.0);
+
+    entity_esp_combo(nk, "Enemy Buildings", &mut config.esp.building_enemy);
+    entity_esp_combo(nk, "Friendly Buildings", &mut config.esp.building_friendly);
+
+    nk.row_dynamic(30.0, 1)
+        .label("Aimbot", TextAlignment::LEFT)
+        .horizontal_separator(1.0)
+        .row_dynamic(30.0, 1)
+        .checkbox("Show target", &mut config.esp.aimbot_target);
 }
 
 fn misc_tab(nk: &Nuklear, config: &mut Config) {
