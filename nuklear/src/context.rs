@@ -3,12 +3,13 @@ use std::{ffi::CString, sync::OnceLock};
 use nuklear_sys::{
     GLEW_OK, SDL_Event, SDL_GL_CreateContext, SDL_GL_GetCurrentContext, SDL_GLContext, SDL_Window,
     glewInit, nk_anti_aliasing_NK_ANTI_ALIASING_ON, nk_begin, nk_bool, nk_button_label,
-    nk_checkbox_label, nk_color, nk_context, nk_edit_string_zero_terminated, nk_end,
-    nk_filter_default, nk_flags, nk_font_atlas, nk_group_begin, nk_group_end, nk_input_begin,
-    nk_input_end, nk_input_is_key_released, nk_label, nk_layout_row_begin, nk_layout_row_dynamic,
-    nk_layout_row_end, nk_layout_row_push, nk_rect, nk_rule_horizontal, nk_sdl_font_stash_begin,
-    nk_sdl_font_stash_end, nk_sdl_handle_event, nk_sdl_init, nk_sdl_render, nk_selectable_label,
-    nk_slider_int, nk_window_get_content_region,
+    nk_checkbox_label, nk_color, nk_combo_begin_label, nk_combo_end, nk_context,
+    nk_edit_string_zero_terminated, nk_end, nk_filter_default, nk_flags, nk_font_atlas,
+    nk_group_begin, nk_group_end, nk_input_begin, nk_input_end, nk_input_is_key_released, nk_label,
+    nk_layout_row_begin, nk_layout_row_dynamic, nk_layout_row_end, nk_layout_row_push, nk_rect,
+    nk_rule_horizontal, nk_sdl_font_stash_begin, nk_sdl_font_stash_end, nk_sdl_handle_event,
+    nk_sdl_init, nk_sdl_render, nk_selectable_label, nk_slider_int, nk_vec2, nk_widget_width,
+    nk_window_get_content_region,
 };
 
 static CONTEXT: OnceLock<Context> = OnceLock::new();
@@ -175,5 +176,21 @@ impl Context {
 
     pub(crate) fn is_key_released(&self, key: u32) -> bool {
         unsafe { nk_input_is_key_released(&(*self.nk_ctx).input, key) != 0 }
+    }
+
+    pub(crate) fn combo_begin_label(&self, label: CString) -> bool {
+        unsafe {
+            nk_combo_begin_label(
+                self.nk_ctx,
+                label.as_ptr(),
+                nk_vec2(nk_widget_width(self.nk_ctx), 300.0),
+            ) != 0
+        }
+    }
+
+    pub(crate) fn combo_end(&self) {
+        unsafe {
+            nk_combo_end(self.nk_ctx);
+        }
     }
 }
