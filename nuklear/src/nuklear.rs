@@ -55,6 +55,20 @@ impl Nuklear {
         self
     }
 
+    pub fn colored_label<T: Into<Vec<u8>>>(
+        &self,
+        text: T,
+        alignment: TextAlignment,
+        r: u8,
+        g: u8,
+        b: u8,
+        a: u8,
+    ) -> &Self {
+        self.context
+            .colored_label(CString::new(text).unwrap(), alignment as u32, r, g, b, a);
+        self
+    }
+
     pub fn checkbox<T: Into<Vec<u8>>>(&self, text: T, active: *mut i32) -> &Self {
         self.context
             .checkbox_label(CString::new(text).unwrap(), active);
@@ -215,5 +229,10 @@ impl Nuklear {
         }
 
         self
+    }
+
+    pub fn window_set_bounds(&self, window: &str, rect: Rect) {
+        self.context
+            .window_set_bounds(CString::new(window).unwrap(), rect.into());
     }
 }
