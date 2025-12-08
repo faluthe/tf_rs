@@ -6,10 +6,10 @@ use nuklear_sys::{
     nk_checkbox_label, nk_color, nk_combo_begin_label, nk_combo_end, nk_context,
     nk_edit_string_zero_terminated, nk_end, nk_filter_default, nk_flags, nk_font_atlas,
     nk_group_begin, nk_group_end, nk_input_begin, nk_input_end, nk_input_is_key_released, nk_label,
-    nk_layout_row_begin, nk_layout_row_dynamic, nk_layout_row_end, nk_layout_row_push, nk_rect,
-    nk_rule_horizontal, nk_sdl_font_stash_begin, nk_sdl_font_stash_end, nk_sdl_handle_event,
-    nk_sdl_init, nk_sdl_render, nk_selectable_label, nk_slider_int, nk_vec2, nk_widget_width,
-    nk_window_get_content_region,
+    nk_label_colored, nk_layout_row_begin, nk_layout_row_dynamic, nk_layout_row_end,
+    nk_layout_row_push, nk_rect, nk_rule_horizontal, nk_sdl_font_stash_begin,
+    nk_sdl_font_stash_end, nk_sdl_handle_event, nk_sdl_init, nk_sdl_render, nk_selectable_label,
+    nk_slider_int, nk_vec2, nk_widget_width, nk_window_get_content_region, nk_window_set_bounds,
 };
 
 static CONTEXT: OnceLock<Context> = OnceLock::new();
@@ -59,6 +59,13 @@ impl Context {
     pub(crate) fn label(&self, text: CString, alignment: u32) {
         unsafe {
             nk_label(self.nk_ctx, text.as_ptr(), alignment);
+        }
+    }
+
+    pub(crate) fn colored_label(&self, text: CString, alignment: u32, r: u8, g: u8, b: u8, a: u8) {
+        unsafe {
+            let color = nk_color { r, g, b, a };
+            nk_label_colored(self.nk_ctx, text.as_ptr(), alignment, color);
         }
     }
 
@@ -191,6 +198,12 @@ impl Context {
     pub(crate) fn combo_end(&self) {
         unsafe {
             nk_combo_end(self.nk_ctx);
+        }
+    }
+
+    pub(crate) fn window_set_bounds(&self, title: CString, bounds: nk_rect) {
+        unsafe {
+            nk_window_set_bounds(self.nk_ctx, title.as_ptr(), bounds);
         }
     }
 }
