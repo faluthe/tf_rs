@@ -6,16 +6,16 @@ pub struct RGBA {
 }
 
 pub static RED: RGBA = RGBA {
-    r: 255,
-    g: 0,
-    b: 0,
+    r: 220,
+    g: 45,
+    b: 35,
     a: 255,
 };
 
 pub static BLUE: RGBA = RGBA {
-    r: 0,
-    g: 0,
-    b: 255,
+    r: 40,
+    g: 110,
+    b: 240,
     a: 255,
 };
 

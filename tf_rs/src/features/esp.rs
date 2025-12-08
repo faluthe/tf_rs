@@ -250,6 +250,9 @@ fn building_esp(
 
 // TODO: Outline in black for visibility
 fn draw_box(bbox: &BBox, color: &RGBA, surface: &Surface) {
+    surface.draw_set_color(0, 0, 0, 255);
+    surface.draw_outlined_rect(bbox.left - 1, bbox.top - 1, bbox.right + 1, bbox.bottom + 1);
+    surface.draw_outlined_rect(bbox.left + 1, bbox.top + 1, bbox.right - 1, bbox.bottom - 1);
     surface.draw_set_color(color.r, color.g, color.b, color.a);
     surface.draw_outlined_rect(bbox.left, bbox.top, bbox.right, bbox.bottom);
 }
