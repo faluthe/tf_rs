@@ -107,6 +107,7 @@ impl Player {
 
         match (self.player_class(), weapon.weapon_class()) {
             (PlayerClass::Sniper, WeaponClass::Sniperrifle) => true,
+            (PlayerClass::Spy, WeaponClass::Revolver) => true,
             _ => false,
         }
     }
