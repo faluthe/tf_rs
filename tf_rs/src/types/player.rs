@@ -4,7 +4,7 @@ use crate::{
     interfaces::Interfaces,
     offset_get,
     traits::FromRaw,
-    types::{Entity, Vec3, Weapon, WeaponClass},
+    types::{Entity, Vec3, Weapon},
     vfunc,
 };
 
@@ -97,19 +97,6 @@ impl Player {
             y: bone_to_world_out[bone_id][1][3],
             z: bone_to_world_out[bone_id][2][3],
         })
-    }
-
-    pub fn can_headshot(&self) -> bool {
-        let weapon = match self.active_weapon() {
-            Some(weapon) => weapon,
-            None => return false,
-        };
-
-        match (self.player_class(), weapon.weapon_class()) {
-            (PlayerClass::Sniper, WeaponClass::Sniperrifle) => true,
-            (PlayerClass::Spy, WeaponClass::Revolver) => true,
-            _ => false,
-        }
     }
 
     pub fn head_bone_id(&self) -> usize {

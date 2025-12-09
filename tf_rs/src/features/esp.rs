@@ -322,7 +322,7 @@ fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface, horizontal: bool
 
 // TODO: Fix for scoped weapons
 pub fn draw_fov(surface: &Surface, config: &Config) {
-    if config.aimbot.master || config.aimbot.draw_fov {
+    if !config.aimbot.master || !config.aimbot.draw_fov {
         return;
     }
 
