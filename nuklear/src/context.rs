@@ -206,4 +206,8 @@ impl Context {
             nk_window_set_bounds(self.nk_ctx, title.as_ptr(), bounds);
         }
     }
+
+    pub(crate) fn set_button_normal_color(&self, r: u8, g: u8, b: u8, a: u8) {
+        unsafe { (*self.nk_ctx).style.button.normal.data.color = nk_color { r, g, b, a } };
+    }
 }

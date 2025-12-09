@@ -239,4 +239,8 @@ impl Nuklear {
         self.context
             .window_set_bounds(CString::new(window).unwrap(), rect.into());
     }
+
+    pub fn set_button_normal_color(&self, r: u8, g: u8, b: u8, a: u8) {
+        self.context.set_button_normal_color(r, g, b, a);
+    }
 }

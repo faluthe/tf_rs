@@ -32,3 +32,17 @@ pub static ORANGE: RGBA = RGBA {
     b: 0,
     a: 255,
 };
+
+pub static LIGHT_GREY: RGBA = RGBA {
+    r: 50,
+    g: 50,
+    b: 50,
+    a: 255,
+};
+
+pub static DARK_GREY: RGBA = RGBA {
+    r: 35,
+    g: 35,
+    b: 35,
+    a: 255,
+};
