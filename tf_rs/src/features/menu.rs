@@ -61,6 +61,7 @@ fn tab_button(nk: &Nuklear, title: &str, tab: MenuTab) {
     };
 
     nk.set_button_normal_color(color.r as u8, color.g as u8, color.b as u8, color.a as u8);
+    nk.set_button_rounding(0.0);
 
     if nk.button_label(title) {
         unsafe {
@@ -68,13 +69,14 @@ fn tab_button(nk: &Nuklear, title: &str, tab: MenuTab) {
         }
     }
 
-    // Restore default color
+    // Restore button default styles
     nk.set_button_normal_color(
         rgba::LIGHT_GREY.r as u8,
         rgba::LIGHT_GREY.g as u8,
         rgba::LIGHT_GREY.b as u8,
         rgba::LIGHT_GREY.a as u8,
     );
+    nk.set_button_rounding(4.0);
 }
 
 fn aimbot_tab(nk: &Nuklear, config: &mut Config) {

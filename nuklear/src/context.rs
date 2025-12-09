@@ -209,5 +209,14 @@ impl Context {
 
     pub(crate) fn set_button_normal_color(&self, r: u8, g: u8, b: u8, a: u8) {
         unsafe { (*self.nk_ctx).style.button.normal.data.color = nk_color { r, g, b, a } };
+        unsafe {
+            (*self.nk_ctx).style.button.rounding = 0.0;
+        }
+    }
+
+    pub(crate) fn set_button_rounding(&self, rounding: f32) {
+        unsafe {
+            (*self.nk_ctx).style.button.rounding = rounding;
+        }
     }
 }
