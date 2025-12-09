@@ -5,7 +5,7 @@ use crate::{
     globals::{Globals, Target},
     helpers,
     interfaces::Interfaces,
-    types::{ClassId, Entity, Player, UserCmd, Vec3, user_cmd::Buttons},
+    types::{ClassId, Entity, Player, UserCmd, Vec3, Weapon, user_cmd::Buttons},
 };
 
 pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
@@ -25,11 +25,18 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
         return;
     }
 
-    let (target, aim_angle) = get_target(localplayer, &cmd.view_angles, config);
+    let (target, aim_angle) = get_target(localplayer, &weapon, &cmd.view_angles, config);
+    let should_headshot = target.as_ref().map(|t| t.should_headshot).unwrap_or(false);
+
     Globals::write().target = target;
+
     let Some(aim_angle) = aim_angle else {
         return;
     };
+
+    if should_headshot && weapon.spread() > 0.0 {
+        return;
+    }
 
     let use_key = config.aimbot.key.use_key;
     let wants_shot = (use_key && Globals::read().aimbot_key_down)
@@ -46,6 +53,7 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
 // TODO: Add sentry + other entity checks
 fn get_target(
     localplayer: &Player,
+    weapon: &Weapon,
     view_angle: &Vec3,
     config: &Config,
 ) -> (Option<Target>, Option<Vec3>) {
@@ -66,7 +74,8 @@ fn get_target(
                 continue;
             }
 
-            let headshot = player.health() > 50 && localplayer.can_headshot();
+            let headshot = player.health() > 50 && weapon.can_headshot();
+
             let bone_id = if headshot {
                 player.head_bone_id()
             } else {

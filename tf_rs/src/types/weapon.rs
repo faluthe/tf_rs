@@ -22,6 +22,18 @@ impl Weapon {
         f(self.this)
     }
 
+    pub fn can_headshot(&self) -> bool {
+        matches!(
+            self.weapon_class(),
+            WeaponClass::Sniperrifle | WeaponClass::Revolver
+        )
+    }
+
+    pub fn spread(&self) -> f32 {
+        let f = vfunc!(self.vtable, 540, extern "C" fn(*mut c_void) -> f32);
+        f(self.this)
+    }
+
     pub fn is_hitscan(&self) -> bool {
         matches!(
             self.weapon_class(),
