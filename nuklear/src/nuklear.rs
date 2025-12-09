@@ -243,4 +243,8 @@ impl Nuklear {
     pub fn set_button_normal_color(&self, r: u8, g: u8, b: u8, a: u8) {
         self.context.set_button_normal_color(r, g, b, a);
     }
+
+    pub fn set_button_rounding(&self, rounding: f32) {
+        self.context.set_button_rounding(rounding);
+    }
 }
