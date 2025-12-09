@@ -8,6 +8,7 @@ use nuklear::{
 use crate::{
     config::{Config, EntityESPConfig},
     globals::Globals,
+    types::rgba,
 };
 
 // TODO: Clean this up lol
@@ -15,7 +16,7 @@ static mut TAB: MenuTab = MenuTab::Aimbot;
 static mut SELECTED_CONFIG: usize = 0;
 static NEW_CONFIG_NAME: RwLock<[u8; 256]> = RwLock::new([0; 256]);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum MenuTab {
     Aimbot,
     ESP,
@@ -53,11 +54,27 @@ pub fn draw(nk: &Nuklear) {
 }
 
 fn tab_button(nk: &Nuklear, title: &str, tab: MenuTab) {
+    let color = if tab == unsafe { TAB } {
+        &rgba::DARK_GREY
+    } else {
+        &rgba::LIGHT_GREY
+    };
+
+    nk.set_button_normal_color(color.r as u8, color.g as u8, color.b as u8, color.a as u8);
+
     if nk.button_label(title) {
         unsafe {
             TAB = tab;
         }
     }
+
+    // Restore default color
+    nk.set_button_normal_color(
+        rgba::LIGHT_GREY.r as u8,
+        rgba::LIGHT_GREY.g as u8,
+        rgba::LIGHT_GREY.b as u8,
+        rgba::LIGHT_GREY.a as u8,
+    );
 }
 
 fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
