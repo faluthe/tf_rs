@@ -2,6 +2,8 @@ use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use once_cell::sync::Lazy;
 
+use crate::types::Vec3;
+
 #[derive(Default)]
 pub struct Globals {
     pub target: Option<Target>,
@@ -15,6 +17,14 @@ pub struct Globals {
 pub struct Target {
     pub target_index: i32,
     pub should_headshot: bool,
+    pub projectile_pred: Option<ProjectileTarget>,
+}
+
+#[derive(Default)]
+pub struct ProjectileTarget {
+    pub proj_start: Vec3,
+    pub proj_end: Vec3,
+    pub travel_time: f32,
 }
 
 // TODO: Use arc swap?

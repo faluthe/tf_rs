@@ -59,8 +59,18 @@ struct_with_serialize! {
         pub silent_aim: bool,
         pub building_aim: bool,
         pub key: KeyConfig,
+        pub projectile: ProjectileAimbotConfig,
         pub fov: i32,
         pub draw_fov: bool,
+    }
+}
+
+struct_with_serialize! {
+    #[derive(Default)]
+    pub struct ProjectileAimbotConfig {
+        pub step_time: f32,
+        pub max_steps: i32,
+        pub tolerance: f32,
     }
 }
 

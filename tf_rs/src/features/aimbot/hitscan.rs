@@ -42,7 +42,7 @@ pub fn run(
     }
 }
 
-pub fn closest_fov_target(
+fn closest_fov_target(
     localplayer: &Player,
     weapon: &Weapon,
     view_angle: &Vec3,
@@ -92,6 +92,7 @@ pub fn closest_fov_target(
                 target = Some(Target {
                     target_index: i,
                     should_headshot,
+                    projectile_pred: None,
                 });
             }
         } else if config.aimbot.building_aim
@@ -129,6 +130,7 @@ pub fn closest_fov_target(
                 target = Some(Target {
                     target_index: i,
                     should_headshot: false,
+                    projectile_pred: None,
                 });
             }
         }

@@ -33,6 +33,7 @@ impl Deref for Player {
 impl Player {
     offset_get!(pub fn flags: i32, 0x460);
     offset_get!(pub fn observer_mode: i32, 0x1644);
+    offset_get!(pub fn velocity: Vec3, 0x168); // TODO: EstimateAbsVelocity
     offset_get!(fn lifestate: i8, 0x746);
     offset_get!(fn active_weapon_: i32, 0x11D0);
     offset_get!(fn tick_base: i32, 0x1718);
