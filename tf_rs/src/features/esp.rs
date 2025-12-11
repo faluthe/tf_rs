@@ -5,7 +5,7 @@ use crate::{
     globals::{Globals, ProjectileTarget},
     helpers,
     interfaces::{Interfaces, Surface},
-    types::{BBox, ClassId, Cond, Entity, Player, RGBA, Vec3, rgba},
+    types::{BBox, ClassId, Cond, Entity, Player, RGBA, Vec3, Weapon, rgba},
 };
 
 static ESP_FONT: OnceLock<u64> = OnceLock::new();
@@ -19,26 +19,75 @@ pub fn esp_font(surface: &Surface) -> u64 {
 }
 
 fn draw_projectile_pred(
+    weapon: Option<Weapon>,
     target: &ProjectileTarget,
     should_headshot: bool,
     entity: &Entity,
     surface: &Surface,
 ) {
-    let Some(start_2d) = Interfaces::debug_overlay().screen_position(&target.proj_start) else {
-        return;
-    };
+    let debug_overlay = Interfaces::debug_overlay();
 
-    let Some(end_2d) = Interfaces::debug_overlay().screen_position(&target.proj_end) else {
-        return;
-    };
+    // Draw projectile prediction
+    if let Some(weapon) = weapon {
+        if weapon.uses_gravity() {
+            let Some(velocity) = weapon.projectile_speed() else {
+                return;
+            };
 
-    surface.draw_set_color(255, 255, 255, 255);
-    surface.draw_line(
-        start_2d.x as i32,
-        start_2d.y as i32,
-        end_2d.x as i32,
-        end_2d.y as i32,
-    );
+            let Some(g) = weapon.projectile_gravity() else {
+                return;
+            };
+
+            let Some(cur_pos_2d) = debug_overlay.screen_position(&target.proj_start) else {
+                return;
+            };
+
+            let step_time = 0.01;
+            let max_steps = (target.travel_time / step_time).ceil() as i32;
+            let mut prev_x = cur_pos_2d.x as i32;
+            let mut prev_y = cur_pos_2d.y as i32;
+
+            surface.draw_set_color(255, 255, 255, 255);
+
+            for step in 0..max_steps {
+                let t = step as f32 * step_time;
+                let pos = Vec3 {
+                    x: target.proj_start.x + target.direction.x * velocity * t,
+                    y: target.proj_start.y + target.direction.y * velocity * t,
+                    z: target.proj_start.z + target.direction.z * velocity * t
+                        - 0.5 * g * 800.0 * t * t,
+                };
+
+                let Some(pos_2d) = debug_overlay.screen_position(&pos) else {
+                    continue;
+                };
+
+                let x = pos_2d.x as i32;
+                let y = pos_2d.y as i32;
+
+                surface.draw_line(prev_x, prev_y, x, y);
+
+                prev_x = x;
+                prev_y = y;
+            }
+        } else {
+            let Some(start_2d) = debug_overlay.screen_position(&target.proj_start) else {
+                return;
+            };
+
+            let Some(end_2d) = debug_overlay.screen_position(&target.proj_end) else {
+                return;
+            };
+
+            surface.draw_set_color(255, 255, 255, 255);
+            surface.draw_line(
+                start_2d.x as i32,
+                start_2d.y as i32,
+                end_2d.x as i32,
+                end_2d.y as i32,
+            );
+        }
+    }
 
     // Draw entity prediction
     if !entity.is_player() {
@@ -56,7 +105,7 @@ fn draw_projectile_pred(
         return;
     };
 
-    let Some(cur_pos_2d) = Interfaces::debug_overlay().screen_position(&cur_pos) else {
+    let Some(cur_pos_2d) = debug_overlay.screen_position(&cur_pos) else {
         return;
     };
 
@@ -85,7 +134,7 @@ fn draw_projectile_pred(
             }
         };
 
-        let Some(pred_2d) = Interfaces::debug_overlay().screen_position(&pred_pos) else {
+        let Some(pred_2d) = debug_overlay.screen_position(&pred_pos) else {
             continue;
         };
 
@@ -115,7 +164,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
 
             let mut conds: Vec<(String, &RGBA)> = Vec::new();
 
-            let is_target = if config.esp.aimbot_target {
+            let is_target = if config.esp.aimbot_target && !localplayer.is_dead() {
                 if let Some(target) = target {
                     if i == target.target_index {
                         conds.push(("TARGET".to_string(), &rgba::WHITE));
@@ -126,6 +175,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
 
                         if let Some(proj_target) = &target.projectile_pred {
                             draw_projectile_pred(
+                                localplayer.active_weapon(),
                                 proj_target,
                                 target.should_headshot,
                                 &entity,

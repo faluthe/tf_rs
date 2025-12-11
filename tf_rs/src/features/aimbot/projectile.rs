@@ -196,6 +196,7 @@ fn closest_fov_target_pred(
                             proj_start: shoot_pos.clone(),
                             proj_end: pred_pos,
                             travel_time,
+                            direction: angles_to_direction_vector(&aim_angle).0,
                         }),
                     })
                 }
