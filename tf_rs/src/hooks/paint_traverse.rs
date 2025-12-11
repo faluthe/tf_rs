@@ -1,5 +1,7 @@
 use std::ffi::c_void;
 
+use log::info;
+
 use crate::{config::Config, features::esp, helpers, hooks::Hooks, interfaces::Interfaces};
 
 pub extern "C" fn hk_paint_traverse(
@@ -35,6 +37,25 @@ pub extern "C" fn hk_paint_traverse(
     if localplayer.is_dead() {
         return rc;
     }
+
+    let weapon = match localplayer.active_weapon() {
+        Some(weapon) => weapon,
+        None => return rc,
+    };
+
+    let Some(speed) = weapon.projectile_speed() else {
+        return rc;
+    };
+
+    let Some(gravity) = weapon.projectile_gravity() else {
+        return rc;
+    };
+
+    surface.draw_set_text_color(255, 255, 255, 255);
+    surface.draw_set_text_pos(500, 500);
+    surface.draw_print_text(format!("speed: {}, gravity: {}", speed, gravity).as_str());
+
+    info!("weapon address: {:p}", weapon.this);
 
     esp::draw_fov(&surface, &config);
 

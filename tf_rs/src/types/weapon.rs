@@ -3,7 +3,7 @@ use std::ffi::c_void;
 use crate::{offset_get, traits::FromRaw, types::Vec3, vfunc};
 
 pub struct Weapon {
-    this: *mut c_void,
+    pub this: *mut c_void,
     vtable: *mut *mut c_void,
 }
 
@@ -63,25 +63,49 @@ impl Weapon {
     pub fn is_projectile(&self) -> bool {
         matches!(
             self.weapon_class(),
-            WeaponClass::RocketlauncherDirecthit | WeaponClass::Rocketlauncher
+            WeaponClass::RocketlauncherDirecthit
+                | WeaponClass::Rocketlauncher
+                | WeaponClass::CompoundBow
         )
+    }
+
+    pub fn uses_gravity(&self) -> bool {
+        matches!(self.weapon_class(), WeaponClass::CompoundBow)
+    }
+
+    pub fn projectile_fire_offset(&self) -> Vec3 {
+        match self.weapon_class() {
+            WeaponClass::RocketlauncherDirecthit
+            | WeaponClass::Rocketlauncher
+            | WeaponClass::CompoundBow => Vec3::new(23.5, 12.0, -3.0),
+            _ => Vec3::zero(),
+        }
     }
 
     pub fn projectile_speed(&self) -> Option<f32> {
         match self.weapon_class() {
             WeaponClass::RocketlauncherDirecthit => Some(1980.0),
             WeaponClass::Rocketlauncher => Some(1100.0),
+            WeaponClass::CompoundBow => Some(self.projectile_speed_()),
             _ => None,
         }
     }
 
-    pub fn projectile_fire_offset(&self) -> Vec3 {
+    pub fn projectile_gravity(&self) -> Option<f32> {
         match self.weapon_class() {
-            WeaponClass::RocketlauncherDirecthit | WeaponClass::Rocketlauncher => {
-                Vec3::new(23.5, 12.0, -3.0)
-            }
-            _ => Vec3::zero(),
+            WeaponClass::CompoundBow => Some(self.projectile_gravity_()),
+            _ => None,
         }
+    }
+
+    fn projectile_speed_(&self) -> f32 {
+        let f = vfunc!(self.vtable, 542, extern "C" fn(*mut c_void) -> f32);
+        f(self.this)
+    }
+
+    fn projectile_gravity_(&self) -> f32 {
+        let f = vfunc!(self.vtable, 543, extern "C" fn(*mut c_void) -> f32);
+        f(self.this)
     }
 }
 
