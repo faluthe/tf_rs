@@ -18,7 +18,12 @@ pub fn esp_font(surface: &Surface) -> u64 {
     })
 }
 
-fn draw_projectile_pred(target: &ProjectileTarget, entity: &Entity, surface: &Surface) {
+fn draw_projectile_pred(
+    target: &ProjectileTarget,
+    should_headshot: bool,
+    entity: &Entity,
+    surface: &Surface,
+) {
     let Some(start_2d) = Interfaces::debug_overlay().screen_position(&target.proj_start) else {
         return;
     };
@@ -41,7 +46,15 @@ fn draw_projectile_pred(target: &ProjectileTarget, entity: &Entity, surface: &Su
     }
 
     let player = Player { ent: *entity };
-    let cur_pos = player.origin();
+    let cur_pos = if should_headshot {
+        player.get_bone_position(player.head_bone_id())
+    } else {
+        Some(player.origin())
+    };
+
+    let Some(cur_pos) = cur_pos else {
+        return;
+    };
 
     let Some(cur_pos_2d) = Interfaces::debug_overlay().screen_position(&cur_pos) else {
         return;
@@ -103,18 +116,26 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
             let mut conds: Vec<(String, &RGBA)> = Vec::new();
 
             let is_target = if config.esp.aimbot_target {
-                if Some(i) == target.map(|t| t.target_index) {
-                    conds.push(("TARGET".to_string(), &rgba::WHITE));
+                if let Some(target) = target {
+                    if i == target.target_index {
+                        conds.push(("TARGET".to_string(), &rgba::WHITE));
 
-                    if Some(true) == target.map(|t| t.should_headshot) {
-                        conds.push(("HS".to_string(), &rgba::RED));
+                        if target.should_headshot {
+                            conds.push(("HS".to_string(), &rgba::RED));
+                        }
+
+                        if let Some(proj_target) = &target.projectile_pred {
+                            draw_projectile_pred(
+                                proj_target,
+                                target.should_headshot,
+                                &entity,
+                                surface,
+                            );
+                        }
+                        true
+                    } else {
+                        false
                     }
-
-                    if let Some(Some(p)) = target.map(|t| t.projectile_pred.as_ref()) {
-                        draw_projectile_pred(p, &entity, surface);
-                    }
-
-                    true
                 } else {
                     false
                 }

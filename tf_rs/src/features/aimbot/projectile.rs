@@ -3,7 +3,7 @@ use crate::{
     globals::{Globals, ProjectileTarget, Target},
     helpers,
     interfaces::Interfaces,
-    types::{Entity, Player, UserCmd, Vec3, Weapon, user_cmd::Buttons},
+    types::{Entity, Player, UserCmd, Vec3, Weapon, user_cmd::Buttons, weapon::WeaponClass},
 };
 
 pub fn run(
@@ -72,7 +72,16 @@ fn closest_fov_target_pred(
                 continue;
             }
 
-            let cur_pos = player.origin();
+            let cur_pos = if matches!(weapon.weapon_class(), WeaponClass::CompoundBow) {
+                player.get_bone_position(player.head_bone_id())
+            } else {
+                Some(player.origin())
+            };
+
+            let Some(cur_pos) = cur_pos else {
+                continue;
+            };
+
             let is_in_air = !player.is_on_ground();
             let velocity = player.velocity();
 
@@ -93,13 +102,85 @@ fn closest_fov_target_pred(
                 };
 
                 let distance = shoot_pos.distance_to(&pred_pos);
-                let travel_time = distance / projectile_speed;
 
+                let dx = pred_pos.x - shoot_pos.x;
+                let dy = pred_pos.y - shoot_pos.y;
+                let dz = pred_pos.z - shoot_pos.z;
+
+                // We'll also compute a ballistic pitch for gravity weapons
+                let (travel_time, should_headshot, ballistic_pitch_deg) = if weapon.uses_gravity() {
+                    let g: f32 = 800.0 * weapon.projectile_gravity().unwrap_or(1.0);
+                    let v: f32 = projectile_speed;
+
+                    let r = (dx * dx + dy * dy).sqrt(); // horizontal distance
+                    let h = dz; // vertical offset
+
+                    if r < 1e-3 {
+                        // Degenerate: almost straight up/down; just treat like hitscan fallback.
+                        (distance / v, false, None)
+                    } else {
+                        let v2 = v * v;
+                        let r2 = r * r;
+
+                        // Quadratic in tan(theta): a*u^2 - r*u + (a + h) = 0
+                        let a = g * r2 / (2.0 * v2);
+
+                        let disc = r2 - 4.0 * a * (a + h);
+                        if disc < 0.0 {
+                            // No ballistic solution: skip this predicted point
+                            continue;
+                        }
+
+                        let sqrt_disc = disc.sqrt();
+
+                        // Two possible arcs (low and high)
+                        let u1 = (r - sqrt_disc) / (2.0 * a);
+                        let u2 = (r + sqrt_disc) / (2.0 * a);
+
+                        // Pick the lower arc (smaller |theta|)
+                        let u = if u1.abs() < u2.abs() { u1 } else { u2 };
+
+                        // cos(theta) from tan(theta)
+                        let cos_theta = 1.0 / (1.0 + u * u).sqrt();
+
+                        // Time to reach horizontal distance r
+                        let t_ballistic = r / (v * cos_theta);
+
+                        // θ (radians) then degrees; your pitch is -θ_deg
+                        let theta_deg = u.atan().to_degrees();
+
+                        (t_ballistic, true, Some(theta_deg))
+                    }
+                } else {
+                    (distance / projectile_speed, false, None)
+                };
+
+                // Make sure this predicted time matches our simulation step
                 if (travel_time - t).abs() > tolerance {
                     continue;
                 }
 
-                let aim_angle = helpers::calculate_angle(&shoot_pos, &pred_pos);
+                // Aim angle:
+                //  - hitscan: line of sight
+                //  - gravity: horizontal yaw from dx/dy, pitch from ballistic solution
+                let aim_angle = if weapon.uses_gravity() {
+                    if let Some(theta_deg) = ballistic_pitch_deg {
+                        // horizontal yaw is same as LOS
+                        let yaw = dy.atan2(dx).to_degrees();
+                        // Your calculate_angle returns Vec3 { x: -pitch, y: yaw, ... }
+                        Vec3 {
+                            x: -theta_deg,
+                            y: yaw,
+                            z: 0.0,
+                        }
+                    } else {
+                        // Fallback if we had to use straight-line approximation
+                        helpers::calculate_angle(&localplayer.eye_pos(), &pred_pos)
+                    }
+                } else {
+                    helpers::calculate_angle(&localplayer.eye_pos(), &pred_pos)
+                };
+
                 let fov = view_angle.fov_to(&aim_angle);
 
                 if fov < smallest_fov
@@ -110,7 +191,7 @@ fn closest_fov_target_pred(
                     target_angle = Some(aim_angle);
                     target = Some(Target {
                         target_index: i,
-                        should_headshot: false,
+                        should_headshot,
                         projectile_pred: Some(ProjectileTarget {
                             proj_start: shoot_pos.clone(),
                             proj_end: pred_pos,
