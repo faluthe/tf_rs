@@ -2,10 +2,10 @@ use std::sync::OnceLock;
 
 use crate::{
     config::{Config, EntityESPConfig},
-    globals::Globals,
+    globals::{Globals, ProjectileTarget},
     helpers,
     interfaces::{Interfaces, Surface},
-    types::{BBox, ClassId, Cond, Entity, Player, RGBA, rgba},
+    types::{BBox, ClassId, Cond, Entity, Player, RGBA, Vec3, rgba},
 };
 
 static ESP_FONT: OnceLock<u64> = OnceLock::new();
@@ -16,6 +16,74 @@ pub fn esp_font(surface: &Surface) -> u64 {
         surface.set_font_glyph_set(font, "DejaVu Sans Mono", 14, 400, 0, 0, 0x0);
         font
     })
+}
+
+fn draw_projectile_pred(target: &ProjectileTarget, entity: &Entity, surface: &Surface) {
+    let Some(start_2d) = Interfaces::debug_overlay().screen_position(&target.proj_start) else {
+        return;
+    };
+
+    let Some(end_2d) = Interfaces::debug_overlay().screen_position(&target.proj_end) else {
+        return;
+    };
+
+    surface.draw_set_color(255, 255, 255, 255);
+    surface.draw_line(
+        start_2d.x as i32,
+        start_2d.y as i32,
+        end_2d.x as i32,
+        end_2d.y as i32,
+    );
+
+    // Draw entity prediction
+    if !entity.is_player() {
+        return;
+    }
+
+    let player = Player { ent: *entity };
+    let cur_pos = player.origin();
+
+    let Some(cur_pos_2d) = Interfaces::debug_overlay().screen_position(&cur_pos) else {
+        return;
+    };
+
+    let is_in_air = !player.is_on_ground();
+    let velocity = player.velocity();
+    let step_time = 0.01;
+    let max_steps = (target.travel_time / step_time).ceil() as i32;
+    let mut prev_x1 = cur_pos_2d.x as i32;
+    let mut prev_y1 = cur_pos_2d.y as i32;
+
+    surface.draw_set_color(255, 255, 255, 255);
+
+    for step in 0..max_steps {
+        let t = step as f32 * step_time;
+        let pred_pos = if is_in_air {
+            Vec3 {
+                x: cur_pos.x + velocity.x * t,
+                y: cur_pos.y + velocity.y * t,
+                z: cur_pos.z + velocity.z * t - 0.5 * 800.0 * t * t,
+            }
+        } else {
+            Vec3 {
+                x: cur_pos.x + velocity.x * t,
+                y: cur_pos.y + velocity.y * t,
+                z: cur_pos.z + velocity.z * t,
+            }
+        };
+
+        let Some(pred_2d) = Interfaces::debug_overlay().screen_position(&pred_pos) else {
+            continue;
+        };
+
+        let x1 = pred_2d.x as i32;
+        let y1 = pred_2d.y as i32;
+
+        surface.draw_line(prev_x1, prev_y1, x1, y1);
+
+        prev_x1 = x1;
+        prev_y1 = y1;
+    }
 }
 
 pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
@@ -32,15 +100,20 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                 continue;
             }
 
-            let mut conds = Vec::new();
+            let mut conds: Vec<(String, &RGBA)> = Vec::new();
 
             let is_target = if config.esp.aimbot_target {
                 if Some(i) == target.map(|t| t.target_index) {
-                    conds.push(("TARGET", &rgba::WHITE));
+                    conds.push(("TARGET".to_string(), &rgba::WHITE));
 
                     if Some(true) == target.map(|t| t.should_headshot) {
-                        conds.push(("HS", &rgba::RED));
+                        conds.push(("HS".to_string(), &rgba::RED));
                     }
+
+                    if let Some(Some(p)) = target.map(|t| t.projectile_pred.as_ref()) {
+                        draw_projectile_pred(p, &entity, surface);
+                    }
+
                     true
                 } else {
                     false
@@ -112,23 +185,23 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
 
                     if cfg.conds {
                         if player.in_cond(Cond::Disguised) {
-                            conds.push(("DISGUISED", &rgba::WHITE));
+                            conds.push(("DISGUISED".to_string(), &rgba::WHITE));
                         }
 
                         if player.in_cond(Cond::Taunting) {
-                            conds.push(("TAUNTING", &rgba::WHITE));
+                            conds.push(("TAUNTING".to_string(), &rgba::WHITE));
                         }
 
                         if player.in_cond(Cond::Zoomed) {
-                            conds.push(("ZOOMED", &rgba::WHITE));
+                            conds.push(("ZOOMED".to_string(), &rgba::WHITE));
                         }
 
                         if player.is_invisible() {
-                            conds.push(("INVISIBLE", &rgba::WHITE));
+                            conds.push(("INVISIBLE".to_string(), &rgba::WHITE));
                         }
 
                         if player.in_cond(Cond::MadMilk) {
-                            conds.push(("MILKED", &rgba::WHITE));
+                            conds.push(("MILKED".to_string(), &rgba::WHITE));
                         }
                     }
 

@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use crate::{offset_get, traits::FromRaw, vfunc};
+use crate::{offset_get, traits::FromRaw, types::Vec3, vfunc};
 
 pub struct Weapon {
     this: *mut c_void,
@@ -58,6 +58,30 @@ impl Weapon {
                 | WeaponClass::MechanicalArm
                 | WeaponClass::SniperrifleClassic
         )
+    }
+
+    pub fn is_projectile(&self) -> bool {
+        matches!(
+            self.weapon_class(),
+            WeaponClass::RocketlauncherDirecthit | WeaponClass::Rocketlauncher
+        )
+    }
+
+    pub fn projectile_speed(&self) -> Option<f32> {
+        match self.weapon_class() {
+            WeaponClass::RocketlauncherDirecthit => Some(1980.0),
+            WeaponClass::Rocketlauncher => Some(1100.0),
+            _ => None,
+        }
+    }
+
+    pub fn projectile_fire_offset(&self) -> Vec3 {
+        match self.weapon_class() {
+            WeaponClass::RocketlauncherDirecthit | WeaponClass::Rocketlauncher => {
+                Vec3::new(23.5, 12.0, -3.0)
+            }
+            _ => Vec3::zero(),
+        }
     }
 }
 

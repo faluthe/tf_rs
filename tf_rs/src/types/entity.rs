@@ -87,6 +87,10 @@ impl Entity {
         let f = vfunc!(vtable, 8, extern "C" fn(*mut c_void) -> bool);
         f(networkable)
     }
+
+    pub fn is_player(&self) -> bool {
+        matches!(self.class_id(), Some(ClassId::Player))
+    }
 }
 
 #[allow(dead_code)]

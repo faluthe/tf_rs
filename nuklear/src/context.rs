@@ -9,7 +9,8 @@ use nuklear_sys::{
     nk_label_colored, nk_layout_row_begin, nk_layout_row_dynamic, nk_layout_row_end,
     nk_layout_row_push, nk_rect, nk_rule_horizontal, nk_sdl_font_stash_begin,
     nk_sdl_font_stash_end, nk_sdl_handle_event, nk_sdl_init, nk_sdl_render, nk_selectable_label,
-    nk_slider_int, nk_vec2, nk_widget_width, nk_window_get_content_region, nk_window_set_bounds,
+    nk_slider_float, nk_slider_int, nk_vec2, nk_widget_width, nk_window_get_content_region,
+    nk_window_set_bounds,
 };
 
 static CONTEXT: OnceLock<Context> = OnceLock::new();
@@ -82,6 +83,12 @@ impl Context {
     pub(crate) fn slider_int(&self, min: i32, val: *mut i32, max: i32, step: i32) {
         unsafe {
             nk_slider_int(self.nk_ctx, min, val, max, step);
+        }
+    }
+
+    pub(crate) fn slider_float(&self, min: f32, val: *mut f32, max: f32, step: f32) {
+        unsafe {
+            nk_slider_float(self.nk_ctx, min, val, max, step);
         }
     }
 

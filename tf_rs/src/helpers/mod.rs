@@ -95,3 +95,8 @@ pub fn is_ent_visible(from: &Vec3, to: &Vec3, ent: &Entity, ignore_entity: &Play
     let trace = Interfaces::engine_trace().trace_ray(from, to, 0x4200400b, Some(ignore_entity));
     trace.fraction >= 0.97 || trace.entity == ent.this || trace.end_pos == *to
 }
+
+pub fn is_pos_visible(from: &Vec3, to: &Vec3, ignore_entity: &Player) -> bool {
+    let trace = Interfaces::engine_trace().trace_ray(from, to, 0x4200400b, Some(ignore_entity));
+    trace.fraction >= 0.97 || trace.end_pos == *to
+}

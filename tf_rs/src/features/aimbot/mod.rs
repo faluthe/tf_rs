@@ -5,6 +5,7 @@ use crate::{
 };
 
 mod hitscan;
+mod projectile;
 
 pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
     if !config.aimbot.master {
@@ -22,5 +23,9 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
 
     if weapon.is_hitscan() {
         hitscan::run(localplayer, &weapon, cmd, &mut globals, config);
+    } else if weapon.is_projectile() {
+        projectile::run(localplayer, &weapon, cmd, &mut globals, config);
+    } else {
+        globals.target = None;
     }
 }

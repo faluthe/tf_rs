@@ -106,6 +106,36 @@ fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
             nk.label("", TextAlignment::LEFT);
         }
 
+        nk.row_dynamic(30.0, 2)
+            .label(
+                format!(
+                    "Projectile step time: {:.4}",
+                    config.aimbot.projectile.step_time
+                ),
+                TextAlignment::LEFT,
+            )
+            .slider_float(0.0001, &mut config.aimbot.projectile.step_time, 0.1, 0.0001);
+
+        nk.row_dynamic(30.0, 2)
+            .label(
+                format!(
+                    "Projectile max steps: {}",
+                    config.aimbot.projectile.max_steps
+                ),
+                TextAlignment::LEFT,
+            )
+            .slider_int(1, &mut config.aimbot.projectile.max_steps, 1000, 1);
+
+        nk.row_dynamic(30.0, 2)
+            .label(
+                format!(
+                    "Projectile tolerance: {:.4}",
+                    config.aimbot.projectile.tolerance
+                ),
+                TextAlignment::LEFT,
+            )
+            .slider_float(0.0001, &mut config.aimbot.projectile.tolerance, 0.1, 0.0001);
+
         nk.row_dynamic(30.0, 1)
             .checkbox("Building aim", &mut config.aimbot.building_aim)
             .row_dynamic(30.0, 2)
