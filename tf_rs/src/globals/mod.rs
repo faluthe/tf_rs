@@ -25,6 +25,7 @@ pub struct ProjectileTarget {
     pub proj_start: Vec3,
     pub proj_end: Vec3,
     pub travel_time: f32,
+    pub direction: Vec3,
 }
 
 // TODO: Use arc swap?
