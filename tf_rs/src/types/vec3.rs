@@ -1,3 +1,5 @@
+use std::ops::Sub;
+
 #[repr(C)]
 #[derive(Copy, Clone, Default, PartialEq)]
 pub struct Vec3 {
@@ -41,5 +43,17 @@ impl Vec3 {
         let dy = self.y - other.y;
         let dz = self.z - other.z;
         (dx * dx + dy * dy + dz * dz).sqrt()
+    }
+}
+
+impl Sub for Vec3 {
+    type Output = Vec3;
+
+    fn sub(self, rhs: Vec3) -> Vec3 {
+        Vec3 {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+        }
     }
 }

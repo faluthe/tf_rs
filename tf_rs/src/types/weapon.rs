@@ -25,7 +25,7 @@ impl Weapon {
     pub fn can_headshot(&self) -> bool {
         matches!(
             self.weapon_class(),
-            WeaponClass::Sniperrifle | WeaponClass::Revolver
+            WeaponClass::Sniperrifle | WeaponClass::Revolver | WeaponClass::CompoundBow
         )
     }
 
