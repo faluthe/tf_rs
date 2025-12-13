@@ -107,6 +107,10 @@ fn closest_fov_target_pred(
                 continue;
             }
 
+            if config.aimbot.ignore_invisible && player.is_invisible() {
+                continue;
+            }
+
             let cur_pos = if matches!(weapon.weapon_class(), WeaponClass::CompoundBow) {
                 player.get_bone_position(player.head_bone_id())
             } else {

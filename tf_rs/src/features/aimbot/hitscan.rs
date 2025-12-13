@@ -68,6 +68,10 @@ fn closest_fov_target(
                 continue;
             }
 
+            if config.aimbot.ignore_invisible && player.is_invisible() {
+                continue;
+            }
+
             let should_headshot = player.health() > 50 && weapon.can_headshot();
 
             let bone_id = if should_headshot {

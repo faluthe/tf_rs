@@ -59,6 +59,7 @@ struct_with_serialize! {
         pub master: bool,
         pub silent_aim: bool,
         pub building_aim: bool,
+        pub ignore_invisible: bool,
         pub key: KeyConfig,
         pub projectile: ProjectileAimbotConfig,
         pub fov: i32,
