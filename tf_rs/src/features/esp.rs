@@ -254,6 +254,11 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         draw_health(&bbox, &player, surface, false);
                     }
 
+                    if cfg.class {
+                        let class = player.class_str();
+                        conds.push((class.to_string(), &rgba::WHITE));
+                    }
+
                     if cfg.conds {
                         if player.in_cond(Cond::Disguised) {
                             conds.push(("DISGUISED".to_string(), &rgba::WHITE));

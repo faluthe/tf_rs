@@ -144,6 +144,21 @@ impl Player {
         let index = self.observer_target_() & 0xFFF;
         Interfaces::entity_list().get_client_entity::<Entity>(index)
     }
+
+    pub fn class_str(&self) -> &str {
+        match self.player_class() {
+            PlayerClass::Scout => "Scout",
+            PlayerClass::Sniper => "Sniper",
+            PlayerClass::Soldier => "Soldier",
+            PlayerClass::Demoman => "Demoman",
+            PlayerClass::Medic => "Medic",
+            PlayerClass::HeavyWeapons => "HeavyWeapons",
+            PlayerClass::Pyro => "Pyro",
+            PlayerClass::Spy => "Spy",
+            PlayerClass::Engineer => "Engineer",
+            _ => "Undefined",
+        }
+    }
 }
 
 // Warns for unconstructed variants since we always use it through ffi
