@@ -44,18 +44,13 @@ impl Weapon {
                 | WeaponClass::Scattergun
                 | WeaponClass::Sniperrifle
                 | WeaponClass::Smg
-                | WeaponClass::SyringegunMedic
-                | WeaponClass::Tranq
                 | WeaponClass::Pistol
                 | WeaponClass::PistolScout
                 | WeaponClass::Revolver
-                | WeaponClass::Nailgun
                 | WeaponClass::HandgunScoutPrimary
                 | WeaponClass::HandgunScoutSecondary
                 | WeaponClass::SodaPopper
                 | WeaponClass::SniperrifleDecap
-                | WeaponClass::Raygun
-                | WeaponClass::MechanicalArm
                 | WeaponClass::SniperrifleClassic
         )
     }
@@ -66,18 +61,24 @@ impl Weapon {
             WeaponClass::RocketlauncherDirecthit
                 | WeaponClass::Rocketlauncher
                 | WeaponClass::CompoundBow
+                | WeaponClass::Grenadelauncher
         )
     }
 
     pub fn uses_gravity(&self) -> bool {
-        matches!(self.weapon_class(), WeaponClass::CompoundBow)
+        matches!(
+            self.weapon_class(),
+            WeaponClass::CompoundBow | WeaponClass::Grenadelauncher
+        )
     }
 
     pub fn projectile_fire_offset(&self) -> Vec3 {
         match self.weapon_class() {
-            WeaponClass::RocketlauncherDirecthit
-            | WeaponClass::Rocketlauncher
-            | WeaponClass::CompoundBow => Vec3::new(23.5, 12.0, -3.0),
+            WeaponClass::Grenadelauncher => Vec3::new(16.0, 6.0, -6.0),
+            WeaponClass::CompoundBow => Vec3::new(10.0, 4.0, -2.0),
+            WeaponClass::RocketlauncherDirecthit | WeaponClass::Rocketlauncher => {
+                Vec3::new(23.5, 8.0, -3.0)
+            }
             _ => Vec3::zero(),
         }
     }
@@ -86,6 +87,7 @@ impl Weapon {
         match self.weapon_class() {
             WeaponClass::RocketlauncherDirecthit => Some(1980.0),
             WeaponClass::Rocketlauncher => Some(1100.0),
+            WeaponClass::Grenadelauncher => Some(1216.0),
             WeaponClass::CompoundBow => Some(self.projectile_speed_()),
             _ => None,
         }
@@ -93,6 +95,7 @@ impl Weapon {
 
     pub fn projectile_gravity(&self) -> Option<f32> {
         match self.weapon_class() {
+            WeaponClass::Grenadelauncher => Some(0.4),
             WeaponClass::CompoundBow => Some(self.projectile_gravity_()),
             _ => None,
         }

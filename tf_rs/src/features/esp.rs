@@ -98,7 +98,9 @@ fn draw_projectile_pred(
     let cur_pos = if should_headshot {
         player.get_bone_position(player.head_bone_id())
     } else {
-        Some(player.origin())
+        let mut origin = player.origin();
+        origin.z += 15.0;
+        Some(origin)
     };
 
     let Some(cur_pos) = cur_pos else {

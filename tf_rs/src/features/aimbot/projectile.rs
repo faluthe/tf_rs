@@ -115,7 +115,7 @@ fn closest_fov_target_pred(
                 player.get_bone_position(player.head_bone_id())
             } else {
                 let mut origin = player.origin();
-                origin.z += 10.0;
+                origin.z += 15.0;
                 Some(origin)
             };
 
