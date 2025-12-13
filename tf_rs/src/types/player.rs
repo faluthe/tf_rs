@@ -1,12 +1,28 @@
-use std::{ffi::c_void, ops::Deref, ptr};
+use std::{ffi::c_void, mem, ops::Deref, ptr};
+
+use log::info;
+use once_cell::sync::Lazy;
 
 use crate::{
+    helpers,
     interfaces::Interfaces,
     offset_get,
     traits::FromRaw,
     types::{Entity, Vec3, Weapon},
     vfunc,
 };
+
+static ESTIMATE_ABS_VELOCITY: Lazy<fn(*mut c_void, *mut Vec3) -> ()> = Lazy::new(|| {
+    let scan_result = helpers::pattern_scan("client.so", "e8 ?? ?? ?? ?? 49 8b 7f 18")
+        .expect("Failed to find EstimateAbsVelocity pattern");
+
+    let rel_addr = unsafe { ptr::read_unaligned((scan_result + 0x1) as *const u32) };
+    let abs_addr = (scan_result + 0x5) + rel_addr as usize;
+
+    info!("EstimateAbsVelocity found at {:#x}", abs_addr);
+
+    unsafe { mem::transmute(abs_addr) }
+});
 
 #[derive(PartialEq, Eq)]
 pub struct Player {
@@ -33,7 +49,7 @@ impl Deref for Player {
 impl Player {
     offset_get!(pub fn flags: i32, 0x460);
     offset_get!(pub fn observer_mode: i32, 0x1644);
-    offset_get!(pub fn velocity: Vec3, 0x168); // TODO: EstimateAbsVelocity
+    // offset_get!(pub fn velocity: Vec3, 0x168);
     offset_get!(fn lifestate: i8, 0x746);
     offset_get!(fn active_weapon_: i32, 0x11D0);
     offset_get!(fn tick_base: i32, 0x1718);
@@ -158,6 +174,16 @@ impl Player {
             PlayerClass::Engineer => "Engineer",
             _ => "Undefined",
         }
+    }
+
+    pub fn velocity(&self) -> Vec3 {
+        let mut vel = Vec3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        (ESTIMATE_ABS_VELOCITY)(self.this, &mut vel);
+        vel
     }
 }
 

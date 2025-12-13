@@ -1,3 +1,8 @@
+use std::{
+    fs::File,
+    io::{BufRead, BufReader},
+};
+
 use crate::{
     interfaces::Interfaces,
     types::{BBox, Entity, Player, Vec2, Vec3},
@@ -99,4 +104,65 @@ pub fn is_ent_visible(from: &Vec3, to: &Vec3, ent: &Entity, ignore_entity: &Play
 pub fn is_pos_visible(from: &Vec3, to: &Vec3, ignore_entity: &Player) -> bool {
     let trace = Interfaces::engine_trace().trace_ray(from, to, 0x4200400b, Some(ignore_entity));
     trace.fraction >= 0.97 || trace.end_pos == *to
+}
+
+pub fn pattern_scan(lib: &str, pattern: &str) -> Option<usize> {
+    let file = File::open(format!("/proc/self/maps")).ok()?;
+    let reader = BufReader::new(file);
+
+    let pattern: Vec<Option<u8>> = pattern
+        .split_whitespace()
+        .map(|b| {
+            if b == "?" || b == "??" {
+                None
+            } else {
+                Some(u8::from_str_radix(b, 16).ok()?)
+            }
+        })
+        .collect();
+
+    for line in reader.lines() {
+        let l = line.ok()?;
+
+        if !l.contains(lib) {
+            continue;
+        }
+
+        let mut line = l.split_whitespace();
+
+        let range = line.next()?;
+        let perms = line.next()?;
+
+        if !perms.starts_with('r') {
+            continue;
+        }
+
+        let (start, end) = range.split_once('-')?;
+        let start = usize::from_str_radix(start, 16).ok()? as *const u8;
+        let end = usize::from_str_radix(end, 16).ok()? as *const u8;
+
+        let mut cur = start;
+
+        while unsafe { cur.add(pattern.len()) } < end {
+            let mut found = true;
+
+            for (i, byte) in pattern.iter().enumerate() {
+                if let Some(b) = byte {
+                    let memory_byte = unsafe { *cur.add(i) };
+                    if memory_byte != *b {
+                        found = false;
+                        break;
+                    }
+                }
+            }
+
+            if found {
+                return Some(cur as usize);
+            }
+
+            cur = unsafe { cur.add(1) };
+        }
+    }
+
+    None
 }
