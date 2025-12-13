@@ -114,7 +114,9 @@ fn closest_fov_target_pred(
             let cur_pos = if matches!(weapon.weapon_class(), WeaponClass::CompoundBow) {
                 player.get_bone_position(player.head_bone_id())
             } else {
-                Some(player.origin())
+                let mut origin = player.origin();
+                origin.z += 10.0;
+                Some(origin)
             };
 
             let Some(cur_pos) = cur_pos else {
