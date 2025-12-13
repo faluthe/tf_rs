@@ -138,6 +138,8 @@ fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
 
         nk.row_dynamic(30.0, 1)
             .checkbox("Building aim", &mut config.aimbot.building_aim)
+            .row_dynamic(30.0, 1)
+            .checkbox("Ignore invisible", &mut config.aimbot.ignore_invisible)
             .row_dynamic(30.0, 2)
             .label(
                 format!("Aimbot FOV: {}", config.aimbot.fov),
