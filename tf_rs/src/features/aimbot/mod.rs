@@ -1,5 +1,3 @@
-use log::info;
-
 use crate::{
     config::Config,
     globals::Globals,

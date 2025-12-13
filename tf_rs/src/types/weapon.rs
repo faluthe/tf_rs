@@ -87,7 +87,7 @@ impl Weapon {
         match self.weapon_class() {
             WeaponClass::RocketlauncherDirecthit => Some(1980.0),
             WeaponClass::Rocketlauncher => Some(1100.0),
-            WeaponClass::Grenadelauncher => Some(1216.0),
+            WeaponClass::Grenadelauncher => Some(1200.0),
             WeaponClass::CompoundBow => Some(self.projectile_speed_()),
             _ => None,
         }
