@@ -152,7 +152,7 @@ impl Player {
             PlayerClass::Soldier => "Soldier",
             PlayerClass::Demoman => "Demoman",
             PlayerClass::Medic => "Medic",
-            PlayerClass::HeavyWeapons => "HeavyWeapons",
+            PlayerClass::HeavyWeapons => "Heavy",
             PlayerClass::Pyro => "Pyro",
             PlayerClass::Spy => "Spy",
             PlayerClass::Engineer => "Engineer",
