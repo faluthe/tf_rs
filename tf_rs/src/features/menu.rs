@@ -154,11 +154,12 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
         nk.row_dynamic(30.0, 2)
             .label(title, TextAlignment::LEFT)
             .multi_select_combo(
-                &["Boxes", "Names", "Health bar", "Conditions"],
+                &["Boxes", "Names", "Health bar", "Class", "Conditions"],
                 &mut [
                     &mut esp_cfg.boxes,
                     &mut esp_cfg.names,
                     &mut esp_cfg.health,
+                    &mut esp_cfg.class,
                     &mut esp_cfg.conds,
                 ],
             );

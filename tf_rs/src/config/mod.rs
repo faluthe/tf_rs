@@ -48,6 +48,7 @@ struct_with_serialize! {
         pub boxes: bool,
         pub names: bool,
         pub health: bool,
+        pub class: bool,
         pub conds: bool,
     }
 }
