@@ -94,7 +94,7 @@ fn closest_fov_target(
                 smallest_fov = fov;
                 target_angle = Some(aim_angle);
                 target = Some(Target {
-                    target_index: i,
+                    index: i,
                     should_headshot,
                     projectile_pred: None,
                 });
@@ -132,7 +132,7 @@ fn closest_fov_target(
                 smallest_fov = fov;
                 target_angle = Some(aim_angle);
                 target = Some(Target {
-                    target_index: i,
+                    index: i,
                     should_headshot: false,
                     projectile_pred: None,
                 });

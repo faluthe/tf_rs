@@ -44,8 +44,8 @@ fn draw_projectile_pred(
 
             let step_time = 0.01;
             let max_steps = (target.travel_time / step_time).ceil() as i32;
-            let mut prev_x = cur_pos_2d.x as i32;
-            let mut prev_y = cur_pos_2d.y as i32;
+            let mut prev_x = cur_pos_2d.x;
+            let mut prev_y = cur_pos_2d.y;
 
             surface.draw_set_color(255, 255, 255, 255);
 
@@ -62,13 +62,13 @@ fn draw_projectile_pred(
                     continue;
                 };
 
-                let x = pos_2d.x as i32;
-                let y = pos_2d.y as i32;
+                let x = pos_2d.x.round() as i32;
+                let y = pos_2d.y.round() as i32;
 
-                surface.draw_line(prev_x, prev_y, x, y);
+                surface.draw_line(prev_x.round() as i32, prev_y.round() as i32, x, y);
 
-                prev_x = x;
-                prev_y = y;
+                prev_x = pos_2d.x;
+                prev_y = pos_2d.y
             }
         } else {
             let Some(start_2d) = debug_overlay.screen_position(&target.proj_start) else {
@@ -159,50 +159,41 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
     let target = globals.target.as_ref();
 
     for i in 1..Interfaces::entity_list().max_entities() {
-        if let Some(entity) = Interfaces::entity_list().get_client_entity::<Entity>(i) {
-            if entity.is_dormant() || entity == localplayer.ent {
+        if let Some(ent) = Interfaces::entity_list().get_client_entity::<Entity>(i) {
+            if ent.is_dormant() || ent == localplayer.ent {
                 continue;
             }
 
-            let mut conds: Vec<(String, &RGBA)> = Vec::new();
-
-            let is_target = if config.esp.aimbot_target && !localplayer.is_dead() {
-                if let Some(target) = target {
-                    if i == target.target_index {
-                        conds.push(("TARGET".to_string(), &rgba::WHITE));
-
-                        if target.should_headshot {
-                            conds.push(("HS".to_string(), &rgba::RED));
-                        }
-
-                        if let Some(proj_target) = &target.projectile_pred {
-                            draw_projectile_pred(
-                                localplayer.active_weapon(),
-                                proj_target,
-                                target.should_headshot,
-                                &entity,
-                                surface,
-                            );
-                        }
-                        true
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            } else {
-                false
-            };
-
-            let class_id = match entity.class_id() {
+            let class_id = match ent.class_id() {
                 Some(class_id) => class_id,
                 None => continue,
             };
 
+            let mut conds: Vec<(String, &RGBA)> = Vec::new();
+
+            let is_target = config.esp.aimbot_target && Some(i) == target.map(|t| t.index);
+
+            if is_target && let Some(target) = target {
+                conds.push(("TARGET".to_string(), &rgba::WHITE));
+
+                if target.should_headshot {
+                    conds.push(("HS".to_string(), &rgba::RED));
+                }
+
+                if let Some(proj_target) = &target.projectile_pred {
+                    draw_projectile_pred(
+                        localplayer.active_weapon(),
+                        proj_target,
+                        target.should_headshot,
+                        &ent,
+                        surface,
+                    );
+                }
+            }
+
             let bbox = match class_id {
                 ClassId::Player => {
-                    let player = Player { ent: entity };
+                    let player = Player { ent };
 
                     if player.is_dead() {
                         continue;
@@ -286,11 +277,11 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     Some(bbox)
                 }
                 ClassId::Sentry => {
-                    let friendly = entity.team() == localplayer.team();
+                    let friendly = ent.team() == localplayer.team();
 
                     if !friendly || config.esp.building_friendly.bool() {
                         building_esp(
-                            &entity,
+                            &ent,
                             "Sentry Gun",
                             if friendly {
                                 &config.esp.building_friendly
@@ -301,7 +292,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                             if is_target {
                                 &rgba::ORANGE
                             } else {
-                                entity.team().as_rgba()
+                                ent.team().as_rgba()
                             },
                         )
                     } else {
@@ -309,11 +300,11 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     }
                 }
                 ClassId::Dispenser => {
-                    let friendly = entity.team() == localplayer.team();
+                    let friendly = ent.team() == localplayer.team();
 
                     if !friendly || config.esp.building_friendly.bool() {
                         building_esp(
-                            &entity,
+                            &ent,
                             "Dispenser",
                             if friendly {
                                 &config.esp.building_friendly
@@ -324,7 +315,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                             if is_target {
                                 &rgba::ORANGE
                             } else {
-                                entity.team().as_rgba()
+                                ent.team().as_rgba()
                             },
                         )
                     } else {
@@ -332,11 +323,11 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     }
                 }
                 ClassId::Teleporter => {
-                    let friendly = entity.team() == localplayer.team();
+                    let friendly = ent.team() == localplayer.team();
 
                     if !friendly || config.esp.building_friendly.bool() {
                         building_esp(
-                            &entity,
+                            &ent,
                             "Teleporter",
                             if friendly {
                                 &config.esp.building_friendly
@@ -347,7 +338,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                             if is_target {
                                 &rgba::ORANGE
                             } else {
-                                entity.team().as_rgba()
+                                ent.team().as_rgba()
                             },
                         )
                     } else {

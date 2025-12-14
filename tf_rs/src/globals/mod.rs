@@ -15,7 +15,7 @@ pub struct Globals {
 
 #[derive(Default)]
 pub struct Target {
-    pub target_index: i32,
+    pub index: i32,
     pub should_headshot: bool,
     pub projectile_pred: Option<ProjectileTarget>,
 }
