@@ -13,7 +13,7 @@ pub fn run(
     globals: &mut Globals,
     config: &Config,
 ) {
-    let shoot_pos = projectile_fire_setup(
+    let shoot_pos = helpers::projectile_fire_setup(
         &cmd.view_angles,
         &localplayer.eye_pos(),
         &weapon.projectile_fire_offset(),
@@ -171,13 +171,13 @@ fn closest_fov_target_pred(
                     smallest_fov = fov;
                     target_angles = Some(aim_angles);
                     target = Some(Target {
-                        target_index: i,
+                        index: i,
                         should_headshot,
                         projectile_pred: Some(ProjectileTarget {
                             proj_start: shoot_pos.clone(),
                             proj_end: pred_pos,
                             travel_time,
-                            direction: angles_to_direction_vector(&aim_angles).0,
+                            direction: helpers::angles_to_direction_vector(&aim_angles).0,
                         }),
                     })
                 }
@@ -190,40 +190,4 @@ fn closest_fov_target_pred(
     }
 
     (target, target_angles)
-}
-
-fn projectile_fire_setup(view_angles: &Vec3, shoot_pos: &Vec3, offset: &Vec3) -> Vec3 {
-    let (forward, right, up) = angles_to_direction_vector(view_angles);
-
-    Vec3 {
-        x: shoot_pos.x + (forward.x * offset.x) + (right.x * offset.y) + (up.x * offset.z),
-        y: shoot_pos.y + (forward.y * offset.x) + (right.y * offset.y) + (up.y * offset.z),
-        z: shoot_pos.z + (forward.z * offset.x) + (right.z * offset.y) + (up.z * offset.z),
-    }
-}
-
-fn angles_to_direction_vector(angles: &Vec3) -> (Vec3, Vec3, Vec3) {
-    let (sp, cp) = angles.x.to_radians().sin_cos(); // pitch
-    let (sy, cy) = angles.y.to_radians().sin_cos(); // yaw
-    let (sr, cr) = angles.z.to_radians().sin_cos(); // roll
-
-    let forward = Vec3 {
-        x: cp * cy,
-        y: cp * sy,
-        z: -sp,
-    };
-
-    let right = Vec3 {
-        x: (-sr * sp * cy + -cr * -sy),
-        y: (-sr * sp * sy + -cr * cy),
-        z: -sr * cp,
-    };
-
-    let up = Vec3 {
-        x: (cr * sp * cy + -sr * -sy),
-        y: (cr * sp * sy + -sr * cy),
-        z: cr * cp,
-    };
-
-    (forward, right, up)
 }

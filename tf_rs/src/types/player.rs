@@ -49,11 +49,11 @@ impl Deref for Player {
 impl Player {
     offset_get!(pub fn flags: i32, 0x460);
     offset_get!(pub fn observer_mode: i32, 0x1644);
+    offset_get!(pub fn eye_z_diff: f32, 0x14C);
     // offset_get!(pub fn velocity: Vec3, 0x168);
     offset_get!(fn lifestate: i8, 0x746);
     offset_get!(fn active_weapon_: i32, 0x11D0);
     offset_get!(fn tick_base: i32, 0x1718);
-    offset_get!(fn eye_z_diff: f32, 0x14C);
     offset_get!(fn player_class: PlayerClass, 0x1BA0);
     offset_get!(fn conds_0: u32, 0x1F64);
     offset_get!(fn conds_1: u32, 0x1F68);

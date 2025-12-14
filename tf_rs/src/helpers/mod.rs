@@ -166,3 +166,39 @@ pub fn pattern_scan(lib: &str, pattern: &str) -> Option<usize> {
 
     None
 }
+
+pub fn projectile_fire_setup(view_angles: &Vec3, shoot_pos: &Vec3, offset: &Vec3) -> Vec3 {
+    let (forward, right, up) = angles_to_direction_vector(view_angles);
+
+    Vec3 {
+        x: shoot_pos.x + (forward.x * offset.x) + (right.x * offset.y) + (up.x * offset.z),
+        y: shoot_pos.y + (forward.y * offset.x) + (right.y * offset.y) + (up.y * offset.z),
+        z: shoot_pos.z + (forward.z * offset.x) + (right.z * offset.y) + (up.z * offset.z),
+    }
+}
+
+pub fn angles_to_direction_vector(angles: &Vec3) -> (Vec3, Vec3, Vec3) {
+    let (sp, cp) = angles.x.to_radians().sin_cos(); // pitch
+    let (sy, cy) = angles.y.to_radians().sin_cos(); // yaw
+    let (sr, cr) = angles.z.to_radians().sin_cos(); // roll
+
+    let forward = Vec3 {
+        x: cp * cy,
+        y: cp * sy,
+        z: -sp,
+    };
+
+    let right = Vec3 {
+        x: (-sr * sp * cy + -cr * -sy),
+        y: (-sr * sp * sy + -cr * cy),
+        z: -sr * cp,
+    };
+
+    let up = Vec3 {
+        x: (cr * sp * cy + -sr * -sy),
+        y: (cr * sp * sy + -sr * cy),
+        z: cr * cp,
+    };
+
+    (forward, right, up)
+}
