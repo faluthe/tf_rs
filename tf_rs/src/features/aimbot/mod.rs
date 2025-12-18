@@ -4,6 +4,7 @@ use crate::{
     types::{Player, UserCmd},
 };
 
+mod engine_predict;
 mod hitscan;
 mod projectile;
 

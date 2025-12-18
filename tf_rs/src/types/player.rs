@@ -13,7 +13,7 @@ use crate::{
 };
 
 static ESTIMATE_ABS_VELOCITY: Lazy<fn(*mut c_void, *mut Vec3) -> ()> = Lazy::new(|| {
-    let scan_result = helpers::pattern_scan("client.so", "e8 ?? ?? ?? ?? 49 8b 7f 18")
+    let scan_result = helpers::pattern_scan("client.so", "E8 ?? ?? ?? ?? 49 8B 7F 18")
         .expect("Failed to find EstimateAbsVelocity pattern");
 
     let rel_addr = unsafe { ptr::read_unaligned((scan_result + 0x1) as *const u32) };
