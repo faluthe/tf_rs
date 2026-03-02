@@ -6,6 +6,7 @@ mod globals;
 mod helpers;
 mod hooks;
 mod interfaces;
+mod player_db;
 mod traits;
 mod types;
 
@@ -19,6 +20,7 @@ static INIT: extern "C" fn() = {
         if let Err(e) = Interfaces::init() {
             log::error!("tf_rs init failed: {e}");
         }
+        player_db::load();
         if let Err(e) = Hooks::init() {
             log::error!("tf_rs init failed: {e}");
         }

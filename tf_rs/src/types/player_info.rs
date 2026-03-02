@@ -2,7 +2,7 @@
 pub struct PlayerInfo {
     pub name: [u8; 32],
     user_id: i32,
-    guid: [u8; 33],
+    pub guid: [u8; 33],
     friends_id: u64,
     friends_name: [u8; 32],
     fake_player: bool,

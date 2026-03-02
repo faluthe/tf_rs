@@ -5,6 +5,7 @@ use crate::{
     globals::Globals,
     helpers,
     interfaces::{Interfaces, Surface},
+    player_db,
     types::{BBox, ClassId, ColorF, Cond, Entity, Player, rgba},
 };
 
@@ -83,6 +84,13 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         esp_color(is_target, friendly, team_color, &config.colors.boxes);
                     let name_color =
                         esp_color(is_target, friendly, team_color, &config.colors.names);
+
+                    let info = Interfaces::engine_client().get_player_info(i);
+                    let guid = str::from_utf8(&info.guid).unwrap_or("").trim_end_matches('\0');
+                    let box_color = match player_db::get(guid) {
+                        player_db::PlayerCategory::None => box_color,
+                        cat => cat.color(&config.colors.player_categories),
+                    };
 
                     if cfg.boxes {
                         draw_box(&bbox, &box_color, surface);
