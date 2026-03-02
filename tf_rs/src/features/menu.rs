@@ -20,6 +20,7 @@ static NEW_CONFIG_NAME: RwLock<[u8; 256]> = RwLock::new([0; 256]);
 enum MenuTab {
     Aimbot,
     ESP,
+    Colors,
     Misc,
     Config,
 }
@@ -37,15 +38,17 @@ pub fn draw(nk: &Nuklear) {
     ) {
         let mut config = Config::write();
 
-        nk.row_dynamic(30.0, 4);
+        nk.row_dynamic(30.0, 5);
         tab_button(nk, "Aimbot", MenuTab::Aimbot);
         tab_button(nk, "ESP", MenuTab::ESP);
+        tab_button(nk, "Colors", MenuTab::Colors);
         tab_button(nk, "Misc", MenuTab::Misc);
         tab_button(nk, "Config", MenuTab::Config);
 
         match unsafe { TAB } {
             MenuTab::Aimbot => aimbot_tab(nk, &mut config),
             MenuTab::ESP => esp_tab(nk, &mut config),
+            MenuTab::Colors => colors_tab(nk, &mut config),
             MenuTab::Misc => misc_tab(nk, &mut config),
             MenuTab::Config => config_tab(nk, &mut config),
         }
@@ -60,7 +63,12 @@ fn tab_button(nk: &Nuklear, title: &str, tab: MenuTab) {
         &rgba::LIGHT_GREY
     };
 
-    nk.set_button_normal_color(color.r as u8, color.g as u8, color.b as u8, color.a as u8);
+    nk.set_button_normal_color(
+        (color.r * 255.0) as u8,
+        (color.g * 255.0) as u8,
+        (color.b * 255.0) as u8,
+        (color.a * 255.0) as u8,
+    );
     nk.set_button_rounding(0.0);
 
     if nk.button_label(title) {
@@ -71,10 +79,10 @@ fn tab_button(nk: &Nuklear, title: &str, tab: MenuTab) {
 
     // Restore button default styles
     nk.set_button_normal_color(
-        rgba::LIGHT_GREY.r as u8,
-        rgba::LIGHT_GREY.g as u8,
-        rgba::LIGHT_GREY.b as u8,
-        rgba::LIGHT_GREY.a as u8,
+        (rgba::LIGHT_GREY.r * 255.0) as u8,
+        (rgba::LIGHT_GREY.g * 255.0) as u8,
+        (rgba::LIGHT_GREY.b * 255.0) as u8,
+        (rgba::LIGHT_GREY.a * 255.0) as u8,
     );
     nk.set_button_rounding(4.0);
 }
@@ -124,12 +132,11 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
         nk.row_dynamic(30.0, 2)
             .label(title, TextAlignment::LEFT)
             .multi_select_combo(
-                &["Boxes", "Names", "Health bar", "Conditions"],
+                &["Boxes", "Names", "Health bar"],
                 &mut [
                     &mut esp_cfg.boxes,
                     &mut esp_cfg.names,
                     &mut esp_cfg.health,
-                    &mut esp_cfg.conds,
                 ],
             );
     }
@@ -148,6 +155,20 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
     entity_esp_combo(nk, "Enemy Players", &mut config.esp.player_enemy);
     entity_esp_combo(nk, "Friendly Players", &mut config.esp.player_friendly);
 
+    nk.row_dynamic(30.0, 2)
+        .label("Conditions", TextAlignment::LEFT)
+        .multi_select_combo(
+            &["Disguised", "Taunting", "Zoomed", "Invisible", "Milked", "MG"],
+            &mut [
+                &mut config.esp.conds.disguised.enabled,
+                &mut config.esp.conds.taunting.enabled,
+                &mut config.esp.conds.zoomed.enabled,
+                &mut config.esp.conds.invisible.enabled,
+                &mut config.esp.conds.milked.enabled,
+                &mut config.esp.conds.mg.enabled,
+            ],
+        );
+
     nk.row_dynamic(30.0, 1)
         .label("Buildings", TextAlignment::LEFT)
         .horizontal_separator(1.0);
@@ -160,6 +181,119 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
         .horizontal_separator(1.0)
         .row_dynamic(30.0, 1)
         .checkbox("Show target", &mut config.esp.aimbot_target);
+}
+
+fn colors_tab(nk: &Nuklear, config: &mut Config) {
+    nk.row_dynamic(30.0, 1)
+        .label("Boxes", TextAlignment::LEFT)
+        .horizontal_separator(1.0)
+        .row_dynamic(30.0, 1)
+        .checkbox("Use team colors", &mut config.colors.boxes.use_team_colors);
+
+    if !config.colors.boxes.use_team_colors {
+        nk.row_dynamic(30.0, 1)
+            .label("Enemy", TextAlignment::LEFT)
+            .row_dynamic(200.0, 1)
+            .color_picker(
+                &mut config.colors.boxes.enemy.r,
+                &mut config.colors.boxes.enemy.g,
+                &mut config.colors.boxes.enemy.b,
+                &mut config.colors.boxes.enemy.a,
+            )
+            .row_dynamic(30.0, 1)
+            .label("Friendly", TextAlignment::LEFT)
+            .row_dynamic(200.0, 1)
+            .color_picker(
+                &mut config.colors.boxes.friendly.r,
+                &mut config.colors.boxes.friendly.g,
+                &mut config.colors.boxes.friendly.b,
+                &mut config.colors.boxes.friendly.a,
+            );
+    }
+
+    nk.row_dynamic(30.0, 1)
+        .label("Names", TextAlignment::LEFT)
+        .horizontal_separator(1.0)
+        .row_dynamic(30.0, 1)
+        .checkbox("Use team colors", &mut config.colors.names.use_team_colors);
+
+    if !config.colors.names.use_team_colors {
+        nk.row_dynamic(30.0, 1)
+            .label("Enemy", TextAlignment::LEFT)
+            .row_dynamic(200.0, 1)
+            .color_picker(
+                &mut config.colors.names.enemy.r,
+                &mut config.colors.names.enemy.g,
+                &mut config.colors.names.enemy.b,
+                &mut config.colors.names.enemy.a,
+            )
+            .row_dynamic(30.0, 1)
+            .label("Friendly", TextAlignment::LEFT)
+            .row_dynamic(200.0, 1)
+            .color_picker(
+                &mut config.colors.names.friendly.r,
+                &mut config.colors.names.friendly.g,
+                &mut config.colors.names.friendly.b,
+                &mut config.colors.names.friendly.a,
+            );
+    }
+
+    nk.row_dynamic(30.0, 1)
+        .label("Buildings", TextAlignment::LEFT)
+        .horizontal_separator(1.0)
+        .row_dynamic(30.0, 1)
+        .checkbox("Use team colors", &mut config.colors.buildings.use_team_colors);
+
+    if !config.colors.buildings.use_team_colors {
+        for (name, c) in [
+            ("Sentry",     &mut config.colors.buildings.sentry),
+            ("Dispenser",  &mut config.colors.buildings.dispenser),
+            ("Teleporter", &mut config.colors.buildings.teleporter),
+        ] {
+            nk.row_dynamic(30.0, 1)
+                .label(name, TextAlignment::LEFT)
+                .horizontal_separator(1.0)
+                .row_dynamic(30.0, 1)
+                .label("Enemy", TextAlignment::LEFT)
+                .row_dynamic(200.0, 1)
+                .color_picker(&mut c.enemy.r, &mut c.enemy.g, &mut c.enemy.b, &mut c.enemy.a)
+                .row_dynamic(30.0, 1)
+                .label("Friendly", TextAlignment::LEFT)
+                .row_dynamic(200.0, 1)
+                .color_picker(&mut c.friendly.r, &mut c.friendly.g, &mut c.friendly.b, &mut c.friendly.a);
+        }
+    }
+
+    let conds = &config.esp.conds;
+    let any_enabled = conds.disguised.enabled
+        || conds.taunting.enabled
+        || conds.zoomed.enabled
+        || conds.invisible.enabled
+        || conds.milked.enabled
+        || conds.mg.enabled;
+
+    if any_enabled {
+        nk.row_dynamic(30.0, 1)
+            .label("Conditions", TextAlignment::LEFT)
+            .horizontal_separator(1.0);
+
+        let conds = &mut config.esp.conds;
+        for (name, enabled, c) in [
+            ("Disguised", conds.disguised.enabled, &mut conds.disguised.color),
+            ("Taunting",  conds.taunting.enabled,  &mut conds.taunting.color),
+            ("Zoomed",    conds.zoomed.enabled,     &mut conds.zoomed.color),
+            ("Invisible", conds.invisible.enabled,  &mut conds.invisible.color),
+            ("Milked",    conds.milked.enabled,     &mut conds.milked.color),
+            ("MG",        conds.mg.enabled,         &mut conds.mg.color),
+        ] {
+            if enabled {
+                nk.row_dynamic(30.0, 1)
+                    .label(name, TextAlignment::LEFT)
+                    .row_dynamic(200.0, 1)
+                    .color_picker(&mut c.r, &mut c.g, &mut c.b, &mut c.a);
+            }
+        }
+    }
 }
 
 fn misc_tab(nk: &Nuklear, config: &mut Config) {

@@ -1,6 +1,6 @@
 use std::ffi::{CString, c_void};
 
-use crate::vfunc;
+use crate::{types::rgba::ColorF, vfunc};
 
 #[derive(Default, Clone)]
 pub struct Surface {
@@ -112,6 +112,24 @@ impl Surface {
             flags,
             0,
             0,
+        )
+    }
+
+    pub fn draw_set_color_c(&self, color: &ColorF) {
+        self.draw_set_color(
+            (color.r * 255.0) as i32,
+            (color.g * 255.0) as i32,
+            (color.b * 255.0) as i32,
+            (color.a * 255.0) as i32,
+        )
+    }
+
+    pub fn draw_set_text_color_c(&self, color: &ColorF) {
+        self.draw_set_text_color(
+            (color.r * 255.0) as i32,
+            (color.g * 255.0) as i32,
+            (color.b * 255.0) as i32,
+            (color.a * 255.0) as i32,
         )
     }
 

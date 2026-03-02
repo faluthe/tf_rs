@@ -1,11 +1,11 @@
 use std::sync::OnceLock;
 
 use crate::{
-    config::{Config, EntityESPConfig},
+    config::{BuildingColorConfig, Config, EntityESPConfig, EspColorConfig},
     globals::Globals,
     helpers,
     interfaces::{Interfaces, Surface},
-    types::{BBox, ClassId, Cond, Entity, Player, RGBA, rgba},
+    types::{BBox, ClassId, ColorF, Cond, Entity, Player, rgba},
 };
 
 static ESP_FONT: OnceLock<u64> = OnceLock::new();
@@ -32,14 +32,14 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                 continue;
             }
 
-            let mut conds = Vec::new();
+            let mut conds: Vec<(&str, ColorF)> = Vec::new();
 
             let is_target = if config.esp.aimbot_target {
                 if Some(i) == target.map(|t| t.target_index) {
-                    conds.push(("TARGET", &rgba::WHITE));
+                    conds.push(("TARGET", rgba::WHITE));
 
                     if Some(true) == target.map(|t| t.should_headshot) {
-                        conds.push(("HS", &rgba::RED));
+                        conds.push(("HS", rgba::RED));
                     }
                     true
                 } else {
@@ -78,58 +78,49 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         &config.esp.player_enemy
                     };
 
+                    let team_color = player.team().as_color();
+                    let box_color = esp_color(is_target, friendly, team_color, &config.colors.boxes);
+                    let name_color = esp_color(is_target, friendly, team_color, &config.colors.names);
+
                     if cfg.boxes {
-                        draw_box(
-                            &bbox,
-                            if is_target {
-                                &rgba::ORANGE
-                            } else {
-                                player.team().as_rgba()
-                            },
-                            surface,
-                        );
+                        draw_box(&bbox, &box_color, surface);
                     }
 
                     if cfg.names {
                         let name = Interfaces::engine_client().get_player_info(i).name;
                         let name = str::from_utf8(&name).unwrap_or("");
 
-                        draw_name(
-                            &bbox,
-                            name,
-                            if is_target {
-                                &rgba::ORANGE
-                            } else {
-                                player.team().as_rgba()
-                            },
-                            surface,
-                        );
+                        draw_name(&bbox, name, &name_color, surface);
                     }
 
                     if cfg.health {
                         draw_health(&bbox, &player, surface, false);
                     }
 
-                    if cfg.conds {
-                        if player.in_cond(Cond::Disguised) {
-                            conds.push(("DISGUISED", &rgba::WHITE));
-                        }
+                    let cc = &config.esp.conds;
 
-                        if player.in_cond(Cond::Taunting) {
-                            conds.push(("TAUNTING", &rgba::WHITE));
-                        }
+                    if cc.disguised.enabled && player.in_cond(Cond::Disguised) {
+                        conds.push(("DISGUISED", cc.disguised.color));
+                    }
 
-                        if player.in_cond(Cond::Zoomed) {
-                            conds.push(("ZOOMED", &rgba::WHITE));
-                        }
+                    if cc.taunting.enabled && player.in_cond(Cond::Taunting) {
+                        conds.push(("TAUNTING", cc.taunting.color));
+                    }
 
-                        if player.is_invisible() {
-                            conds.push(("INVISIBLE", &rgba::WHITE));
-                        }
+                    if cc.zoomed.enabled && player.in_cond(Cond::Zoomed) {
+                        conds.push(("ZOOMED", cc.zoomed.color));
+                    }
 
-                        if player.in_cond(Cond::MadMilk) {
-                            conds.push(("MILKED", &rgba::WHITE));
-                        }
+                    if cc.invisible.enabled && player.is_invisible() {
+                        conds.push(("INVISIBLE", cc.invisible.color));
+                    }
+
+                    if cc.milked.enabled && player.in_cond(Cond::MadMilk) {
+                        conds.push(("MILKED", cc.milked.color));
+                    }
+
+                    if cc.mg.enabled && localplayer.is_soldier() && player.health() <= 195 {
+                        conds.push(("MG", cc.mg.color));
                     }
 
                     Some(bbox)
@@ -138,20 +129,13 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     let friendly = entity.team() == localplayer.team();
 
                     if !friendly || config.esp.building_friendly.bool() {
+                        let color = building_color(is_target, friendly, entity.team().as_color(), config.colors.buildings.use_team_colors, &config.colors.buildings.sentry);
                         building_esp(
                             &entity,
                             "Sentry Gun",
-                            if friendly {
-                                &config.esp.building_friendly
-                            } else {
-                                &config.esp.building_enemy
-                            },
+                            if friendly { &config.esp.building_friendly } else { &config.esp.building_enemy },
                             surface,
-                            if is_target {
-                                &rgba::ORANGE
-                            } else {
-                                entity.team().as_rgba()
-                            },
+                            &color,
                         )
                     } else {
                         continue;
@@ -161,20 +145,13 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     let friendly = entity.team() == localplayer.team();
 
                     if !friendly || config.esp.building_friendly.bool() {
+                        let color = building_color(is_target, friendly, entity.team().as_color(), config.colors.buildings.use_team_colors, &config.colors.buildings.dispenser);
                         building_esp(
                             &entity,
                             "Dispenser",
-                            if friendly {
-                                &config.esp.building_friendly
-                            } else {
-                                &config.esp.building_enemy
-                            },
+                            if friendly { &config.esp.building_friendly } else { &config.esp.building_enemy },
                             surface,
-                            if is_target {
-                                &rgba::ORANGE
-                            } else {
-                                entity.team().as_rgba()
-                            },
+                            &color,
                         )
                     } else {
                         continue;
@@ -184,20 +161,13 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     let friendly = entity.team() == localplayer.team();
 
                     if !friendly || config.esp.building_friendly.bool() {
+                        let color = building_color(is_target, friendly, entity.team().as_color(), config.colors.buildings.use_team_colors, &config.colors.buildings.teleporter);
                         building_esp(
                             &entity,
                             "Teleporter",
-                            if friendly {
-                                &config.esp.building_friendly
-                            } else {
-                                &config.esp.building_enemy
-                            },
+                            if friendly { &config.esp.building_friendly } else { &config.esp.building_enemy },
                             surface,
-                            if is_target {
-                                &rgba::ORANGE
-                            } else {
-                                entity.team().as_rgba()
-                            },
+                            &color,
                         )
                     } else {
                         continue;
@@ -211,7 +181,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
             };
 
             for (j, (cond, color)) in conds.iter().enumerate() {
-                surface.draw_set_text_color(color.r, color.g, color.b, color.a);
+                surface.draw_set_text_color_c(color);
                 surface.draw_set_text_pos(
                     (bbox.right + 10) as u32,
                     (bbox.top + (j as i32 * 10)) as u32,
@@ -227,7 +197,7 @@ fn building_esp(
     name: &str,
     cfg: &EntityESPConfig,
     surface: &Surface,
-    color: &RGBA,
+    color: &ColorF,
 ) -> Option<BBox> {
     let Some(bbox) = helpers::get_bounding_box(entity) else {
         return None;
@@ -249,17 +219,17 @@ fn building_esp(
 }
 
 // TODO: Outline in black for visibility
-fn draw_box(bbox: &BBox, color: &RGBA, surface: &Surface) {
+fn draw_box(bbox: &BBox, color: &ColorF, surface: &Surface) {
     surface.draw_set_color(0, 0, 0, 255);
     surface.draw_outlined_rect(bbox.left - 1, bbox.top - 1, bbox.right + 1, bbox.bottom + 1);
     surface.draw_outlined_rect(bbox.left + 1, bbox.top + 1, bbox.right - 1, bbox.bottom - 1);
-    surface.draw_set_color(color.r, color.g, color.b, color.a);
+    surface.draw_set_color_c(color);
     surface.draw_outlined_rect(bbox.left, bbox.top, bbox.right, bbox.bottom);
 }
 
 // TODO: Add custom positioning
-fn draw_name(bbox: &BBox, name: &str, color: &RGBA, surface: &Surface) {
-    surface.draw_set_text_color(color.r, color.g, color.b, color.a);
+fn draw_name(bbox: &BBox, name: &str, color: &ColorF, surface: &Surface) {
+    surface.draw_set_text_color_c(color);
     surface.draw_set_text_pos(bbox.left as u32, (bbox.top - 20) as u32);
     surface.draw_print_text(name);
 }
@@ -334,4 +304,28 @@ pub fn draw_fov(surface: &Surface, config: &Config) {
 
     surface.draw_set_color(255, 255, 255, 255);
     surface.draw_circle(width / 2, height / 2, radius as i32, 255);
+}
+
+fn building_color(is_target: bool, friendly: bool, team_color: &ColorF, use_team_colors: bool, bldg: &BuildingColorConfig) -> ColorF {
+    if is_target {
+        rgba::ORANGE
+    } else if use_team_colors {
+        *team_color
+    } else if friendly {
+        bldg.friendly
+    } else {
+        bldg.enemy
+    }
+}
+
+fn esp_color(is_target: bool, friendly: bool, team_color: &ColorF, cfg: &EspColorConfig) -> ColorF {
+    if is_target {
+        rgba::ORANGE
+    } else if cfg.use_team_colors {
+        *team_color
+    } else if friendly {
+        cfg.friendly
+    } else {
+        cfg.enemy
+    }
 }
