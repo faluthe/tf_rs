@@ -79,8 +79,10 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     };
 
                     let team_color = player.team().as_color();
-                    let box_color = esp_color(is_target, friendly, team_color, &config.colors.boxes);
-                    let name_color = esp_color(is_target, friendly, team_color, &config.colors.names);
+                    let box_color =
+                        esp_color(is_target, friendly, team_color, &config.colors.boxes);
+                    let name_color =
+                        esp_color(is_target, friendly, team_color, &config.colors.names);
 
                     if cfg.boxes {
                         draw_box(&bbox, &box_color, surface);
@@ -129,11 +131,21 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     let friendly = entity.team() == localplayer.team();
 
                     if !friendly || config.esp.building_friendly.bool() {
-                        let color = building_color(is_target, friendly, entity.team().as_color(), config.colors.buildings.use_team_colors, &config.colors.buildings.sentry);
+                        let color = building_color(
+                            is_target,
+                            friendly,
+                            entity.team().as_color(),
+                            config.colors.buildings.use_team_colors,
+                            &config.colors.buildings.sentry,
+                        );
                         building_esp(
                             &entity,
                             "Sentry Gun",
-                            if friendly { &config.esp.building_friendly } else { &config.esp.building_enemy },
+                            if friendly {
+                                &config.esp.building_friendly
+                            } else {
+                                &config.esp.building_enemy
+                            },
                             surface,
                             &color,
                         )
@@ -145,11 +157,21 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     let friendly = entity.team() == localplayer.team();
 
                     if !friendly || config.esp.building_friendly.bool() {
-                        let color = building_color(is_target, friendly, entity.team().as_color(), config.colors.buildings.use_team_colors, &config.colors.buildings.dispenser);
+                        let color = building_color(
+                            is_target,
+                            friendly,
+                            entity.team().as_color(),
+                            config.colors.buildings.use_team_colors,
+                            &config.colors.buildings.dispenser,
+                        );
                         building_esp(
                             &entity,
                             "Dispenser",
-                            if friendly { &config.esp.building_friendly } else { &config.esp.building_enemy },
+                            if friendly {
+                                &config.esp.building_friendly
+                            } else {
+                                &config.esp.building_enemy
+                            },
                             surface,
                             &color,
                         )
@@ -161,11 +183,21 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     let friendly = entity.team() == localplayer.team();
 
                     if !friendly || config.esp.building_friendly.bool() {
-                        let color = building_color(is_target, friendly, entity.team().as_color(), config.colors.buildings.use_team_colors, &config.colors.buildings.teleporter);
+                        let color = building_color(
+                            is_target,
+                            friendly,
+                            entity.team().as_color(),
+                            config.colors.buildings.use_team_colors,
+                            &config.colors.buildings.teleporter,
+                        );
                         building_esp(
                             &entity,
                             "Teleporter",
-                            if friendly { &config.esp.building_friendly } else { &config.esp.building_enemy },
+                            if friendly {
+                                &config.esp.building_friendly
+                            } else {
+                                &config.esp.building_enemy
+                            },
                             surface,
                             &color,
                         )
@@ -306,7 +338,13 @@ pub fn draw_fov(surface: &Surface, config: &Config) {
     surface.draw_circle(width / 2, height / 2, radius as i32, 255);
 }
 
-fn building_color(is_target: bool, friendly: bool, team_color: &ColorF, use_team_colors: bool, bldg: &BuildingColorConfig) -> ColorF {
+fn building_color(
+    is_target: bool,
+    friendly: bool,
+    team_color: &ColorF,
+    use_team_colors: bool,
+    bldg: &BuildingColorConfig,
+) -> ColorF {
     if is_target {
         rgba::ORANGE
     } else if use_team_colors {

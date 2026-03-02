@@ -17,7 +17,13 @@ static C: Lazy<RwLock<Config>> = Lazy::new(|| {
     RwLock::new(cfg)
 });
 
-static L: Lazy<RwLock<Vec<String>>> = Lazy::new(|| RwLock::new(Config::get_config_names()));
+static L: Lazy<RwLock<Vec<String>>> = Lazy::new(|| {
+    let mut names = Config::get_config_names();
+    if let Some(pos) = names.iter().position(|s| s == "default") {
+        names.swap(0, pos);
+    }
+    RwLock::new(names)
+});
 
 struct_with_serialize! {
     #[derive(Default)]
@@ -44,9 +50,19 @@ impl Default for EspColorConfig {
         EspColorConfig {
             use_team_colors: true,
             // Match rgba::RED (220, 45, 35)
-            enemy: ColorF { r: 0.863, g: 0.176, b: 0.137, a: 1.0 },
+            enemy: ColorF {
+                r: 0.863,
+                g: 0.176,
+                b: 0.137,
+                a: 1.0,
+            },
             // Match rgba::BLUE (40, 110, 240)
-            friendly: ColorF { r: 0.157, g: 0.431, b: 0.941, a: 1.0 },
+            friendly: ColorF {
+                r: 0.157,
+                g: 0.431,
+                b: 0.941,
+                a: 1.0,
+            },
         }
     }
 }
@@ -61,8 +77,18 @@ struct_with_serialize! {
 impl Default for BuildingColorConfig {
     fn default() -> Self {
         BuildingColorConfig {
-            enemy: ColorF { r: 0.863, g: 0.176, b: 0.137, a: 1.0 },
-            friendly: ColorF { r: 0.157, g: 0.431, b: 0.941, a: 1.0 },
+            enemy: ColorF {
+                r: 0.863,
+                g: 0.176,
+                b: 0.137,
+                a: 1.0,
+            },
+            friendly: ColorF {
+                r: 0.157,
+                g: 0.431,
+                b: 0.941,
+                a: 1.0,
+            },
         }
     }
 }
@@ -129,7 +155,12 @@ impl Default for CondDisplayConfig {
     fn default() -> Self {
         CondDisplayConfig {
             enabled: true,
-            color: ColorF { r: 1.0, g: 1.0, b: 1.0, a: 1.0 },
+            color: ColorF {
+                r: 1.0,
+                g: 1.0,
+                b: 1.0,
+                a: 1.0,
+            },
         }
     }
 }
@@ -194,6 +225,9 @@ impl Config {
         let mut w = L.write().unwrap();
         w.clear();
         w.extend(Config::get_config_names());
+        if let Some(pos) = w.iter().position(|s| s == "default") {
+            w.swap(0, pos);
+        }
     }
 
     // TODO: Clean this up
