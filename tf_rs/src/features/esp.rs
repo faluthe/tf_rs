@@ -121,8 +121,20 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         conds.push(("MILKED", cc.milked.color));
                     }
 
-                    if !friendly && cc.mg.enabled && localplayer.is_soldier() && player.health() >= 195 {
+                    if !friendly
+                        && cc.mg.enabled
+                        && localplayer.is_soldier()
+                        && player.health() > 195
+                    {
                         conds.push(("NO MG", cc.mg.color));
+                    }
+
+                    if !friendly
+                        && cc.butter.enabled
+                        && localplayer.is_soldier()
+                        && player.health() <= 65
+                    {
+                        conds.push(("BUTTER", cc.butter.color));
                     }
 
                     Some(bbox)
