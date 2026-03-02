@@ -158,7 +158,7 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
     nk.row_dynamic(30.0, 2)
         .label("Conditions", TextAlignment::LEFT)
         .multi_select_combo(
-            &["Disguised", "Taunting", "Zoomed", "Invisible", "Milked", "MG"],
+            &["Disguised", "Taunting", "Zoomed", "Invisible", "Milked", "No MG"],
             &mut [
                 &mut config.esp.conds.disguised.enabled,
                 &mut config.esp.conds.taunting.enabled,
@@ -284,7 +284,7 @@ fn colors_tab(nk: &Nuklear, config: &mut Config) {
             ("Zoomed",    conds.zoomed.enabled,     &mut conds.zoomed.color),
             ("Invisible", conds.invisible.enabled,  &mut conds.invisible.color),
             ("Milked",    conds.milked.enabled,     &mut conds.milked.color),
-            ("MG",        conds.mg.enabled,         &mut conds.mg.color),
+            ("No MG",     conds.mg.enabled,         &mut conds.mg.color),
         ] {
             if enabled {
                 nk.row_dynamic(30.0, 1)
