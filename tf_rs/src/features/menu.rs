@@ -8,6 +8,8 @@ use nuklear::{
 use crate::{
     config::{Config, EntityESPConfig},
     globals::Globals,
+    interfaces::Interfaces,
+    player_db,
     types::rgba,
 };
 
@@ -23,6 +25,7 @@ enum MenuTab {
     Colors,
     Misc,
     Config,
+    Players,
 }
 
 pub fn draw(nk: &Nuklear) {
@@ -38,12 +41,13 @@ pub fn draw(nk: &Nuklear) {
     ) {
         let mut config = Config::write();
 
-        nk.row_dynamic(30.0, 5);
+        nk.row_dynamic(30.0, 6);
         tab_button(nk, "Aimbot", MenuTab::Aimbot);
         tab_button(nk, "ESP", MenuTab::ESP);
         tab_button(nk, "Colors", MenuTab::Colors);
         tab_button(nk, "Misc", MenuTab::Misc);
         tab_button(nk, "Config", MenuTab::Config);
+        tab_button(nk, "Players", MenuTab::Players);
 
         match unsafe { TAB } {
             MenuTab::Aimbot => aimbot_tab(nk, &mut config),
@@ -51,6 +55,7 @@ pub fn draw(nk: &Nuklear) {
             MenuTab::Colors => colors_tab(nk, &mut config),
             MenuTab::Misc => misc_tab(nk, &mut config),
             MenuTab::Config => config_tab(nk, &mut config),
+            MenuTab::Players => players_tab(nk),
         }
     }
     nk.end();
@@ -297,6 +302,23 @@ fn colors_tab(nk: &Nuklear, config: &mut Config) {
             }
         }
     }
+
+    nk.row_dynamic(30.0, 1)
+        .label("Player Categories", TextAlignment::LEFT)
+        .horizontal_separator(1.0);
+
+    let pc = &mut config.colors.player_categories;
+    for (name, c) in [
+        ("Category 1", &mut pc.category1),
+        ("Category 2", &mut pc.category2),
+        ("Category 3", &mut pc.category3),
+        ("Category 4", &mut pc.category4),
+    ] {
+        nk.row_dynamic(30.0, 1)
+            .label(name, TextAlignment::LEFT)
+            .row_dynamic(200.0, 1)
+            .color_picker(&mut c.r, &mut c.g, &mut c.b, &mut c.a);
+    }
 }
 
 fn misc_tab(nk: &Nuklear, config: &mut Config) {
@@ -367,5 +389,48 @@ fn config_tab(nk: &Nuklear, config: &mut Config) {
         let name = str::from_utf8(&ptr[..end]).unwrap();
         config.save(name).unwrap(); // TODO: dont unwrap
         Config::refresh_configs();
+    }
+}
+
+fn players_tab(nk: &Nuklear) {
+    let engine = Interfaces::engine_client();
+
+    if !engine.is_in_game() {
+        nk.row_dynamic(30.0, 1).label("Not in a game.", TextAlignment::LEFT);
+        return;
+    }
+
+    nk.layout_row_begin(LayoutFormat::DYNAMIC, 20.0, 3)
+        .layout_row_push(0.30);
+    nk.label("Name", TextAlignment::LEFT);
+    nk.layout_row_push(0.45);
+    nk.label("GUID", TextAlignment::LEFT);
+    nk.layout_row_push(0.25);
+    nk.label("Category", TextAlignment::LEFT);
+    nk.layout_row_end();
+
+    nk.row_dynamic(400.0, 1);
+    if nk.group_begin("Players", PanelFlags::BORDER) {
+        for i in 1..=engine.get_max_clients() {
+            let info = engine.get_player_info(i);
+            let name = str::from_utf8(&info.name).unwrap_or("").trim_end_matches('\0');
+            if name.is_empty() {
+                continue;
+            }
+            let guid = str::from_utf8(&info.guid).unwrap_or("").trim_end_matches('\0');
+            let cat = player_db::get(guid);
+
+            nk.layout_row_begin(LayoutFormat::DYNAMIC, 20.0, 3)
+                .layout_row_push(0.30);
+            nk.label(name, TextAlignment::LEFT);
+            nk.layout_row_push(0.45);
+            nk.label(guid, TextAlignment::LEFT);
+            nk.layout_row_push(0.25);
+            if nk.button_label(cat.name()) {
+                player_db::set(guid, cat.next());
+            }
+            nk.layout_row_end();
+        }
+        nk.group_end();
     }
 }
