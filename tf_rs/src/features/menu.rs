@@ -158,7 +158,7 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
     nk.row_dynamic(30.0, 2)
         .label("Conditions", TextAlignment::LEFT)
         .multi_select_combo(
-            &["Disguised", "Taunting", "Zoomed", "Invisible", "Milked", "No MG"],
+            &["Disguised", "Taunting", "Zoomed", "Invisible", "Milked", "No MG", "Butter"],
             &mut [
                 &mut config.esp.conds.disguised.enabled,
                 &mut config.esp.conds.taunting.enabled,
@@ -166,6 +166,7 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
                 &mut config.esp.conds.invisible.enabled,
                 &mut config.esp.conds.milked.enabled,
                 &mut config.esp.conds.mg.enabled,
+                &mut config.esp.conds.butter.enabled,
             ],
         );
 
@@ -270,7 +271,8 @@ fn colors_tab(nk: &Nuklear, config: &mut Config) {
         || conds.zoomed.enabled
         || conds.invisible.enabled
         || conds.milked.enabled
-        || conds.mg.enabled;
+        || conds.mg.enabled
+        || conds.butter.enabled;
 
     if any_enabled {
         nk.row_dynamic(30.0, 1)
@@ -285,6 +287,7 @@ fn colors_tab(nk: &Nuklear, config: &mut Config) {
             ("Invisible", conds.invisible.enabled,  &mut conds.invisible.color),
             ("Milked",    conds.milked.enabled,     &mut conds.milked.color),
             ("No MG",     conds.mg.enabled,         &mut conds.mg.color),
+            ("Butter",    conds.butter.enabled,     &mut conds.butter.color),
         ] {
             if enabled {
                 nk.row_dynamic(30.0, 1)

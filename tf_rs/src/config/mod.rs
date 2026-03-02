@@ -174,6 +174,7 @@ struct_with_serialize! {
         pub invisible: CondDisplayConfig,
         pub milked: CondDisplayConfig,
         pub mg: CondDisplayConfig,
+        pub butter: CondDisplayConfig,
     }
 }
 
