@@ -124,6 +124,10 @@ impl Player {
         }
     }
 
+    pub fn is_soldier(&self) -> bool {
+        self.player_class() == PlayerClass::Soldier
+    }
+
     pub fn is_invisible(&self) -> bool {
         if self.in_cond(Cond::Burning) || self.in_cond(Cond::MadMilk) || self.in_cond(Cond::Urine) {
             return false;
@@ -148,6 +152,7 @@ impl Player {
 // Warns for unconstructed variants since we always use it through ffi
 #[allow(dead_code)]
 #[repr(i32)]
+#[derive(PartialEq)]
 enum PlayerClass {
     Undefined = 0,
     Scout = 1,

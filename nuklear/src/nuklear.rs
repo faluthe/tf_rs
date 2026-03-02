@@ -247,4 +247,9 @@ impl Nuklear {
     pub fn set_button_rounding(&self, rounding: f32) {
         self.context.set_button_rounding(rounding);
     }
+
+    pub fn color_picker(&self, r: &mut f32, g: &mut f32, b: &mut f32, a: &mut f32) -> &Self {
+        (*r, *g, *b, *a) = self.context.color_picker(*r, *g, *b, *a);
+        self
+    }
 }

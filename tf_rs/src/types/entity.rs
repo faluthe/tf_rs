@@ -3,7 +3,7 @@ use std::ffi::c_void;
 use crate::{
     offset_get,
     traits::FromRaw,
-    types::{RGBA, Vec3, rgba},
+    types::{ColorF, Vec3, rgba},
     vfunc,
 };
 
@@ -114,7 +114,7 @@ pub enum Team {
 }
 
 impl Team {
-    pub fn as_rgba(&self) -> &'static RGBA {
+    pub fn as_color(&self) -> &'static ColorF {
         match self {
             Team::Red => &rgba::RED,
             Team::Blue => &rgba::BLUE,

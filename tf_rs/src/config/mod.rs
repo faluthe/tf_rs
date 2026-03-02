@@ -7,7 +7,7 @@ use std::{
 use log::error;
 use once_cell::sync::Lazy;
 
-use crate::struct_with_serialize;
+use crate::{struct_with_serialize, types::rgba::ColorF};
 
 static C: Lazy<RwLock<Config>> = Lazy::new(|| {
     let cfg = Config::load_or_create("default").unwrap_or_else(|e| {
@@ -27,6 +27,81 @@ struct_with_serialize! {
         pub aimbot: AimbotConfig,
         pub thirdperson: KeyConfig,
         pub spectator_list: bool,
+        pub colors: ColorsConfig,
+    }
+}
+
+struct_with_serialize! {
+    pub struct EspColorConfig {
+        pub use_team_colors: bool,
+        pub enemy: ColorF,
+        pub friendly: ColorF,
+    }
+}
+
+impl Default for EspColorConfig {
+    fn default() -> Self {
+        EspColorConfig {
+            use_team_colors: true,
+            // Match rgba::RED (220, 45, 35)
+            enemy: ColorF { r: 0.863, g: 0.176, b: 0.137, a: 1.0 },
+            // Match rgba::BLUE (40, 110, 240)
+            friendly: ColorF { r: 0.157, g: 0.431, b: 0.941, a: 1.0 },
+        }
+    }
+}
+
+struct_with_serialize! {
+    pub struct BuildingColorConfig {
+        pub enemy: ColorF,
+        pub friendly: ColorF,
+    }
+}
+
+impl Default for BuildingColorConfig {
+    fn default() -> Self {
+        BuildingColorConfig {
+            enemy: ColorF { r: 0.863, g: 0.176, b: 0.137, a: 1.0 },
+            friendly: ColorF { r: 0.157, g: 0.431, b: 0.941, a: 1.0 },
+        }
+    }
+}
+
+struct_with_serialize! {
+    pub struct BuildingsColorsConfig {
+        pub use_team_colors: bool,
+        pub sentry: BuildingColorConfig,
+        pub dispenser: BuildingColorConfig,
+        pub teleporter: BuildingColorConfig,
+    }
+}
+
+impl Default for BuildingsColorsConfig {
+    fn default() -> Self {
+        BuildingsColorsConfig {
+            use_team_colors: true,
+            sentry: BuildingColorConfig::default(),
+            dispenser: BuildingColorConfig::default(),
+            teleporter: BuildingColorConfig::default(),
+        }
+    }
+}
+
+struct_with_serialize! {
+    pub struct ColorsConfig {
+        pub boxes: EspColorConfig,
+        pub names: EspColorConfig,
+        pub buildings: BuildingsColorsConfig,
+    }
+}
+
+impl Default for ColorsConfig {
+    fn default() -> Self {
+        ColorsConfig {
+            boxes: EspColorConfig::default(),
+            names: EspColorConfig::default(),
+            buildings: BuildingsColorsConfig::default(),
+        }
     }
 }
 
@@ -39,6 +114,35 @@ struct_with_serialize! {
         pub building_enemy: EntityESPConfig,
         pub building_friendly: EntityESPConfig,
         pub aimbot_target: bool,
+        pub conds: CondsDisplayConfig,
+    }
+}
+
+struct_with_serialize! {
+    pub struct CondDisplayConfig {
+        pub enabled: bool,
+        pub color: ColorF,
+    }
+}
+
+impl Default for CondDisplayConfig {
+    fn default() -> Self {
+        CondDisplayConfig {
+            enabled: true,
+            color: ColorF { r: 1.0, g: 1.0, b: 1.0, a: 1.0 },
+        }
+    }
+}
+
+struct_with_serialize! {
+    #[derive(Default)]
+    pub struct CondsDisplayConfig {
+        pub disguised: CondDisplayConfig,
+        pub taunting: CondDisplayConfig,
+        pub zoomed: CondDisplayConfig,
+        pub invisible: CondDisplayConfig,
+        pub milked: CondDisplayConfig,
+        pub mg: CondDisplayConfig,
     }
 }
 
