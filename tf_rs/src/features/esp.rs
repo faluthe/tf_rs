@@ -89,7 +89,8 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     let guid = str::from_utf8(&info.guid)
                         .unwrap_or("")
                         .trim_end_matches('\0');
-                    let (box_color, name_color) = match player_db::get(guid) {
+                    let player_cat = player_db::get(guid);
+                    let (box_color, name_color) = match player_cat {
                         player_db::PlayerCategory::None => (box_color, name_color),
                         cat => {
                             let cat_color = cat.color(&config.colors.player_categories);
@@ -148,6 +149,19 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         && player.health() <= 65
                     {
                         conds.push(("BUTTER", cc.butter.color));
+                    }
+
+                    if cc.category {
+                        let label = match player_cat {
+                            player_db::PlayerCategory::Category1 => Some("Category 1"),
+                            player_db::PlayerCategory::Category2 => Some("Category 2"),
+                            player_db::PlayerCategory::Category3 => Some("Category 3"),
+                            player_db::PlayerCategory::Category4 => Some("Category 4"),
+                            player_db::PlayerCategory::None => None,
+                        };
+                        if let Some(label) = label {
+                            conds.push((label, player_cat.color(&config.colors.player_categories)));
+                        }
                     }
 
                     Some(bbox)

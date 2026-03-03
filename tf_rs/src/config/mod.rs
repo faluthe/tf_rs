@@ -201,6 +201,7 @@ struct_with_serialize! {
         pub milked: CondDisplayConfig,
         pub mg: CondDisplayConfig,
         pub butter: CondDisplayConfig,
+        pub category: bool,
     }
 }
 
