@@ -17,6 +17,13 @@ use crate::{
 static mut TAB: MenuTab = MenuTab::Aimbot;
 static mut SELECTED_CONFIG: usize = 0;
 static NEW_CONFIG_NAME: RwLock<[u8; 256]> = RwLock::new([0; 256]);
+static CAT_NAME_BUFS: [RwLock<[u8; 64]>; 4] = [
+    RwLock::new([0u8; 64]),
+    RwLock::new([0u8; 64]),
+    RwLock::new([0u8; 64]),
+    RwLock::new([0u8; 64]),
+];
+static CAT_NAMES_BUF_INIT: std::sync::Once = std::sync::Once::new();
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MenuTab {
@@ -326,15 +333,16 @@ fn colors_tab(nk: &Nuklear, config: &mut Config) {
     // --- Player Categories (2x2 grid) ---
     if nk.tree_push("Player Categories") {
         let pc = &mut config.colors.player_categories;
+        let cat_names = player_db::get_names();
         nk.row_dynamic(30.0, 2)
-            .label("Category 1", TextAlignment::LEFT)
-            .label("Category 2", TextAlignment::LEFT);
+            .label(cat_names[0].as_str(), TextAlignment::LEFT)
+            .label(cat_names[1].as_str(), TextAlignment::LEFT);
         nk.row_dynamic(200.0, 2);
         pick(nk, &mut pc.category1);
         pick(nk, &mut pc.category2);
         nk.row_dynamic(30.0, 2)
-            .label("Category 3", TextAlignment::LEFT)
-            .label("Category 4", TextAlignment::LEFT);
+            .label(cat_names[2].as_str(), TextAlignment::LEFT)
+            .label(cat_names[3].as_str(), TextAlignment::LEFT);
         nk.row_dynamic(200.0, 2);
         pick(nk, &mut pc.category3);
         pick(nk, &mut pc.category4);
@@ -414,6 +422,17 @@ fn config_tab(nk: &Nuklear, config: &mut Config) {
 }
 
 fn players_tab(nk: &Nuklear) {
+    CAT_NAMES_BUF_INIT.call_once(|| {
+        let names = player_db::get_names();
+        for (i, name) in names.iter().enumerate() {
+            let mut buf = CAT_NAME_BUFS[i].write().unwrap();
+            let bytes = name.as_bytes();
+            let len = bytes.len().min(63);
+            buf[..len].copy_from_slice(&bytes[..len]);
+            buf[len] = 0;
+        }
+    });
+
     let engine = Interfaces::engine_client();
 
     if !engine.is_in_game() {
@@ -445,6 +464,7 @@ fn players_tab(nk: &Nuklear) {
                 .unwrap_or("")
                 .trim_end_matches('\0');
             let cat = player_db::get(guid);
+            let cat_display = cat.display_name();
 
             nk.layout_row_begin(LayoutFormat::DYNAMIC, 20.0, 3)
                 .layout_row_push(0.30);
@@ -452,11 +472,35 @@ fn players_tab(nk: &Nuklear) {
             nk.layout_row_push(0.45);
             nk.label(guid, TextAlignment::LEFT);
             nk.layout_row_push(0.25);
-            if nk.button_label(cat.name()) {
+            if nk.button_label(cat_display.as_str()) {
                 player_db::set(guid, cat.next());
             }
             nk.layout_row_end();
+            nk.row_dynamic(1.0, 1).horizontal_separator(1.0);
         }
         nk.group_end();
+    }
+
+    nk.row_dynamic(1.0, 1).horizontal_separator(1.0);
+    nk.row_dynamic(30.0, 1)
+        .label("Category Names", TextAlignment::LEFT);
+    nk.row_dynamic(30.0, 2);
+    for i in 0..2 {
+        let mut buf = CAT_NAME_BUFS[i].write().unwrap();
+        nk.edit_string(EditFlags::EDIT_FIELD, buf.as_mut_ptr() as *mut i8, 64);
+    }
+    nk.row_dynamic(30.0, 2);
+    for i in 2..4 {
+        let mut buf = CAT_NAME_BUFS[i].write().unwrap();
+        nk.edit_string(EditFlags::EDIT_FIELD, buf.as_mut_ptr() as *mut i8, 64);
+    }
+    nk.row_dynamic(30.0, 1);
+    if nk.button_label("Save Names") {
+        for i in 0..4 {
+            let buf = CAT_NAME_BUFS[i].read().unwrap();
+            let end = buf.iter().position(|&c| c == 0).unwrap_or(64);
+            let name = str::from_utf8(&buf[..end]).unwrap_or("");
+            player_db::set_name(i, name);
+        }
     }
 }

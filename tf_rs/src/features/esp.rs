@@ -33,14 +33,14 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                 continue;
             }
 
-            let mut conds: Vec<(&str, ColorF)> = Vec::new();
+            let mut conds: Vec<(String, ColorF)> = Vec::new();
 
             let is_target = if config.esp.aimbot_target {
                 if Some(i) == target.map(|t| t.target_index) {
-                    conds.push(("TARGET", rgba::WHITE));
+                    conds.push(("TARGET".to_string(), rgba::WHITE));
 
                     if Some(true) == target.map(|t| t.should_headshot) {
-                        conds.push(("HS", rgba::RED));
+                        conds.push(("HS".to_string(), rgba::RED));
                     }
                     true
                 } else {
@@ -116,23 +116,23 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     let cc = &config.esp.conds;
 
                     if cc.disguised.enabled && player.in_cond(Cond::Disguised) {
-                        conds.push(("DISGUISED", cc.disguised.color));
+                        conds.push(("DISGUISED".to_string(), cc.disguised.color));
                     }
 
                     if cc.taunting.enabled && player.in_cond(Cond::Taunting) {
-                        conds.push(("TAUNTING", cc.taunting.color));
+                        conds.push(("TAUNTING".to_string(), cc.taunting.color));
                     }
 
                     if cc.zoomed.enabled && player.in_cond(Cond::Zoomed) {
-                        conds.push(("ZOOMED", cc.zoomed.color));
+                        conds.push(("ZOOMED".to_string(), cc.zoomed.color));
                     }
 
                     if cc.invisible.enabled && player.is_invisible() {
-                        conds.push(("INVISIBLE", cc.invisible.color));
+                        conds.push(("INVISIBLE".to_string(), cc.invisible.color));
                     }
 
                     if cc.milked.enabled && player.in_cond(Cond::MadMilk) {
-                        conds.push(("MILKED", cc.milked.color));
+                        conds.push(("MILKED".to_string(), cc.milked.color));
                     }
 
                     if !friendly
@@ -140,7 +140,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         && localplayer.is_soldier()
                         && player.health() > 195
                     {
-                        conds.push(("NO MG", cc.mg.color));
+                        conds.push(("NO MG".to_string(), cc.mg.color));
                     }
 
                     if !friendly
@@ -148,20 +148,12 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         && localplayer.is_soldier()
                         && player.health() <= 65
                     {
-                        conds.push(("BUTTER", cc.butter.color));
+                        conds.push(("BUTTER".to_string(), cc.butter.color));
                     }
 
-                    if cc.category {
-                        let label = match player_cat {
-                            player_db::PlayerCategory::Category1 => Some("Category 1"),
-                            player_db::PlayerCategory::Category2 => Some("Category 2"),
-                            player_db::PlayerCategory::Category3 => Some("Category 3"),
-                            player_db::PlayerCategory::Category4 => Some("Category 4"),
-                            player_db::PlayerCategory::None => None,
-                        };
-                        if let Some(label) = label {
-                            conds.push((label, player_cat.color(&config.colors.player_categories)));
-                        }
+                    if cc.category && player_cat != player_db::PlayerCategory::None {
+                        let label = player_cat.display_name();
+                        conds.push((label, player_cat.color(&config.colors.player_categories)));
                     }
 
                     Some(bbox)
@@ -257,7 +249,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                     (bbox.right + 10) as u32,
                     (bbox.top + (j as i32 * 10)) as u32,
                 );
-                surface.draw_print_text(cond);
+                surface.draw_print_text(cond.as_str());
             }
         }
     }
