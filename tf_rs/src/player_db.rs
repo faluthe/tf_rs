@@ -57,6 +57,16 @@ impl PlayerCategory {
         }
     }
 
+    pub fn index(self) -> u8 {
+        match self {
+            PlayerCategory::None => 0,
+            PlayerCategory::Category1 => 1,
+            PlayerCategory::Category2 => 2,
+            PlayerCategory::Category3 => 3,
+            PlayerCategory::Category4 => 4,
+        }
+    }
+
     pub fn color(self, colors: &PlayerCategoryColors) -> ColorF {
         match self {
             PlayerCategory::None => ColorF::default(),
