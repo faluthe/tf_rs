@@ -167,6 +167,7 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
                 "Milked",
                 "No MG",
                 "Butter",
+                "Category",
             ],
             &mut [
                 &mut config.esp.conds.disguised.enabled,
@@ -176,6 +177,7 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
                 &mut config.esp.conds.milked.enabled,
                 &mut config.esp.conds.mg.enabled,
                 &mut config.esp.conds.butter.enabled,
+                &mut config.esp.conds.category,
             ],
         );
 
@@ -266,6 +268,7 @@ fn colors_tab(nk: &Nuklear, config: &mut Config) {
             || c.milked.enabled
             || c.mg.enabled
             || c.butter.enabled
+            || c.category
     };
 
     if any_enabled && nk.tree_push("Conditions") {
