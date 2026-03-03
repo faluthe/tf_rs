@@ -35,8 +35,8 @@ pub fn draw(nk: &Nuklear) {
         Rect {
             x: 200.0,
             y: 200.0,
-            w: 700.0,
-            h: 500.0,
+            w: 900.0,
+            h: 600.0,
         },
     ) {
         let mut config = Config::write();
@@ -45,9 +45,9 @@ pub fn draw(nk: &Nuklear) {
         tab_button(nk, "Aimbot", MenuTab::Aimbot);
         tab_button(nk, "ESP", MenuTab::ESP);
         tab_button(nk, "Colors", MenuTab::Colors);
+        tab_button(nk, "Players", MenuTab::Players);
         tab_button(nk, "Misc", MenuTab::Misc);
         tab_button(nk, "Config", MenuTab::Config);
-        tab_button(nk, "Players", MenuTab::Players);
 
         match unsafe { TAB } {
             MenuTab::Aimbot => aimbot_tab(nk, &mut config),
@@ -138,11 +138,7 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
             .label(title, TextAlignment::LEFT)
             .multi_select_combo(
                 &["Boxes", "Names", "Health bar"],
-                &mut [
-                    &mut esp_cfg.boxes,
-                    &mut esp_cfg.names,
-                    &mut esp_cfg.health,
-                ],
+                &mut [&mut esp_cfg.boxes, &mut esp_cfg.names, &mut esp_cfg.health],
             );
     }
 
@@ -163,7 +159,15 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
     nk.row_dynamic(30.0, 2)
         .label("Conditions", TextAlignment::LEFT)
         .multi_select_combo(
-            &["Disguised", "Taunting", "Zoomed", "Invisible", "Milked", "No MG", "Butter"],
+            &[
+                "Disguised",
+                "Taunting",
+                "Zoomed",
+                "Invisible",
+                "Milked",
+                "No MG",
+                "Butter",
+            ],
             &mut [
                 &mut config.esp.conds.disguised.enabled,
                 &mut config.esp.conds.taunting.enabled,
@@ -228,12 +232,14 @@ fn colors_tab(nk: &Nuklear, config: &mut Config) {
 
     // --- Buildings ---
     if nk.tree_push("Buildings") {
-        nk.row_dynamic(30.0, 1)
-            .checkbox("Use team colors", &mut config.colors.buildings.use_team_colors);
+        nk.row_dynamic(30.0, 1).checkbox(
+            "Use team colors",
+            &mut config.colors.buildings.use_team_colors,
+        );
         if !config.colors.buildings.use_team_colors {
             for (name, c) in [
-                ("Sentry",     &mut config.colors.buildings.sentry),
-                ("Dispenser",  &mut config.colors.buildings.dispenser),
+                ("Sentry", &mut config.colors.buildings.sentry),
+                ("Dispenser", &mut config.colors.buildings.dispenser),
                 ("Teleporter", &mut config.colors.buildings.teleporter),
             ] {
                 nk.row_dynamic(30.0, 1)
@@ -253,19 +259,41 @@ fn colors_tab(nk: &Nuklear, config: &mut Config) {
     // --- Conditions ---
     let any_enabled = {
         let c = &config.esp.conds;
-        c.disguised.enabled || c.taunting.enabled || c.zoomed.enabled
-            || c.invisible.enabled || c.milked.enabled || c.mg.enabled || c.butter.enabled
+        c.disguised.enabled
+            || c.taunting.enabled
+            || c.zoomed.enabled
+            || c.invisible.enabled
+            || c.milked.enabled
+            || c.mg.enabled
+            || c.butter.enabled
     };
 
     if any_enabled && nk.tree_push("Conditions") {
-        const COND_NAMES: [&str; 7] =
-            ["Disguised", "Taunting", "Zoomed", "Invisible", "Milked", "No MG", "Butter"];
+        const COND_NAMES: [&str; 7] = [
+            "Disguised",
+            "Taunting",
+            "Zoomed",
+            "Invisible",
+            "Milked",
+            "No MG",
+            "Butter",
+        ];
 
         let enabled_indices: Vec<usize> = {
             let c = &config.esp.conds;
-            [c.disguised.enabled, c.taunting.enabled, c.zoomed.enabled,
-             c.invisible.enabled, c.milked.enabled, c.mg.enabled, c.butter.enabled]
-                .into_iter().enumerate().filter_map(|(i, e)| e.then_some(i)).collect()
+            [
+                c.disguised.enabled,
+                c.taunting.enabled,
+                c.zoomed.enabled,
+                c.invisible.enabled,
+                c.milked.enabled,
+                c.mg.enabled,
+                c.butter.enabled,
+            ]
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, e)| e.then_some(i))
+            .collect()
         };
 
         let conds = &mut config.esp.conds;
@@ -386,7 +414,8 @@ fn players_tab(nk: &Nuklear) {
     let engine = Interfaces::engine_client();
 
     if !engine.is_in_game() {
-        nk.row_dynamic(30.0, 1).label("Not in a game.", TextAlignment::LEFT);
+        nk.row_dynamic(30.0, 1)
+            .label("Not in a game.", TextAlignment::LEFT);
         return;
     }
 
@@ -403,11 +432,15 @@ fn players_tab(nk: &Nuklear) {
     if nk.group_begin("Players", PanelFlags::BORDER) {
         for i in 1..=engine.get_max_clients() {
             let info = engine.get_player_info(i);
-            let name = str::from_utf8(&info.name).unwrap_or("").trim_end_matches('\0');
+            let name = str::from_utf8(&info.name)
+                .unwrap_or("")
+                .trim_end_matches('\0');
             if name.is_empty() {
                 continue;
             }
-            let guid = str::from_utf8(&info.guid).unwrap_or("").trim_end_matches('\0');
+            let guid = str::from_utf8(&info.guid)
+                .unwrap_or("")
+                .trim_end_matches('\0');
             let cat = player_db::get(guid);
 
             nk.layout_row_begin(LayoutFormat::DYNAMIC, 20.0, 3)
