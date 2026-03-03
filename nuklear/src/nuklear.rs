@@ -248,6 +248,14 @@ impl Nuklear {
         self.context.set_button_rounding(rounding);
     }
 
+    pub fn tree_push<T: Into<Vec<u8>>>(&self, title: T) -> bool {
+        self.context.tree_push(CString::new(title).unwrap())
+    }
+
+    pub fn tree_pop(&self) {
+        self.context.tree_pop();
+    }
+
     pub fn color_picker(&self, r: &mut f32, g: &mut f32, b: &mut f32, a: &mut f32) -> &Self {
         (*r, *g, *b, *a) = self.context.color_picker(*r, *g, *b, *a);
         self

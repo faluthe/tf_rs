@@ -190,134 +190,124 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
 }
 
 fn colors_tab(nk: &Nuklear, config: &mut Config) {
-    nk.row_dynamic(30.0, 1)
-        .label("Boxes", TextAlignment::LEFT)
-        .horizontal_separator(1.0)
-        .row_dynamic(30.0, 1)
-        .checkbox("Use team colors", &mut config.colors.boxes.use_team_colors);
+    use crate::types::ColorF;
 
-    if !config.colors.boxes.use_team_colors {
-        nk.row_dynamic(30.0, 1)
-            .label("Enemy", TextAlignment::LEFT)
-            .row_dynamic(200.0, 1)
-            .color_picker(
-                &mut config.colors.boxes.enemy.r,
-                &mut config.colors.boxes.enemy.g,
-                &mut config.colors.boxes.enemy.b,
-                &mut config.colors.boxes.enemy.a,
-            )
-            .row_dynamic(30.0, 1)
-            .label("Friendly", TextAlignment::LEFT)
-            .row_dynamic(200.0, 1)
-            .color_picker(
-                &mut config.colors.boxes.friendly.r,
-                &mut config.colors.boxes.friendly.g,
-                &mut config.colors.boxes.friendly.b,
-                &mut config.colors.boxes.friendly.a,
-            );
+    fn pick(nk: &Nuklear, c: &mut ColorF) {
+        nk.color_picker(&mut c.r, &mut c.g, &mut c.b, &mut c.a);
     }
 
-    nk.row_dynamic(30.0, 1)
-        .label("Names", TextAlignment::LEFT)
-        .horizontal_separator(1.0)
-        .row_dynamic(30.0, 1)
-        .checkbox("Use team colors", &mut config.colors.names.use_team_colors);
-
-    if !config.colors.names.use_team_colors {
+    // --- Boxes ---
+    if nk.tree_push("Boxes") {
         nk.row_dynamic(30.0, 1)
-            .label("Enemy", TextAlignment::LEFT)
-            .row_dynamic(200.0, 1)
-            .color_picker(
-                &mut config.colors.names.enemy.r,
-                &mut config.colors.names.enemy.g,
-                &mut config.colors.names.enemy.b,
-                &mut config.colors.names.enemy.a,
-            )
-            .row_dynamic(30.0, 1)
-            .label("Friendly", TextAlignment::LEFT)
-            .row_dynamic(200.0, 1)
-            .color_picker(
-                &mut config.colors.names.friendly.r,
-                &mut config.colors.names.friendly.g,
-                &mut config.colors.names.friendly.b,
-                &mut config.colors.names.friendly.a,
-            );
-    }
-
-    nk.row_dynamic(30.0, 1)
-        .label("Buildings", TextAlignment::LEFT)
-        .horizontal_separator(1.0)
-        .row_dynamic(30.0, 1)
-        .checkbox("Use team colors", &mut config.colors.buildings.use_team_colors);
-
-    if !config.colors.buildings.use_team_colors {
-        for (name, c) in [
-            ("Sentry",     &mut config.colors.buildings.sentry),
-            ("Dispenser",  &mut config.colors.buildings.dispenser),
-            ("Teleporter", &mut config.colors.buildings.teleporter),
-        ] {
-            nk.row_dynamic(30.0, 1)
-                .label(name, TextAlignment::LEFT)
-                .horizontal_separator(1.0)
-                .row_dynamic(30.0, 1)
+            .checkbox("Use team colors", &mut config.colors.boxes.use_team_colors);
+        if !config.colors.boxes.use_team_colors {
+            nk.row_dynamic(30.0, 2)
                 .label("Enemy", TextAlignment::LEFT)
-                .row_dynamic(200.0, 1)
-                .color_picker(&mut c.enemy.r, &mut c.enemy.g, &mut c.enemy.b, &mut c.enemy.a)
-                .row_dynamic(30.0, 1)
-                .label("Friendly", TextAlignment::LEFT)
-                .row_dynamic(200.0, 1)
-                .color_picker(&mut c.friendly.r, &mut c.friendly.g, &mut c.friendly.b, &mut c.friendly.a);
+                .label("Friendly", TextAlignment::LEFT);
+            nk.row_dynamic(200.0, 2);
+            pick(nk, &mut config.colors.boxes.enemy);
+            pick(nk, &mut config.colors.boxes.friendly);
         }
+        nk.tree_pop();
     }
 
-    let conds = &config.esp.conds;
-    let any_enabled = conds.disguised.enabled
-        || conds.taunting.enabled
-        || conds.zoomed.enabled
-        || conds.invisible.enabled
-        || conds.milked.enabled
-        || conds.mg.enabled
-        || conds.butter.enabled;
-
-    if any_enabled {
+    // --- Names ---
+    if nk.tree_push("Names") {
         nk.row_dynamic(30.0, 1)
-            .label("Conditions", TextAlignment::LEFT)
-            .horizontal_separator(1.0);
+            .checkbox("Use team colors", &mut config.colors.names.use_team_colors);
+        if !config.colors.names.use_team_colors {
+            nk.row_dynamic(30.0, 2)
+                .label("Enemy", TextAlignment::LEFT)
+                .label("Friendly", TextAlignment::LEFT);
+            nk.row_dynamic(200.0, 2);
+            pick(nk, &mut config.colors.names.enemy);
+            pick(nk, &mut config.colors.names.friendly);
+        }
+        nk.tree_pop();
+    }
 
-        let conds = &mut config.esp.conds;
-        for (name, enabled, c) in [
-            ("Disguised", conds.disguised.enabled, &mut conds.disguised.color),
-            ("Taunting",  conds.taunting.enabled,  &mut conds.taunting.color),
-            ("Zoomed",    conds.zoomed.enabled,     &mut conds.zoomed.color),
-            ("Invisible", conds.invisible.enabled,  &mut conds.invisible.color),
-            ("Milked",    conds.milked.enabled,     &mut conds.milked.color),
-            ("No MG",     conds.mg.enabled,         &mut conds.mg.color),
-            ("Butter",    conds.butter.enabled,     &mut conds.butter.color),
-        ] {
-            if enabled {
+    // --- Buildings ---
+    if nk.tree_push("Buildings") {
+        nk.row_dynamic(30.0, 1)
+            .checkbox("Use team colors", &mut config.colors.buildings.use_team_colors);
+        if !config.colors.buildings.use_team_colors {
+            for (name, c) in [
+                ("Sentry",     &mut config.colors.buildings.sentry),
+                ("Dispenser",  &mut config.colors.buildings.dispenser),
+                ("Teleporter", &mut config.colors.buildings.teleporter),
+            ] {
                 nk.row_dynamic(30.0, 1)
                     .label(name, TextAlignment::LEFT)
-                    .row_dynamic(200.0, 1)
-                    .color_picker(&mut c.r, &mut c.g, &mut c.b, &mut c.a);
+                    .horizontal_separator(1.0)
+                    .row_dynamic(30.0, 2)
+                    .label("Enemy", TextAlignment::LEFT)
+                    .label("Friendly", TextAlignment::LEFT);
+                nk.row_dynamic(200.0, 2);
+                pick(nk, &mut c.enemy);
+                pick(nk, &mut c.friendly);
             }
         }
+        nk.tree_pop();
     }
 
-    nk.row_dynamic(30.0, 1)
-        .label("Player Categories", TextAlignment::LEFT)
-        .horizontal_separator(1.0);
+    // --- Conditions ---
+    let any_enabled = {
+        let c = &config.esp.conds;
+        c.disguised.enabled || c.taunting.enabled || c.zoomed.enabled
+            || c.invisible.enabled || c.milked.enabled || c.mg.enabled || c.butter.enabled
+    };
 
-    let pc = &mut config.colors.player_categories;
-    for (name, c) in [
-        ("Category 1", &mut pc.category1),
-        ("Category 2", &mut pc.category2),
-        ("Category 3", &mut pc.category3),
-        ("Category 4", &mut pc.category4),
-    ] {
-        nk.row_dynamic(30.0, 1)
-            .label(name, TextAlignment::LEFT)
-            .row_dynamic(200.0, 1)
-            .color_picker(&mut c.r, &mut c.g, &mut c.b, &mut c.a);
+    if any_enabled && nk.tree_push("Conditions") {
+        const COND_NAMES: [&str; 7] =
+            ["Disguised", "Taunting", "Zoomed", "Invisible", "Milked", "No MG", "Butter"];
+
+        let enabled_indices: Vec<usize> = {
+            let c = &config.esp.conds;
+            [c.disguised.enabled, c.taunting.enabled, c.zoomed.enabled,
+             c.invisible.enabled, c.milked.enabled, c.mg.enabled, c.butter.enabled]
+                .into_iter().enumerate().filter_map(|(i, e)| e.then_some(i)).collect()
+        };
+
+        let conds = &mut config.esp.conds;
+        for chunk in enabled_indices.chunks(2) {
+            let n = chunk.len() as i32;
+            nk.row_dynamic(30.0, n);
+            for &i in chunk {
+                nk.label(COND_NAMES[i], TextAlignment::LEFT);
+            }
+            nk.row_dynamic(200.0, n);
+            for &i in chunk {
+                let c = match i {
+                    0 => &mut conds.disguised.color,
+                    1 => &mut conds.taunting.color,
+                    2 => &mut conds.zoomed.color,
+                    3 => &mut conds.invisible.color,
+                    4 => &mut conds.milked.color,
+                    5 => &mut conds.mg.color,
+                    _ => &mut conds.butter.color,
+                };
+                pick(nk, c);
+            }
+        }
+        nk.tree_pop();
+    }
+
+    // --- Player Categories (2x2 grid) ---
+    if nk.tree_push("Player Categories") {
+        let pc = &mut config.colors.player_categories;
+        nk.row_dynamic(30.0, 2)
+            .label("Category 1", TextAlignment::LEFT)
+            .label("Category 2", TextAlignment::LEFT);
+        nk.row_dynamic(200.0, 2);
+        pick(nk, &mut pc.category1);
+        pick(nk, &mut pc.category2);
+        nk.row_dynamic(30.0, 2)
+            .label("Category 3", TextAlignment::LEFT)
+            .label("Category 4", TextAlignment::LEFT);
+        nk.row_dynamic(200.0, 2);
+        pick(nk, &mut pc.category3);
+        pick(nk, &mut pc.category4);
+        nk.tree_pop();
     }
 }
 
