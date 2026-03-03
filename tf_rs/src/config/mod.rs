@@ -126,13 +126,33 @@ impl Default for PlayerCategoryColors {
     fn default() -> Self {
         PlayerCategoryColors {
             // purple
-            category1: ColorF { r: 0.627, g: 0.125, b: 0.941, a: 1.0 },
+            category1: ColorF {
+                r: 0.627,
+                g: 0.125,
+                b: 0.941,
+                a: 1.0,
+            },
             // yellow
-            category2: ColorF { r: 1.0, g: 0.922, b: 0.016, a: 1.0 },
+            category2: ColorF {
+                r: 1.0,
+                g: 0.922,
+                b: 0.016,
+                a: 1.0,
+            },
             // cyan
-            category3: ColorF { r: 0.0, g: 0.929, b: 0.929, a: 1.0 },
+            category3: ColorF {
+                r: 0.0,
+                g: 0.929,
+                b: 0.929,
+                a: 1.0,
+            },
             // pink
-            category4: ColorF { r: 1.0, g: 0.412, b: 0.706, a: 1.0 },
+            category4: ColorF {
+                r: 1.0,
+                g: 0.412,
+                b: 0.706,
+                a: 1.0,
+            },
         }
     }
 }
@@ -225,6 +245,7 @@ struct_with_serialize! {
         pub fov: i32,
         pub draw_fov: bool,
         pub ignore_category: u8,
+        pub priority_category: u8,
     }
 }
 

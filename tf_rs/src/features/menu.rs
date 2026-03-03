@@ -145,11 +145,25 @@ fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
             cat_names[2].as_str(),
             cat_names[3].as_str(),
         ];
-        let mut cat_idx = config.aimbot.ignore_category as usize;
+        let old_ignore = config.aimbot.ignore_category as usize;
+        let old_priority = config.aimbot.priority_category as usize;
+        let mut ignore_idx = old_ignore;
+        let mut priority_idx = old_priority;
         nk.row_dynamic(30.0, 2)
             .label("Ignore category", TextAlignment::LEFT)
-            .single_select_combo(&items, &mut cat_idx);
-        config.aimbot.ignore_category = cat_idx as u8;
+            .single_select_combo(&items, &mut ignore_idx);
+        nk.row_dynamic(30.0, 2)
+            .label("Priority category", TextAlignment::LEFT)
+            .single_select_combo(&items, &mut priority_idx);
+        if ignore_idx > 0 && ignore_idx == priority_idx {
+            if ignore_idx != old_ignore {
+                priority_idx = 0;
+            } else {
+                ignore_idx = 0;
+            }
+        }
+        config.aimbot.ignore_category = ignore_idx as u8;
+        config.aimbot.priority_category = priority_idx as u8;
     }
 }
 

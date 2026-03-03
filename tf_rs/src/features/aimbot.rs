@@ -63,6 +63,11 @@ fn get_target(
     let mut target_angle = None;
     let mut target = None;
 
+    // Separate tracking for priority category targets
+    let mut priority_smallest_fov = f32::MAX;
+    let mut priority_target_angle = None;
+    let mut priority_target = None;
+
     for i in 1..=Interfaces::entity_list().max_entities() {
         if i <= Interfaces::engine_client().get_max_clients()
             && let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i)
@@ -75,14 +80,25 @@ fn get_target(
                 continue;
             }
 
-            if config.aimbot.ignore_category > 0 {
-                let info = Interfaces::engine_client().get_player_info(i);
-                let guid = str::from_utf8(&info.guid)
-                    .unwrap_or("")
-                    .trim_end_matches('\0');
-                if player_db::get(guid).index() == config.aimbot.ignore_category {
-                    continue;
-                }
+            let player_cat =
+                if config.aimbot.ignore_category > 0 || config.aimbot.priority_category > 0 {
+                    let info = Interfaces::engine_client().get_player_info(i);
+                    let guid = str::from_utf8(&info.guid)
+                        .unwrap_or("")
+                        .trim_end_matches('\0');
+                    player_db::get(guid).index()
+                } else {
+                    0
+                };
+
+            let is_priority = config.aimbot.priority_category > 0
+                && player_cat == config.aimbot.priority_category;
+
+            if !is_priority
+                && config.aimbot.ignore_category > 0
+                && player_cat == config.aimbot.ignore_category
+            {
+                continue;
             }
 
             let headshot = player.health() > 50 && weapon.can_headshot();
@@ -99,16 +115,26 @@ fn get_target(
             let aim_angle = helpers::calculate_angle(&shoot_pos, &player_pos);
             let fov = view_angle.fov_to(&aim_angle);
 
-            if fov < smallest_fov
-                && fov <= config.aimbot.fov as f32
+            if fov <= config.aimbot.fov as f32
                 && helpers::is_ent_visible(&shoot_pos, &player_pos, &player, localplayer)
             {
-                smallest_fov = fov;
-                target_angle = Some(aim_angle);
-                target = Some(Target {
-                    target_index: i,
-                    should_headshot: headshot,
-                });
+                if is_priority {
+                    if fov < priority_smallest_fov {
+                        priority_smallest_fov = fov;
+                        priority_target_angle = Some(aim_angle);
+                        priority_target = Some(Target {
+                            target_index: i,
+                            should_headshot: headshot,
+                        });
+                    }
+                } else if fov < smallest_fov {
+                    smallest_fov = fov;
+                    target_angle = Some(aim_angle);
+                    target = Some(Target {
+                        target_index: i,
+                        should_headshot: headshot,
+                    });
+                }
             }
         } else if let Some(entity) = Interfaces::entity_list().get_client_entity::<Entity>(i) {
             if !config.aimbot.building_aim
@@ -151,5 +177,9 @@ fn get_target(
         }
     }
 
-    (target, target_angle)
+    if priority_target.is_some() {
+        (priority_target, priority_target_angle)
+    } else {
+        (target, target_angle)
+    }
 }
