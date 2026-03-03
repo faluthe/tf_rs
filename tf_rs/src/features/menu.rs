@@ -136,6 +136,20 @@ fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
             .slider_int(1, &mut config.aimbot.fov, 100, 1)
             .row_dynamic(30.0, 1)
             .checkbox("Draw FOV", &mut config.aimbot.draw_fov);
+
+        let cat_names = player_db::get_names();
+        let items = [
+            "None",
+            cat_names[0].as_str(),
+            cat_names[1].as_str(),
+            cat_names[2].as_str(),
+            cat_names[3].as_str(),
+        ];
+        let mut cat_idx = config.aimbot.ignore_category as usize;
+        nk.row_dynamic(30.0, 2)
+            .label("Ignore category", TextAlignment::LEFT)
+            .single_select_combo(&items, &mut cat_idx);
+        config.aimbot.ignore_category = cat_idx as u8;
     }
 }
 

@@ -205,6 +205,31 @@ impl Nuklear {
         Input::None
     }
 
+    pub fn single_select_combo(&self, items: &[&str], selected: &mut usize) -> &Self {
+        let header = items.get(*selected).copied().unwrap_or("None");
+
+        if self
+            .context
+            .combo_begin_label(CString::new(header).unwrap())
+        {
+            for (i, item) in items.iter().enumerate() {
+                let mut sel = if *selected == i { 1i32 } else { 0 };
+                self.context.row_dynamic(25.0, 1);
+                self.context.selectable_label(
+                    CString::new(*item).unwrap(),
+                    TextAlignment::CENTER as u32,
+                    &mut sel,
+                );
+                if sel != 0 {
+                    *selected = i;
+                }
+            }
+            self.context.combo_end();
+        }
+
+        self
+    }
+
     pub fn multi_select_combo(&self, items: &[&str], selected: &mut [&mut bool]) -> &Self {
         assert_eq!(items.len(), selected.len());
 

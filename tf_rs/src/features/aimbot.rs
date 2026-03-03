@@ -5,6 +5,7 @@ use crate::{
     globals::{Globals, Target},
     helpers,
     interfaces::Interfaces,
+    player_db,
     types::{ClassId, Entity, Player, UserCmd, Vec3, Weapon, user_cmd::Buttons},
 };
 
@@ -72,6 +73,16 @@ fn get_target(
                 || player.team() == localplayer.team()
             {
                 continue;
+            }
+
+            if config.aimbot.ignore_category > 0 {
+                let info = Interfaces::engine_client().get_player_info(i);
+                let guid = str::from_utf8(&info.guid)
+                    .unwrap_or("")
+                    .trim_end_matches('\0');
+                if player_db::get(guid).index() == config.aimbot.ignore_category {
+                    continue;
+                }
             }
 
             let headshot = player.health() > 50 && weapon.can_headshot();

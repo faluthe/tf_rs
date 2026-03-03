@@ -224,6 +224,7 @@ struct_with_serialize! {
         pub key: KeyConfig,
         pub fov: i32,
         pub draw_fov: bool,
+        pub ignore_category: u8,
     }
 }
 
