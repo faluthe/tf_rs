@@ -10,5 +10,6 @@
 #define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
 #define NK_INCLUDE_FONT_BAKING
 #define NK_INCLUDE_DEFAULT_FONT
+#define NK_KEYSTATE_BASED_INPUT
 #include "../nuklear/nuklear.h"
 #include "../nuklear/demo/sdl_opengl3/nuklear_sdl_gl3.h"

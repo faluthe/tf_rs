@@ -1,21 +1,22 @@
 use std::{
     ffi::{CString, c_void},
     mem, ptr, slice,
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 use nuklear_sys::{
-    SDL_BUTTON_LEFT, SDL_BUTTON_X2, SDL_Event, SDL_GL_MakeCurrent, SDL_GetKeyboardState,
-    SDL_GetMouseState, SDL_Scancode, SDL_Window,
+    SDL_BUTTON_LEFT, SDL_BUTTON_X2, SDL_Event, SDL_EventType, SDL_GL_MakeCurrent,
+    SDL_GetKeyboardState, SDL_GetMouseState, SDL_Scancode, SDL_Window,
 };
 
 use crate::{
-    NkKey, Rect,
+    Rect,
     context::Context,
     flags::{EditFlags, LayoutFormat, PanelFlags, TextAlignment},
     input::Input,
 };
 
-static mut DO_DRAW: bool = false;
+static DO_DRAW: AtomicBool = AtomicBool::new(false);
 
 pub struct Nuklear {
     window: *mut SDL_Window,
@@ -35,7 +36,19 @@ impl Nuklear {
     }
 
     pub fn should_draw() -> bool {
-        unsafe { DO_DRAW }
+        DO_DRAW.load(Ordering::Relaxed)
+    }
+
+    pub fn set_draw(val: bool) {
+        DO_DRAW.store(val, Ordering::Relaxed);
+    }
+
+    pub fn is_delete_keyup(event: *mut c_void) -> bool {
+        unsafe {
+            let event = event as *mut SDL_Event;
+            (*event).type_ == SDL_EventType::SDL_KEYUP as u32
+                && (*event).key.keysym.scancode == SDL_Scancode::SDL_SCANCODE_DELETE
+        }
     }
 
     pub fn begin<T: Into<Vec<u8>>>(&self, title: T, flags: PanelFlags, size: Rect) -> bool {
@@ -160,16 +173,6 @@ impl Nuklear {
     pub fn capture_input(event: *mut c_void) {
         let event = event as *mut SDL_Event;
         unsafe { (*event).type_ = 0 };
-    }
-
-    pub fn is_draw_key_released(&self, key: NkKey) -> bool {
-        if self.context.is_key_released(key as u32) {
-            unsafe {
-                DO_DRAW = !DO_DRAW;
-            }
-            return true;
-        }
-        false
     }
 
     pub fn is_input_pressed(code: u32, is_mouse_button: bool) -> bool {

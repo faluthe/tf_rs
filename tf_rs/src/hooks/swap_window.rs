@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use nuklear::{NkKey, Nuklear};
+use nuklear::Nuklear;
 
 use crate::{
     config::Config,
@@ -13,9 +13,9 @@ use crate::{
 pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     let nuklear = Nuklear::get_or_init(window);
 
-    if nuklear.is_draw_key_released(NkKey::Delete) {
-        Interfaces::surface().set_cursor_visible(Nuklear::should_draw());
-    }
+    // Close the input window opened by the previous frame's swap (or init),
+    // so that all poll_event/nk_sdl_handle_event calls this frame are committed.
+    nuklear.input_end();
 
     if Nuklear::should_draw() {
         menu::draw(&nuklear);
@@ -31,12 +31,13 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
 
     nuklear.render();
 
-    nuklear.input_begin();
     let rc = Hooks::swap_window()
         .original
         .call_swap_window(window)
         .expect("Invalid SwapWindow function signature");
-    nuklear.input_end();
+
+    // Open the input window for the next frame's poll_event calls.
+    nuklear.input_begin();
 
     rc
 }
