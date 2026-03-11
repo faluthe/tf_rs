@@ -6,6 +6,7 @@ use crate::{
     config::{Config, KeyConfig},
     globals::Globals,
     hooks::Hooks,
+    interfaces::Interfaces,
 };
 
 pub extern "C" fn hk_poll_event(event: *mut c_void) -> i32 {
@@ -13,6 +14,17 @@ pub extern "C" fn hk_poll_event(event: *mut c_void) -> i32 {
         .original
         .call_poll_event(event as _)
         .expect("Invalid PollEvent function signature");
+
+    if rc != 0 && Nuklear::is_delete_keyup(event) {
+        Nuklear::handle_event(event);
+        let now_drawing = !Nuklear::should_draw();
+        Nuklear::set_draw(now_drawing);
+        Interfaces::surface().set_cursor_visible(now_drawing);
+        if !now_drawing {
+            Nuklear::capture_input(event);
+        }
+        return rc;
+    }
 
     let mut globals = Globals::write();
     let mut config = Config::write();

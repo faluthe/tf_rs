@@ -44,6 +44,9 @@ impl Context {
             nk_sdl_font_stash_begin(&mut atlas);
             nk_sdl_font_stash_end();
 
+            // Open the first input window so poll_event calls have a valid begin/end block
+            nk_input_begin(nk_ctx);
+
             Context {
                 nk_ctx,
                 og_ctx,
