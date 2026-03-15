@@ -11,7 +11,7 @@ use crate::{
 
 pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
     let cmd = unsafe { &mut *cmd };
-    if !config.aimbot.master {
+    if !config.aimbot.master || Globals::read().is_spectated{
         Globals::write().target = None;
         return;
     }

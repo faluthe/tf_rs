@@ -9,6 +9,7 @@ pub struct Globals {
     pub aimbot_key_editing: bool,
     pub thirdperson_pressed: bool,
     pub thirdperson_key_editing: bool,
+    pub is_spectated: bool,
 }
 
 #[derive(Default)]
