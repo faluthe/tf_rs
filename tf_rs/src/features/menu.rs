@@ -10,7 +10,7 @@ use crate::{
     globals::Globals,
     interfaces::Interfaces,
     player_db,
-    types::rgba,
+    types::{Player, rgba},
 };
 
 // TODO: Clean this up lol
@@ -478,33 +478,63 @@ fn players_tab(nk: &Nuklear) {
     nk.label("Category", TextAlignment::LEFT);
     nk.layout_row_end();
 
+    // Collect players grouped by team name
+    let mut teams: Vec<(String, Vec<(String, String)>)> = Vec::new();
+    for i in 1..=engine.get_max_clients() {
+        let info = engine.get_player_info(i);
+        let name = str::from_utf8(&info.name)
+            .unwrap_or("")
+            .trim_end_matches('\0')
+            .to_owned();
+        if name.is_empty() {
+            continue;
+        }
+        let guid = str::from_utf8(&info.guid)
+            .unwrap_or("")
+            .trim_end_matches('\0')
+            .to_owned();
+        let team_name = Interfaces::entity_list()
+            .get_client_entity::<Player>(i)
+            .map(|p| format!("{:?}", p.team()))
+            .unwrap_or_else(|| "Unknown".to_owned());
+        if let Some(entry) = teams.iter_mut().find(|(t, _)| t == &team_name) {
+            entry.1.push((name, guid));
+        } else {
+            teams.push((team_name, vec![(name, guid)]));
+        }
+    }
+    teams.sort_by(|a, b| a.0.cmp(&b.0));
+
     nk.row_dynamic(400.0, 1);
     if nk.group_begin("Players", PanelFlags::BORDER) {
-        for i in 1..=engine.get_max_clients() {
-            let info = engine.get_player_info(i);
-            let name = str::from_utf8(&info.name)
-                .unwrap_or("")
-                .trim_end_matches('\0');
-            if name.is_empty() {
-                continue;
-            }
-            let guid = str::from_utf8(&info.guid)
-                .unwrap_or("")
-                .trim_end_matches('\0');
-            let cat = player_db::get(guid);
-            let cat_display = cat.display_name();
-
-            nk.layout_row_begin(LayoutFormat::DYNAMIC, 20.0, 3)
-                .layout_row_push(0.30);
-            nk.label(name, TextAlignment::LEFT);
-            nk.layout_row_push(0.45);
-            nk.label(guid, TextAlignment::LEFT);
-            nk.layout_row_push(0.25);
-            if nk.button_label(cat_display.as_str()) {
-                player_db::set(guid, cat.next());
-            }
+        for (team_name, players) in &teams {
+            let (r, g, b) = match team_name.as_str() {
+                "Red" => (255u8, 80u8, 80u8),
+                "Blue" => (100u8, 160u8, 255u8),
+                _ => (200u8, 200u8, 200u8),
+            };
+            nk.layout_row_begin(LayoutFormat::DYNAMIC, 26.0, 1)
+                .layout_row_push(1.0);
+            nk.colored_label(team_name.as_str(), TextAlignment::LEFT, r, g, b, 255);
             nk.layout_row_end();
-            nk.row_dynamic(1.0, 1).horizontal_separator(1.0);
+            nk.row_dynamic(1.0, 1).horizontal_separator(2.0);
+
+            for (name, guid) in players {
+                let cat = player_db::get(guid.as_str());
+                let cat_display = cat.display_name();
+
+                nk.layout_row_begin(LayoutFormat::DYNAMIC, 20.0, 3)
+                    .layout_row_push(0.30);
+                nk.label(name.as_str(), TextAlignment::LEFT);
+                nk.layout_row_push(0.45);
+                nk.label(guid.as_str(), TextAlignment::LEFT);
+                nk.layout_row_push(0.25);
+                if nk.button_label(cat_display.as_str()) {
+                    player_db::set(guid.as_str(), cat.next());
+                }
+                nk.layout_row_end();
+                nk.row_dynamic(1.0, 1).horizontal_separator(1.0);
+            }
         }
         nk.group_end();
     }
