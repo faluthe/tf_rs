@@ -186,7 +186,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn is_key_released(&self, key: u32) -> bool {
+    pub(crate) fn _is_key_released(&self, key: u32) -> bool {
         unsafe { nk_input_is_key_released(&(*self.nk_ctx).input, key) != 0 }
     }
 

@@ -246,6 +246,7 @@ struct_with_serialize! {
         pub draw_fov: bool,
         pub ignore_category: u8,
         pub priority_category: u8,
+        pub disable_when_spectated: usize,
     }
 }
 

@@ -135,7 +135,13 @@ fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
             )
             .slider_int(1, &mut config.aimbot.fov, 100, 1)
             .row_dynamic(30.0, 1)
-            .checkbox("Draw FOV", &mut config.aimbot.draw_fov);
+            .checkbox("Draw FOV", &mut config.aimbot.draw_fov)
+            .row_dynamic(30.0, 2)
+            .label("Disable when spectated", TextAlignment::LEFT)
+            .single_select_combo(
+                &["Off", "On", "Firstperson only"],
+                &mut config.aimbot.disable_when_spectated,
+            );
 
         let cat_names = player_db::get_names();
         let items = [

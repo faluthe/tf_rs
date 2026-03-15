@@ -9,9 +9,9 @@ use crate::{
     types::{Player, rgba},
 };
 
-pub fn draw(localplayer: &Player, config: &Config, nk: &Nuklear) {
+pub fn draw(localplayer: &Player, config: &Config, nk: &Nuklear) -> bool {
     if !config.spectator_list {
-        return;
+        return false;
     }
 
     let mut spectators = Vec::new();
@@ -22,25 +22,16 @@ pub fn draw(localplayer: &Player, config: &Config, nk: &Nuklear) {
     };
 
     let Some(local) = local else {
-        return;
+        return false;
     };
+
+    let mut is_spectated = false;
 
     for i in 1..Interfaces::engine_client().get_max_clients() {
         if let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i) {
             if player.is_dormant() || player.ent == local || !player.is_dead() {
                 continue;
             }
-
-            let (observer_mode, color) = match player.observer_mode() {
-                1 => ("Deathcam", &rgba::WHITE),
-                2 => ("Freecam", &rgba::WHITE),
-                3 => ("Fixed", &rgba::WHITE),
-                4 => ("Firstperson", &rgba::RED),
-                5 => ("Thirdperson", &rgba::WHITE),
-                6 => ("Point of Interest", &rgba::WHITE),
-                7 => ("Roaming", &rgba::WHITE),
-                _ => ("Unknown", &rgba::WHITE),
-            };
 
             let Some(obs_target) = player.observer_target() else {
                 continue;
@@ -49,6 +40,23 @@ pub fn draw(localplayer: &Player, config: &Config, nk: &Nuklear) {
             if obs_target != local {
                 continue;
             }
+
+            let (observer_mode, color) = match player.observer_mode() {
+                1 => ("Deathcam", &rgba::WHITE),
+                2 => ("Freecam", &rgba::WHITE),
+                3 => ("Fixed", &rgba::WHITE),
+                4 => {
+                    is_spectated = config.aimbot.disable_when_spectated == 2;
+                    ("Firstperson", &rgba::RED)
+                }
+                5 => {
+                    is_spectated = config.aimbot.disable_when_spectated == 1;
+                    ("Thirdperson", &rgba::WHITE)
+                }
+                6 => ("Point of Interest", &rgba::WHITE),
+                7 => ("Roaming", &rgba::WHITE),
+                _ => ("Unknown", &rgba::WHITE),
+            };
 
             let name = Interfaces::engine_client().get_player_info(i).name;
             let spectator = format!(
@@ -62,7 +70,7 @@ pub fn draw(localplayer: &Player, config: &Config, nk: &Nuklear) {
     }
 
     if spectators.is_empty() {
-        return;
+        return false;
     }
 
     let (screen_w, screen_h) = Interfaces::engine_client().get_screen_size();
@@ -89,4 +97,6 @@ pub fn draw(localplayer: &Player, config: &Config, nk: &Nuklear) {
         }
     }
     nk.end();
+
+    is_spectated
 }

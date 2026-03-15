@@ -5,6 +5,7 @@ use nuklear::Nuklear;
 use crate::{
     config::Config,
     features::{menu, spectator_list},
+    globals::Globals,
     helpers,
     hooks::Hooks,
     interfaces::Interfaces,
@@ -23,9 +24,11 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
 
     if Interfaces::engine_client().is_in_game() {
         if let Some(localplayer) = helpers::get_localplayer() {
-            let config = Config::read();
-
-            spectator_list::draw(&localplayer, &config, &nuklear);
+            let is_spectated = {
+                let config = Config::read();
+                spectator_list::draw(&localplayer, &config, &nuklear)
+            };
+            Globals::write().is_spectated = is_spectated;
         }
     }
 
