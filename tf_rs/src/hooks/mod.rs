@@ -6,7 +6,6 @@ mod poll_event;
 mod sdlhook;
 mod swap_window;
 mod vmtshadow;
-mod vtablehook;
 
 pub use core::*;
 use create_move::*;
@@ -16,4 +15,3 @@ use poll_event::*;
 use sdlhook::*;
 use swap_window::*;
 use vmtshadow::*;
-use vtablehook::*;
