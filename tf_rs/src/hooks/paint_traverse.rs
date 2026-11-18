@@ -9,7 +9,6 @@ pub extern "C" fn hk_paint_traverse(
     allow_force: i8,
 ) -> i64 {
     let rc = Hooks::paint_traverse()
-        .original
         .call_paint_traverse(this, panel, force_repaint, allow_force)
         .expect("Invalid PaintTraverse function signature");
 

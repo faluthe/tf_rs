@@ -9,7 +9,7 @@ pub static H: Lazy<RwLock<Hooks>> = Lazy::new(|| RwLock::new(Hooks::default()));
 #[derive(Default)]
 pub struct Hooks {
     pub create_move: VTableHook,
-    pub paint_traverse: VTableHook,
+    pub panel: VmtShadow,
     pub poll_event: SDLHook,
     pub swap_window: SDLHook,
 }
@@ -25,11 +25,9 @@ impl Hooks {
             22,
             FnSig::CreateMove(hk_create_move),
         )?;
-        w.paint_traverse.hook(
-            Interfaces::panel().ptr(),
-            42,
-            FnSig::PaintTraverse(hk_paint_traverse),
-        )?;
+        w.panel = VmtShadow::new(Interfaces::panel().ptr())?;
+        w.panel.hook(42, FnSig::PaintTraverse(hk_paint_traverse))?;
+        w.panel.install()?;
         w.poll_event
             .hook("SDL_PollEvent\0", FnSig::PollEvent(hk_poll_event))?;
         w.swap_window
@@ -39,11 +37,11 @@ impl Hooks {
     }
 
     pub fn restore() {
-        let w = H.write().unwrap();
+        let mut w = H.write().unwrap();
 
         let results = [
             ("CreateMove", w.create_move.restore()),
-            ("PaintTraverse", w.paint_traverse.restore()),
+            ("PaintTraverse", w.panel.restore()),
             ("SDL_PollEvent", w.poll_event.restore()),
             ("SDL_GL_SwapWindow", w.swap_window.restore()),
         ];
@@ -60,8 +58,8 @@ impl Hooks {
         H.read().unwrap().create_move.clone()
     }
 
-    pub fn paint_traverse() -> VTableHook {
-        H.read().unwrap().paint_traverse.clone()
+    pub fn paint_traverse() -> FnSig {
+        H.read().unwrap().panel.original(42)
     }
 
     pub fn poll_event() -> SDLHook {
