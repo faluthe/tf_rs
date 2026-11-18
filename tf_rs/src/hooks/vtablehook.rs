@@ -9,6 +9,7 @@ use crate::hooks::FnSig;
 #[derive(Clone)]
 pub struct VTableHook {
     vtable: *mut *mut c_void,
+    index: usize,
     pub original: FnSig,
 }
 
@@ -16,6 +17,7 @@ impl Default for VTableHook {
     fn default() -> Self {
         VTableHook {
             vtable: ptr::null_mut(),
+            index: 0,
             original: FnSig::None,
         }
     }
@@ -30,28 +32,41 @@ impl VTableHook {
     ) -> anyhow::Result<()> {
         unsafe {
             self.vtable = *(interface as *mut *mut *mut c_void);
+            self.index = index;
             self.original = FnSig::from_ptr(*self.vtable.add(index), hook);
 
-            let page_size = sysconf(_SC_PAGESIZE) as usize;
-            let table_page = (self.vtable as u64 & !(page_size as u64 - 1)) as *mut c_void;
-
-            if mprotect(table_page, page_size, PROT_READ | PROT_WRITE) != 0 {
-                return Err(anyhow!("Failed to change memory protection"));
-            }
-
-            self.vtable.add(index).write(hook.as_ptr()?);
-
-            if mprotect(table_page, page_size, PROT_READ) != 0 {
-                return Err(anyhow!("Failed to restore memory protection"));
-            }
+            self.write_entry(hook.as_ptr()?)?;
         }
 
         Ok(())
     }
 
     pub fn restore(&self) -> Result<()> {
+        // Never hooked
+        if self.vtable.is_null() {
+            return Ok(());
+        }
+
+        unsafe { self.write_entry(self.original.as_ptr()?) }
+    }
+
+    unsafe fn write_entry(&self, func: *mut c_void) -> Result<()> {
         unsafe {
-            (self.vtable).add(22).write(self.original.as_ptr()?);
+            let entry = self.vtable.add(self.index);
+
+            // Protect the page containing the entry itself, not the start of the vtable
+            let page_size = sysconf(_SC_PAGESIZE) as usize;
+            let entry_page = (entry as usize & !(page_size - 1)) as *mut c_void;
+
+            if mprotect(entry_page, page_size, PROT_READ | PROT_WRITE) != 0 {
+                return Err(anyhow!("Failed to change memory protection"));
+            }
+
+            entry.write(func);
+
+            if mprotect(entry_page, page_size, PROT_READ) != 0 {
+                return Err(anyhow!("Failed to restore memory protection"));
+            }
         }
 
         Ok(())

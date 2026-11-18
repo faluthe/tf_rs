@@ -41,7 +41,19 @@ impl Hooks {
     pub fn restore() {
         let w = H.write().unwrap();
 
-        w.create_move.restore().unwrap();
+        let results = [
+            ("CreateMove", w.create_move.restore()),
+            ("PaintTraverse", w.paint_traverse.restore()),
+            ("SDL_PollEvent", w.poll_event.restore()),
+            ("SDL_GL_SwapWindow", w.swap_window.restore()),
+        ];
+
+        // Log instead of panicking, we're running from .fini_array
+        for (name, result) in results {
+            if let Err(e) = result {
+                log::error!("Failed to restore {name} hook: {e}");
+            }
+        }
     }
 
     pub fn create_move() -> VTableHook {
