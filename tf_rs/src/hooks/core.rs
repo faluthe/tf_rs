@@ -8,7 +8,7 @@ pub static H: Lazy<RwLock<Hooks>> = Lazy::new(|| RwLock::new(Hooks::default()));
 
 #[derive(Default)]
 pub struct Hooks {
-    pub create_move: VTableHook,
+    pub client_mode: VmtShadow,
     pub panel: VmtShadow,
     pub poll_event: SDLHook,
     pub swap_window: SDLHook,
@@ -20,11 +20,9 @@ unsafe impl Sync for Hooks {}
 impl Hooks {
     pub fn init() -> anyhow::Result<()> {
         let mut w = H.write().unwrap();
-        w.create_move.hook(
-            Interfaces::client_mode(),
-            22,
-            FnSig::CreateMove(hk_create_move),
-        )?;
+        w.client_mode = VmtShadow::new(Interfaces::client_mode())?;
+        w.client_mode.hook(22, FnSig::CreateMove(hk_create_move))?;
+        w.client_mode.install()?;
         w.panel = VmtShadow::new(Interfaces::panel().ptr())?;
         w.panel.hook(42, FnSig::PaintTraverse(hk_paint_traverse))?;
         w.panel.install()?;
@@ -40,7 +38,7 @@ impl Hooks {
         let mut w = H.write().unwrap();
 
         let results = [
-            ("CreateMove", w.create_move.restore()),
+            ("CreateMove", w.client_mode.restore()),
             ("PaintTraverse", w.panel.restore()),
             ("SDL_PollEvent", w.poll_event.restore()),
             ("SDL_GL_SwapWindow", w.swap_window.restore()),
@@ -54,8 +52,8 @@ impl Hooks {
         }
     }
 
-    pub fn create_move() -> VTableHook {
-        H.read().unwrap().create_move.clone()
+    pub fn create_move() -> FnSig {
+        H.read().unwrap().client_mode.original(22)
     }
 
     pub fn paint_traverse() -> FnSig {
