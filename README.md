@@ -17,7 +17,7 @@ This project is a port and evolution of [tf_c](https://github.com/faluthe/tf_c),
 5. [Library Initialization & Cleanup](#library-initialization--cleanup)
 6. [Source Engine Interface Resolution](#source-engine-interface-resolution)
 7. [Hooking](#hooking)
-   - [VTable Hooking](#vtable-hooking)
+   - [VTable Hooking (VMT Shadowing)](#vtable-hooking-vmt-shadowing)
    - [SDL Hooking](#sdl-hooking)
 8. [Memory Reading Patterns](#memory-reading-patterns)
 9. [Features](#features)
@@ -48,7 +48,7 @@ The codebase demonstrates several low-level techniques that are useful for under
 
 - ELF `.init_array` / `.fini_array` for constructor/destructor execution on `dlopen`/`dlclose`
 - Source engine `CreateInterface` factory pattern
-- VTable hooking via `mprotect` + direct memory writes (see the [VTable Hooking guide](https://github.com/faluthe/vtable-hook))
+- VTable hooking via VMT shadowing (swapping an object's vptr to a copied vtable)
 - SDL2 function pointer hooking through JMP stub resolution
 - RIP-relative address calculation for finding non-exported globals
 - Raw pointer casting and offset-based struct field access in Rust
@@ -77,7 +77,7 @@ tf_rs/                      ← Workspace root
 │   │   │   ├── paint_traverse.rs ← Hook: per-panel render pass
 │   │   │   ├── poll_event.rs    ← Hook: SDL event polling
 │   │   │   ├── swap_window.rs   ← Hook: SDL frame swap (menu/overlay)
-│   │   │   ├── vtablehook.rs    ← VTable hook implementation
+│   │   │   ├── vmtshadow.rs     ← VMT shadowing (vtable copy + vptr swap)
 │   │   │   ├── sdlhook.rs       ← SDL function pointer hook
 │   │   │   └── fn_sig.rs        ← Type-safe function signature wrapper
 │   │   ├── interfaces/     ← Source engine interface wrappers
@@ -207,24 +207,28 @@ This technique (reading effective addresses from compiled instructions) works as
 
 ## Hooking
 
-### VTable Hooking
+### VTable Hooking (VMT Shadowing)
 
-> For a thorough walkthrough of this technique, see the [VTable Hooking guide](https://github.com/faluthe/vtable-hook).
+> For a walkthrough of the classic in-place technique, see the [VTable Hooking guide](https://github.com/faluthe/vtable-hook).
 
-Source engine objects (like `IClientMode` and `IPanel`) are C++ classes with vtables. A vtable is an array of function pointers stored in read-only memory. To hook a virtual function:
+Source engine objects (like `IClientMode` and `IPanel`) are C++ classes with vtables. A vtable is an array of function pointers stored in read-only memory, and every object starts with a pointer to its class's vtable (the vptr).
 
-1. Get the vtable pointer from the object (`*(obj as *mut *mut *mut c_void)`)
-2. Make the vtable page writable with `mprotect(..., PROT_READ | PROT_WRITE)`
-3. Save the original function pointer at the target index
-4. Write your hook function pointer at that index
-5. Restore the page to read-only with `mprotect(..., PROT_READ)`
+Rather than patching the game's vtable in place, `tf_rs` gives the hooked object its own copy:
 
-**`VTableHook` (`hooks/vtablehook.rs`):**
+1. Read the vptr from the object (`*(obj as *mut *mut *mut c_void)`)
+2. Count the vtable's entries by walking it until a pointer no longer lands in executable memory (from `/proc/self/maps`)
+3. Copy the vtable, plus the two words before it (Itanium ABI offset-to-top and RTTI pointer), into memory we own
+4. Write hook function pointers into the copy; the originals are read from the untouched game vtable
+5. Point the object's vptr at the copy
+
+No `mprotect` is needed, the game's `.rodata` is never modified, and only that one object instance is affected. Restoring is a single write of the original vptr.
+
+**`VmtShadow` (`hooks/vmtshadow.rs`):**
 
 ```
-object ptr → vtable ptr → [fn0, fn1, ..., fnN, ...]
-                                             ↑
-                              overwrite this slot
+                 before                           after
+object → vptr ─→ [-2, -1, fn0, ..., fnN]   object → vptr ─→ [-2, -1, fn0, ..., hook, ..., fnN]  (our copy)
+                  (game's vtable, untouched)
 ```
 
 Hooks installed:
@@ -595,7 +599,7 @@ sudo ./inject/so_inject.sh uninject <PID> <handle_address>
 |------------------|-----------------------------------------------------------------|
 | `anyhow`         | Ergonomic error handling throughout                             |
 | `log` / `env_logger` | Structured logging, visible via `/proc/<pid>/fd/2`          |
-| `libc`           | `dlopen`, `dlsym`, `mprotect`, `sysconf`, etc.                 |
+| `libc`           | `dlopen`, `dlsym`, etc.                                         |
 | `once_cell`      | `Lazy<T>` for deferred static initialization                    |
 | `nuklear`        | Local crate — safe Rust wrapper around Nuklear immediate GUI    |
 | `nuklear_sys`    | Local crate — `bindgen`-generated C FFI for Nuklear + SDL2 bits |
