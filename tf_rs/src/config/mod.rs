@@ -187,6 +187,7 @@ struct_with_serialize! {
         pub building_friendly: EntityESPConfig,
         pub aimbot_target: bool,
         pub conds: CondsDisplayConfig,
+        pub ignore_invis: bool,
     }
 }
 
@@ -247,6 +248,7 @@ struct_with_serialize! {
         pub ignore_category: u8,
         pub priority_category: u8,
         pub disable_when_spectated: usize,
+        pub ignore_invis: bool,
     }
 }
 

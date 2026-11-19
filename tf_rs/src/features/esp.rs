@@ -69,6 +69,10 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                         continue;
                     }
 
+                    if config.esp.ignore_invis && player.is_invisible() {
+                        continue;
+                    }
+
                     let Some(bbox) = helpers::get_bounding_box(&player) else {
                         continue;
                     };
