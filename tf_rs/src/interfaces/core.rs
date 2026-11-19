@@ -82,6 +82,10 @@ impl Interfaces {
             return Err(anyhow::anyhow!("Failed to get client mode interface"));
         }
 
+        if w.global_vars.is_null() {
+            return Err(anyhow::anyhow!("Failed to get global vars interface"));
+        }
+
         Ok(())
     }
 

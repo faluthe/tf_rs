@@ -22,12 +22,17 @@ mod types;
 static INIT: extern "C" fn() = {
     extern "C" fn init() {
         logger::init();
+        match helpers::lib_path() {
+            Some(path) => log::info!("Loaded from {}", path.to_string_lossy()),
+            None => log::info!("Loaded"),
+        }
         if let Err(e) = Interfaces::init() {
-            log::error!("tf_rs init failed: {e}");
+            log::error!("Interface init failed: {e:#}");
         }
         player_db::load();
-        if let Err(e) = Hooks::init() {
-            log::error!("tf_rs init failed: {e}");
+        match Hooks::init() {
+            Ok(()) => log::info!("Hooks installed"),
+            Err(e) => log::error!("Hook init failed: {e:#}"),
         }
     }
     init
@@ -62,7 +67,7 @@ pub(crate) fn unload() {
     restore_hooks();
     // Nothing may run after a successful dlclose_self, the logger is closing
     if let Err(e) = unsafe { dlclose_self() } {
-        log::error!("tf_rs unload failed: {e}");
+        log::error!("Unload failed: {e:#}");
     }
 }
 
@@ -75,7 +80,7 @@ unsafe fn dlclose_self() -> anyhow::Result<()> {
         // NOLOAD returns the existing handle but still takes a reference
         let handle = libc::dlopen(path.as_ptr(), libc::RTLD_NOW | libc::RTLD_NOLOAD);
         if handle.is_null() {
-            anyhow::bail!("dlopen failed");
+            anyhow::bail!("dlopen failed: {}", dlerror_string());
         }
         // Drop that reference; the injector's dlopen reference keeps us mapped
         libc::dlclose(handle);
@@ -84,9 +89,8 @@ unsafe fn dlclose_self() -> anyhow::Result<()> {
          * Use dlclose itself as a thread start routine so it returns into libc.
          * The caller still has to get out of our code before the unmap, which
          * is a few instructions against thread creation plus dlclose. */
-        let start: extern "C" fn(*mut c_void) -> *mut c_void = mem::transmute(
-            libc::dlclose as unsafe extern "C" fn(*mut c_void) -> libc::c_int,
-        );
+        let start: extern "C" fn(*mut c_void) -> *mut c_void =
+            mem::transmute(libc::dlclose as unsafe extern "C" fn(*mut c_void) -> libc::c_int);
 
         log::info!("Unloading");
 
@@ -102,4 +106,15 @@ unsafe fn dlclose_self() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Last dlopen/dlsym error, for error messages.
+pub(crate) fn dlerror_string() -> String {
+    unsafe {
+        let err = libc::dlerror();
+        if err.is_null() {
+            return "unknown error".to_string();
+        }
+        std::ffi::CStr::from_ptr(err).to_string_lossy().into_owned()
+    }
 }

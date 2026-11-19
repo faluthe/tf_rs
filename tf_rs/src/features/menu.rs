@@ -412,6 +412,7 @@ fn misc_tab(nk: &Nuklear, config: &mut Config) {
 
     nk.row_dynamic(30.0, 1);
     if nk.button_label("Unload") {
+        log::info!("Unload requested");
         Globals::write().unload_requested = true;
     }
 }
@@ -431,13 +432,17 @@ fn config_tab(nk: &Nuklear, config: &mut Config) {
                     unsafe {
                         SELECTED_CONFIG = i;
                     }
-                    config.load(cfg).unwrap(); // TODO: dont unwrap
+                    if let Err(e) = config.load(cfg) {
+                        log::error!("Failed to load config {cfg}: {e:#}");
+                    }
                 }
 
                 nk.layout_row_push(0.2);
 
                 if selected != 0 && nk.button_label("Save") {
-                    config.save(cfg).unwrap(); // TODO: dont unwrap
+                    if let Err(e) = config.save(cfg) {
+                        log::error!("Failed to save config {cfg}: {e:#}");
+                    }
                 }
 
                 nk.layout_row_end();
@@ -457,9 +462,16 @@ fn config_tab(nk: &Nuklear, config: &mut Config) {
         .edit_string(EditFlags::EDIT_FIELD, ptr.as_mut_ptr() as *mut i8, 256);
     if nk.button_label("Create new") {
         let end = ptr.iter().position(|&c| c == 0).unwrap_or(256);
-        let name = str::from_utf8(&ptr[..end]).unwrap();
-        config.save(name).unwrap(); // TODO: dont unwrap
-        Config::refresh_configs();
+        match str::from_utf8(&ptr[..end]) {
+            Ok(name) if !name.is_empty() => {
+                if let Err(e) = config.save(name) {
+                    log::error!("Failed to create config {name}: {e:#}");
+                }
+                Config::refresh_configs();
+            }
+            Ok(_) => log::warn!("Config name is empty, not creating"),
+            Err(e) => log::error!("Config name is not valid UTF-8: {e}"),
+        }
     }
 }
 

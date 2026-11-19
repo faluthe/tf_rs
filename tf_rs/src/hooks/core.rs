@@ -1,5 +1,6 @@
 use std::sync::RwLock;
 
+use anyhow::Context;
 use once_cell::sync::Lazy;
 
 use crate::{hooks::*, interfaces::Interfaces};
@@ -23,16 +24,32 @@ unsafe impl Sync for Hooks {}
 impl Hooks {
     pub fn init() -> anyhow::Result<()> {
         let mut w = H.write().unwrap();
-        w.client_mode = VmtShadow::new(Interfaces::client_mode())?;
-        w.client_mode.hook(CREATE_MOVE_INDEX, FnSig::CreateMove(hk_create_move))?;
-        w.client_mode.install()?;
-        w.panel = VmtShadow::new(Interfaces::panel().ptr())?;
-        w.panel.hook(PAINT_TRAVERSE_INDEX, FnSig::PaintTraverse(hk_paint_traverse))?;
-        w.panel.install()?;
+        w.client_mode = VmtShadow::new(Interfaces::client_mode()).context("ClientMode vtable")?;
+        w.client_mode
+            .hook(CREATE_MOVE_INDEX, FnSig::CreateMove(hk_create_move))
+            .context("CreateMove hook")?;
+        w.client_mode.install().context("ClientMode vtable")?;
+        log::debug!("Hooked CreateMove");
+
+        w.panel = VmtShadow::new(Interfaces::panel().ptr()).context("Panel vtable")?;
+        w.panel
+            .hook(
+                PAINT_TRAVERSE_INDEX,
+                FnSig::PaintTraverse(hk_paint_traverse),
+            )
+            .context("PaintTraverse hook")?;
+        w.panel.install().context("Panel vtable")?;
+        log::debug!("Hooked PaintTraverse");
+
         w.poll_event
-            .hook("SDL_PollEvent\0", FnSig::PollEvent(hk_poll_event))?;
+            .hook("SDL_PollEvent\0", FnSig::PollEvent(hk_poll_event))
+            .context("SDL_PollEvent hook")?;
+        log::debug!("Hooked SDL_PollEvent");
+
         w.swap_window
-            .hook("SDL_GL_SwapWindow\0", FnSig::SwapWindow(hk_swap_window))?;
+            .hook("SDL_GL_SwapWindow\0", FnSig::SwapWindow(hk_swap_window))
+            .context("SDL_GL_SwapWindow hook")?;
+        log::debug!("Hooked SDL_GL_SwapWindow");
 
         Ok(())
     }
@@ -49,8 +66,9 @@ impl Hooks {
 
         // Log instead of panicking, we're running from .fini_array
         for (name, result) in results {
-            if let Err(e) = result {
-                log::error!("Failed to restore {name} hook: {e}");
+            match result {
+                Ok(()) => log::debug!("Restored {name} hook"),
+                Err(e) => log::error!("Failed to restore {name} hook: {e:#}"),
             }
         }
     }

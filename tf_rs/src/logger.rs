@@ -62,7 +62,8 @@ impl Log for FileLogger {
 }
 
 pub fn init() {
-    let fd = open_log_file().unwrap_or_else(|| unsafe { libc::dup(libc::STDERR_FILENO) });
+    let file_fd = open_log_file();
+    let fd = file_fd.unwrap_or_else(|| unsafe { libc::dup(libc::STDERR_FILENO) });
     LOGGER.fd.store(fd, Ordering::Release);
 
     if log::set_logger(&LOGGER).is_ok() {
@@ -71,6 +72,10 @@ pub fn init() {
         } else {
             LevelFilter::Info
         });
+    }
+
+    if file_fd.is_none() {
+        log::warn!("Could not open {LOG_FILE} next to the library, logging to stderr");
     }
 
     // Panics in hooks abort the game at the extern "C" boundary, get the reason into the log first

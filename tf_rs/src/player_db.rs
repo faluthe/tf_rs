@@ -127,9 +127,20 @@ fn get_path() -> Option<std::path::PathBuf> {
 }
 
 pub fn load() {
-    let Some(path) = get_path() else { return };
-    let Ok(contents) = fs::read_to_string(&path) else {
+    let Some(path) = get_path() else {
+        log::warn!("HOME is unset, player categories won't be loaded or saved");
         return;
+    };
+    let contents = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            log::debug!("No player database at {}", path.display());
+            return;
+        }
+        Err(e) => {
+            log::error!("Failed to read player database {}: {e}", path.display());
+            return;
+        }
     };
 
     // Parse header lines (category names) — release lock before touching DB
@@ -149,8 +160,9 @@ pub fn load() {
                         "cat4" => Some(3),
                         _ => None,
                     };
-                    if let Some(i) = idx {
-                        names[i] = val.to_string();
+                    match idx {
+                        Some(i) => names[i] = val.to_string(),
+                        None => log::warn!("Unknown player database header: {line}"),
                     }
                 }
             }
@@ -165,13 +177,19 @@ pub fn load() {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        if let Some((guid, cat_name)) = line.split_once('|') {
-            let cat = PlayerCategory::from_str(cat_name);
-            if cat != PlayerCategory::None {
-                db.insert(guid.to_string(), cat);
-            }
+        let Some((guid, cat_name)) = line.split_once('|') else {
+            log::warn!("Malformed player database line: {line}");
+            continue;
+        };
+        let cat = PlayerCategory::from_str(cat_name);
+        if cat == PlayerCategory::None {
+            log::warn!("Unknown category {cat_name:?} for {guid} in player database");
+            continue;
         }
+        db.insert(guid.to_string(), cat);
     }
+
+    log::info!("Loaded {} players from {}", db.len(), path.display());
 }
 
 fn save() {
@@ -193,5 +211,7 @@ fn save() {
         }
     }
 
-    let _ = fs::write(&path, contents);
+    if let Err(e) = fs::write(&path, contents) {
+        log::error!("Failed to save player database {}: {e}", path.display());
+    }
 }
