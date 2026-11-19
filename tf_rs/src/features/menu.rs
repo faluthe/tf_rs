@@ -1,7 +1,7 @@
 use std::sync::{Mutex, RwLock};
 
 use nuklear::{
-    Color, Font, Nuklear, Rect, Scroll,
+    Color, Font, Icon, Nuklear, Rect, Scroll,
     flags::{EditFlags, LayoutFormat, PanelFlags, TextAlignment},
 };
 
@@ -474,9 +474,12 @@ fn misc_tab(nk: &Nuklear, config: &mut Config) {
 
 fn config_tab(nk: &Nuklear, config: &mut Config) {
     {
+        if nk.section_with_icon("Configurations", true, Icon::Refresh) {
+            Config::refresh_configs();
+        }
         let configs = Config::list_configs();
 
-        nk.section("Configurations", true).row_dynamic(220.0, 1);
+        nk.row_dynamic(220.0, 1);
         if nk.group_begin("Configs", PanelFlags::BORDER) {
             for (i, cfg) in configs.iter().enumerate() {
                 nk.layout_row_begin(LayoutFormat::DYNAMIC, ROW, 2)
@@ -504,11 +507,6 @@ fn config_tab(nk: &Nuklear, config: &mut Config) {
             }
             nk.group_end();
         }
-    }
-
-    nk.row_dynamic(ROW, 3).spacing(2);
-    if nk.button_label("Refresh") {
-        Config::refresh_configs();
     }
 
     nk.section("New configuration", false);

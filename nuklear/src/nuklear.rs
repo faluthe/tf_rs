@@ -17,6 +17,7 @@ use crate::{
     context::Context,
     flags::{EditFlags, LayoutFormat, PanelFlags, TextAlignment},
     input::Input,
+    icon::Icon,
     style::{Color, Font, Palette},
 };
 
@@ -373,12 +374,29 @@ impl Nuklear {
     /// Bold uppercase heading in the accent color with a rule under it. Pass `first = false`
     /// to leave a gap above it so sections read as separate blocks.
     pub fn section(&self, title: &str, first: bool) -> &Self {
+        self.section_impl(title, first, None);
+        self
+    }
+
+    /// `section` with a small icon button at the right end of the heading. Returns whether the
+    /// button was clicked.
+    pub fn section_with_icon(&self, title: &str, first: bool, icon: Icon) -> bool {
+        self.section_impl(title, first, Some(icon))
+    }
+
+    fn section_impl(&self, title: &str, first: bool, icon: Option<Icon>) -> bool {
+        const HEIGHT: f32 = 16.0;
+
         let p = self.palette();
         if !first {
             self.row_dynamic(16.0, 1).spacing(1);
         }
         self.context.push_heading_font();
-        self.row_dynamic(16.0, 1);
+        if icon.is_some() {
+            self.context.row_fill_then_static(HEIGHT, HEIGHT);
+        } else {
+            self.row_dynamic(HEIGHT, 1);
+        }
         match p {
             Some(p) => {
                 let c = p.accent;
@@ -389,10 +407,15 @@ impl Nuklear {
             }
         }
         self.context.pop_font();
+        let clicked = match (icon, p) {
+            (Some(icon), Some(p)) => self.context.icon_button(icon, &p),
+            (Some(_), None) => self.button_label("R"),
+            (None, _) => false,
+        };
         let rule = p.map_or(Color::hex(0x505050), |p| p.border);
         self.row_dynamic(1.0, 1);
         self.context.fill_slot(rule);
-        self
+        clicked
     }
 
     /// Flat left aligned navigation button, highlighted with an accent bar when `active`

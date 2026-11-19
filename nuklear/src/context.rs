@@ -14,11 +14,16 @@ use nuklear_sys::{
     nk_widget_width, nk_window_get_bounds, nk_window_get_content_region, nk_window_set_bounds,
     nk_font, nk_font_atlas_add_from_memory, nk_style_pop_font, nk_style_push_font,
     nk_style_set_font, nk_fill_rect, nk_spacer, nk_style_item_color, nk_widget_bounds,
-    nk_window_get_canvas, nk_text_alignment_NK_TEXT_LEFT,
-    nk_style_push_vec2, nk_style_pop_vec2,
+    nk_window_get_canvas, nk_text_alignment_NK_TEXT_LEFT, nk_draw_image, nk_image,
+    nk_style_item_hide, nk_input_is_mouse_hovering_rect, nk_layout_row_template_begin,
+    nk_layout_row_template_push_dynamic, nk_layout_row_template_push_static,
+    nk_layout_row_template_end, nk_style_push_vec2, nk_style_pop_vec2,
 };
 
-use crate::style::{Color, FONT_HEADING, Font, HEADING_SIZE, Palette};
+use crate::{
+    icon::{ICON_SIZE, Icon},
+    style::{Color, FONT_HEADING, Font, HEADING_SIZE, Palette},
+};
 
 static CONTEXT: OnceLock<Context> = OnceLock::new();
 
@@ -30,6 +35,8 @@ pub(crate) struct Context {
     /// Indexed like `Font::ALL`
     fonts: [*mut nk_font; Font::ALL.len()],
     heading_font: *mut nk_font,
+    /// Indexed like `Icon::ALL`, None if the icon failed to load
+    icons: [Option<nk_image>; Icon::ALL.len()],
 }
 
 // TODO: Is this actually thread safe? Pottentially not, trace poll_event and swap_window usage
@@ -70,6 +77,8 @@ impl Context {
             let heading_font = add(FONT_HEADING, HEADING_SIZE);
             nk_sdl_font_stash_end();
 
+            let icons = Icon::ALL.map(Icon::load);
+
             // Open the first input window so poll_event calls have a valid begin/end block
             nk_input_begin(nk_ctx);
 
@@ -79,6 +88,7 @@ impl Context {
                 new_ctx,
                 fonts,
                 heading_font,
+                icons,
             }
         })
     }
@@ -416,6 +426,46 @@ impl Context {
             let button_x = header.x + header.w - header.h - c.button_padding.x;
             let label_x = header.x + c.content_padding.x;
             button_x - (c.content_padding.x + c.spacing.x) - label_x
+        }
+    }
+
+    /// Row where the first slot takes all the space left over by a trailing `width` slot
+    pub(crate) fn row_fill_then_static(&self, height: f32, width: f32) {
+        unsafe {
+            nk_layout_row_template_begin(self.nk_ctx, height);
+            nk_layout_row_template_push_dynamic(self.nk_ctx);
+            nk_layout_row_template_push_static(self.nk_ctx, width);
+            nk_layout_row_template_end(self.nk_ctx);
+        }
+    }
+
+    /// Borderless button showing only `icon`, dim when idle and accent colored on hover
+    pub(crate) fn icon_button(&self, icon: Icon, p: &Palette) -> bool {
+        unsafe {
+            let ctx = self.nk_ctx;
+            let bounds = nk_widget_bounds(ctx);
+            let hovered = nk_input_is_mouse_hovering_rect(&(*ctx).input, bounds) != 0;
+
+            let saved = (*ctx).style.button;
+            let b = &mut (*ctx).style.button;
+            b.normal = nk_style_item_hide();
+            b.hover = nk_style_item_hide();
+            b.active = nk_style_item_hide();
+            b.border = 0.0;
+            let empty = CString::default();
+            let clicked = nk_button_label(ctx, empty.as_ptr()) != 0;
+            (*ctx).style.button = saved;
+
+            let color = if hovered { p.accent } else { p.text_dim };
+            if let Some(img) = &self.icons[icon.index()] {
+                // Whole pixels at the icon's native size so it isn't filtered blurry
+                let size = ICON_SIZE as f32;
+                let x = (bounds.x + (bounds.w - size) / 2.0).round();
+                let y = (bounds.y + (bounds.h - size) / 2.0).round();
+                let rect = nk_rect(x, y, size, size);
+                nk_draw_image(nk_window_get_canvas(ctx), rect, img, color.into());
+            }
+            clicked
         }
     }
 }
