@@ -4,6 +4,9 @@ use once_cell::sync::Lazy;
 
 use crate::{hooks::*, interfaces::Interfaces};
 
+const CREATE_MOVE_INDEX: usize = 22;
+const PAINT_TRAVERSE_INDEX: usize = 42;
+
 pub static H: Lazy<RwLock<Hooks>> = Lazy::new(|| RwLock::new(Hooks::default()));
 
 #[derive(Default)]
@@ -21,10 +24,10 @@ impl Hooks {
     pub fn init() -> anyhow::Result<()> {
         let mut w = H.write().unwrap();
         w.client_mode = VmtShadow::new(Interfaces::client_mode())?;
-        w.client_mode.hook(22, FnSig::CreateMove(hk_create_move))?;
+        w.client_mode.hook(CREATE_MOVE_INDEX, FnSig::CreateMove(hk_create_move))?;
         w.client_mode.install()?;
         w.panel = VmtShadow::new(Interfaces::panel().ptr())?;
-        w.panel.hook(42, FnSig::PaintTraverse(hk_paint_traverse))?;
+        w.panel.hook(PAINT_TRAVERSE_INDEX, FnSig::PaintTraverse(hk_paint_traverse))?;
         w.panel.install()?;
         w.poll_event
             .hook("SDL_PollEvent\0", FnSig::PollEvent(hk_poll_event))?;
@@ -53,11 +56,11 @@ impl Hooks {
     }
 
     pub fn create_move() -> FnSig {
-        H.read().unwrap().client_mode.original(22)
+        H.read().unwrap().client_mode.original(CREATE_MOVE_INDEX)
     }
 
     pub fn paint_traverse() -> FnSig {
-        H.read().unwrap().panel.original(42)
+        H.read().unwrap().panel.original(PAINT_TRAVERSE_INDEX)
     }
 
     pub fn poll_event() -> SDLHook {
