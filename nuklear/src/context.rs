@@ -390,4 +390,32 @@ impl Context {
             nk_style_pop_vec2(self.nk_ctx);
         }
     }
+
+    /// Width of `text` in pixels with the current font
+    pub(crate) fn text_width(&self, text: &str) -> f32 {
+        unsafe {
+            let font = (*self.nk_ctx).style.font;
+            match (*font).width {
+                Some(width) => width(
+                    (*font).userdata,
+                    (*font).height,
+                    text.as_ptr() as *const _,
+                    text.len() as i32,
+                ),
+                None => 0.0,
+            }
+        }
+    }
+
+    /// Width available to the label of a combo placed in the next widget slot, mirroring the
+    /// layout in nk_combo_begin_text
+    pub(crate) fn combo_label_width(&self) -> f32 {
+        unsafe {
+            let header = nk_widget_bounds(self.nk_ctx);
+            let c = &(*self.nk_ctx).style.combo;
+            let button_x = header.x + header.w - header.h - c.button_padding.x;
+            let label_x = header.x + c.content_padding.x;
+            button_x - (c.content_padding.x + c.spacing.x) - label_x
+        }
+    }
 }

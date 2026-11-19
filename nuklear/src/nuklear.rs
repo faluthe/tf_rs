@@ -272,12 +272,12 @@ impl Nuklear {
     pub fn multi_select_combo(&self, items: &[&str], selected: &mut [&mut bool]) -> &Self {
         assert_eq!(items.len(), selected.len());
 
-        let selected_count = selected.iter().filter(|&s| **s).count();
-        let header = if selected_count == 0 {
-            "None".to_string()
-        } else {
-            format!("{} selected", selected_count)
-        };
+        let names: Vec<&str> = items
+            .iter()
+            .zip(selected.iter())
+            .filter_map(|(item, s)| (**s).then_some(*item))
+            .collect();
+        let header = self.multi_select_preview(&names);
 
         if self
             .context
@@ -297,6 +297,29 @@ impl Nuklear {
         }
 
         self
+    }
+
+    /// Comma separated list of `names` that fits in the next combo slot, e.g.
+    /// "Boxes, Names". Trailing names that don't fit are summarized as "+N".
+    fn multi_select_preview(&self, names: &[&str]) -> String {
+        if names.is_empty() {
+            return "None".to_string();
+        }
+
+        let avail = self.context.combo_label_width();
+        let fits = |s: &str| self.context.text_width(s) <= avail;
+
+        let all = names.join(", ");
+        if fits(&all) {
+            return all;
+        }
+        for shown in (1..names.len()).rev() {
+            let text = format!("{}, +{}", names[..shown].join(", "), names.len() - shown);
+            if fits(&text) {
+                return text;
+            }
+        }
+        format!("{} selected", names.len())
     }
 
     pub fn window_set_bounds(&self, window: &str, rect: Rect) {
