@@ -132,7 +132,7 @@ Injection uses `gdb` to attach to the running game process and call `dlopen()` o
 2. `pidof tf_linux64` to find the game PID
 3. `sudo gdb -p <PID> -batch -ex "call dlopen(\"<path>\", 1)"` to inject
 
-`so_inject.sh` also supports `uninject` using `dlclose` with the handle returned by `dlopen`. The debug mode (`--debug`) additionally opens a `gnome-terminal` window tailing the log file, so you can see `log::` output live.
+`so_inject.sh` also supports `uninject` using `dlclose` with the handle returned by `dlopen`. Alternatively, the **Unload** button in the Misc tab restores all hooks and has the library `dlclose` itself (don't also run `uninject` afterwards). The debug mode (`--debug`) additionally opens a `gnome-terminal` window tailing the log file, so you can see `log::` output live.
 
 ### Logging
 

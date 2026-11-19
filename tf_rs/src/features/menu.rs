@@ -409,6 +409,11 @@ fn misc_tab(nk: &Nuklear, config: &mut Config) {
             g.thirdperson_key_editing = !g.thirdperson_key_editing;
         }
     }
+
+    nk.row_dynamic(30.0, 1);
+    if nk.button_label("Unload") {
+        Globals::write().unload_requested = true;
+    }
 }
 
 fn config_tab(nk: &Nuklear, config: &mut Config) {
