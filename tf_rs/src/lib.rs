@@ -6,6 +6,7 @@ mod globals;
 mod helpers;
 mod hooks;
 mod interfaces;
+mod logger;
 mod player_db;
 mod traits;
 mod types;
@@ -14,9 +15,7 @@ mod types;
 #[unsafe(link_section = ".init_array")]
 static INIT: extern "C" fn() = {
     extern "C" fn init() {
-        env_logger::Builder::new()
-            .filter_level(log::LevelFilter::Debug)
-            .init();
+        logger::init();
         if let Err(e) = Interfaces::init() {
             log::error!("tf_rs init failed: {e}");
         }
@@ -34,6 +33,7 @@ static FINI: extern "C" fn() = {
     extern "C" fn fini() {
         log::info!("tf_rs fini");
         Hooks::restore();
+        logger::shutdown();
     }
     fini
 };

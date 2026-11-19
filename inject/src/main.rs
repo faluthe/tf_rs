@@ -1,5 +1,8 @@
 use core::panic;
-use std::process::{Command, ExitCode};
+use std::{
+    path::Path,
+    process::{Command, ExitCode},
+};
 
 use serde::Deserialize;
 
@@ -54,20 +57,23 @@ fn get_pid() -> String {
     pid
 }
 
-fn open_debug_terminal() {
+/// Must match `LOG_FILE` in tf_rs/src/logger.rs, which writes next to the .so.
+const LOG_FILE: &str = "tf_rs.log";
+
+fn open_debug_terminal(lib_path: &str) {
+    let log_path = Path::new(lib_path)
+        .parent()
+        .expect("Library path has no parent directory")
+        .join(LOG_FILE);
+
+    // -F follows the file across the truncate tf_rs does on each injection
     let status = Command::new("gnome-terminal")
-        .args(["--", "bash", "-lc", "cat /proc/$(pidof tf_linux64)/fd/1"])
+        .args(["--", "tail", "-n", "0", "-F"])
+        .arg(&log_path)
         .status()
         .expect("Failed to execute terminal command");
     if !status.success() {
-        panic!("Failed to open terminal for stdout output");
-    }
-    let status = Command::new("gnome-terminal")
-        .args(["--", "bash", "-lc", "cat /proc/$(pidof tf_linux64)/fd/2"])
-        .status()
-        .expect("Failed to execute terminal command");
-    if !status.success() {
-        panic!("Failed to open terminal for stderr output");
+        panic!("Failed to open terminal for {}", log_path.display());
     }
 }
 
@@ -77,7 +83,7 @@ fn main() -> ExitCode {
     let lib_path = get_lib_path(release);
     let pid = get_pid();
     if debug {
-        open_debug_terminal();
+        open_debug_terminal(&lib_path);
     }
 
     let status = Command::new("sudo")

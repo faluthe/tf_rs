@@ -132,12 +132,18 @@ Injection uses `gdb` to attach to the running game process and call `dlopen()` o
 2. `pidof tf_linux64` to find the game PID
 3. `sudo gdb -p <PID> -batch -ex "call dlopen(\"<path>\", 1)"` to inject
 
-`so_inject.sh` also supports `uninject` using `dlclose` with the handle returned by `dlopen`. The debug mode (`--debug`) additionally opens two `gnome-terminal` windows tailing the game's stdout/stderr file descriptors via `/proc/<pid>/fd/1` and `/proc/<pid>/fd/2`, so you can see `log::` output live.
+`so_inject.sh` also supports `uninject` using `dlclose` with the handle returned by `dlopen`. The debug mode (`--debug`) additionally opens a `gnome-terminal` window tailing the log file, so you can see `log::` output live.
+
+### Logging
+
+The game runs inside the Steam Linux Runtime container, where stdout/stderr are pipes owned by Steam, so `tf_rs` logs to `tf_rs.log` next to the injected `.so` (e.g. `target/debug/tf_rs.log`). That path is visible from both the container and the host. The file is truncated on each injection. Debug builds log at `debug`, release builds at `info`. Panics are logged before the game aborts.
+
+The logger avoids thread-locals with destructors: glibc won't unmap a library while a live thread has a pending TLS destructor from it, so one would stop `dlclose` from actually unloading `tf_rs`.
 
 ```bash
 cargo inject           # build (debug) + inject
 cargo inject --release # build (release) + inject
-cargo inject --debug   # build + inject + open debug terminals
+cargo inject --debug   # build + inject + open a terminal tailing the log
 ```
 
 ---
@@ -569,7 +575,7 @@ cargo inject
 # Build (release) and inject
 cargo inject --release
 
-# Build, inject, and open debug terminal windows (requires gnome-terminal)
+# Build, inject, and open a terminal tailing the log (requires gnome-terminal)
 cargo inject --debug
 ```
 
@@ -598,7 +604,7 @@ sudo ./inject/so_inject.sh uninject <PID> <handle_address>
 | Crate / Library  | Purpose                                                         |
 |------------------|-----------------------------------------------------------------|
 | `anyhow`         | Ergonomic error handling throughout                             |
-| `log` / `env_logger` | Structured logging, visible via `/proc/<pid>/fd/2`          |
+| `log`            | Logging facade, written to `tf_rs.log` by `tf_rs/src/logger.rs` |
 | `libc`           | `dlopen`, `dlsym`, etc.                                         |
 | `once_cell`      | `Lazy<T>` for deferred static initialization                    |
 | `nuklear`        | Local crate — safe Rust wrapper around Nuklear immediate GUI    |
