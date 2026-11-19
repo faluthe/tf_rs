@@ -28,13 +28,20 @@ impl SDLHook {
             );
 
             if handle.is_null() {
-                return Err(anyhow::anyhow!("Failed to open SDL2 library"));
+                return Err(anyhow::anyhow!(
+                    "Failed to open SDL2 library: {}",
+                    crate::dlerror_string()
+                ));
             }
 
             let func = dlsym(handle, symbol.as_ptr() as *const i8);
 
             if func.is_null() {
-                return Err(anyhow::anyhow!("Failed to find symbol {symbol}"));
+                return Err(anyhow::anyhow!(
+                    "Failed to find symbol {}: {}",
+                    symbol.trim_end_matches('\0'),
+                    crate::dlerror_string()
+                ));
             }
 
             /* The symbols resolve to a wrapper function. They are a just a 2 byte
@@ -47,6 +54,12 @@ impl SDLHook {
             self.original = FnSig::from_ptr(*ptr_to_func, hook);
 
             ptr::write(ptr_to_func, hook.as_ptr()?);
+
+            log::debug!(
+                "{} slot {ptr_to_func:p}: original {:p}, hook {hook:p}",
+                symbol.trim_end_matches('\0'),
+                self.original
+            );
         }
 
         Ok(())

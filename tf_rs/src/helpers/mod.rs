@@ -1,9 +1,25 @@
+use std::{
+    ffi::{CStr, CString, c_void},
+    mem,
+};
+
 use crate::{
     interfaces::Interfaces,
     types::{BBox, Entity, Player, Vec2, Vec3},
 };
 
 pub mod macros;
+
+/// Path this library was loaded from, as passed to dlopen.
+pub fn lib_path() -> Option<CString> {
+    unsafe {
+        let mut info: libc::Dl_info = mem::zeroed();
+        if libc::dladdr(lib_path as *const c_void, &mut info) == 0 || info.dli_fname.is_null() {
+            return None;
+        }
+        Some(CStr::from_ptr(info.dli_fname).to_owned())
+    }
+}
 
 pub fn get_localplayer() -> Option<Player> {
     let index = Interfaces::engine_client().get_localplayer_index();

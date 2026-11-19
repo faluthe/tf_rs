@@ -10,6 +10,7 @@ pub struct Globals {
     pub thirdperson_pressed: bool,
     pub thirdperson_key_editing: bool,
     pub is_spectated: bool,
+    pub unload_requested: bool,
 }
 
 #[derive(Default)]

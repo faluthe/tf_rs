@@ -20,19 +20,22 @@ impl Factory {
     pub fn new(base_path: &str, lib: &str) -> anyhow::Result<Self> {
         unsafe {
             let path = format!("{base_path}{lib}");
-            let c_path = CString::new(path).unwrap();
+            let c_path = CString::new(path.as_str()).unwrap();
             let handle = dlopen(c_path.as_ptr(), RTLD_NOLOAD | RTLD_NOW);
 
-            let sym = if !handle.is_null() {
-                dlsym(handle, c"CreateInterface".as_ptr() as _)
-            } else {
-                ptr::null_mut()
-            };
+            if handle.is_null() {
+                return Err(anyhow::anyhow!(
+                    "Failed to open {path}: {}",
+                    crate::dlerror_string()
+                ));
+            }
+
+            let sym = dlsym(handle, c"CreateInterface".as_ptr() as _);
 
             if sym.is_null() {
                 return Err(anyhow::anyhow!(
-                    "Failed to load CreateInterface from {}",
-                    lib
+                    "Failed to load CreateInterface from {lib}: {}",
+                    crate::dlerror_string()
                 ));
             }
 

@@ -76,6 +76,12 @@ impl VmtShadow {
         }
         self.shadow[PREFIX + index] = hook.as_ptr()?;
 
+        log::debug!(
+            "Vtable {:p} index {index}: original {:p}, hook {hook:p}",
+            self.original_vtable,
+            self.originals[index]
+        );
+
         Ok(())
     }
 

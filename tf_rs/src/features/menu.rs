@@ -1,7 +1,7 @@
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 
 use nuklear::{
-    Nuklear, Rect,
+    Nuklear, Rect, Scroll,
     flags::{EditFlags, LayoutFormat, PanelFlags, TextAlignment},
 };
 
@@ -9,7 +9,7 @@ use crate::{
     config::{Config, EntityESPConfig},
     globals::Globals,
     interfaces::Interfaces,
-    player_db,
+    logger, player_db,
     types::{Player, rgba},
 };
 
@@ -24,6 +24,26 @@ static CAT_NAME_BUFS: [RwLock<[u8; 64]>; 4] = [
     RwLock::new([0u8; 64]),
 ];
 static CAT_NAMES_BUF_INIT: std::sync::Once = std::sync::Once::new();
+/// Where the menu was last drawn. Nuklear forgets a window once it stops being drawn, so this
+/// keeps the position and size across closing and reopening the menu.
+static MENU_BOUNDS: Mutex<Rect> = Mutex::new(Rect {
+    x: 200.0,
+    y: 200.0,
+    w: 900.0,
+    h: 600.0,
+});
+static LOG_VIEW: Mutex<LogView> = Mutex::new(LogView {
+    lines: Vec::new(),
+    seen: 0,
+    scroll: Scroll { x: 0, y: 0 },
+});
+
+struct LogView {
+    lines: Vec<String>,
+    /// Total line count when `lines` was copied from the logger
+    seen: u64,
+    scroll: Scroll,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MenuTab {
@@ -33,28 +53,27 @@ enum MenuTab {
     Misc,
     Config,
     Players,
+    Logging,
 }
 
 pub fn draw(nk: &Nuklear) {
+    let mut bounds = MENU_BOUNDS.lock().unwrap_or_else(|e| e.into_inner());
     if nk.begin(
         "TF_RS",
-        PanelFlags::BORDER | PanelFlags::MOVABLE | PanelFlags::TITLE,
-        Rect {
-            x: 200.0,
-            y: 200.0,
-            w: 900.0,
-            h: 600.0,
-        },
+        PanelFlags::BORDER | PanelFlags::MOVABLE | PanelFlags::SCALABLE | PanelFlags::TITLE,
+        *bounds,
     ) {
+        *bounds = nk.window_get_bounds();
         let mut config = Config::write();
 
-        nk.row_dynamic(30.0, 6);
+        nk.row_dynamic(30.0, 7);
         tab_button(nk, "Aimbot", MenuTab::Aimbot);
         tab_button(nk, "ESP", MenuTab::ESP);
         tab_button(nk, "Colors", MenuTab::Colors);
         tab_button(nk, "Players", MenuTab::Players);
         tab_button(nk, "Misc", MenuTab::Misc);
         tab_button(nk, "Config", MenuTab::Config);
+        tab_button(nk, "Logging", MenuTab::Logging);
 
         match unsafe { TAB } {
             MenuTab::Aimbot => aimbot_tab(nk, &mut config),
@@ -63,6 +82,7 @@ pub fn draw(nk: &Nuklear) {
             MenuTab::Misc => misc_tab(nk, &mut config),
             MenuTab::Config => config_tab(nk, &mut config),
             MenuTab::Players => players_tab(nk),
+            MenuTab::Logging => logging_tab(nk),
         }
     }
     nk.end();
@@ -409,6 +429,12 @@ fn misc_tab(nk: &Nuklear, config: &mut Config) {
             g.thirdperson_key_editing = !g.thirdperson_key_editing;
         }
     }
+
+    nk.row_dynamic(30.0, 1);
+    if nk.button_label("Unload") {
+        log::info!("Unload requested");
+        Globals::write().unload_requested = true;
+    }
 }
 
 fn config_tab(nk: &Nuklear, config: &mut Config) {
@@ -426,13 +452,17 @@ fn config_tab(nk: &Nuklear, config: &mut Config) {
                     unsafe {
                         SELECTED_CONFIG = i;
                     }
-                    config.load(cfg).unwrap(); // TODO: dont unwrap
+                    if let Err(e) = config.load(cfg) {
+                        log::error!("Failed to load config {cfg}: {e:#}");
+                    }
                 }
 
                 nk.layout_row_push(0.2);
 
                 if selected != 0 && nk.button_label("Save") {
-                    config.save(cfg).unwrap(); // TODO: dont unwrap
+                    if let Err(e) = config.save(cfg) {
+                        log::error!("Failed to save config {cfg}: {e:#}");
+                    }
                 }
 
                 nk.layout_row_end();
@@ -452,9 +482,16 @@ fn config_tab(nk: &Nuklear, config: &mut Config) {
         .edit_string(EditFlags::EDIT_FIELD, ptr.as_mut_ptr() as *mut i8, 256);
     if nk.button_label("Create new") {
         let end = ptr.iter().position(|&c| c == 0).unwrap_or(256);
-        let name = str::from_utf8(&ptr[..end]).unwrap();
-        config.save(name).unwrap(); // TODO: dont unwrap
-        Config::refresh_configs();
+        match str::from_utf8(&ptr[..end]) {
+            Ok(name) if !name.is_empty() => {
+                if let Err(e) = config.save(name) {
+                    log::error!("Failed to create config {name}: {e:#}");
+                }
+                Config::refresh_configs();
+            }
+            Ok(_) => log::warn!("Config name is empty, not creating"),
+            Err(e) => log::error!("Config name is not valid UTF-8: {e}"),
+        }
     }
 }
 
@@ -569,5 +606,40 @@ fn players_tab(nk: &Nuklear) {
             let name = str::from_utf8(&buf[..end]).unwrap_or("");
             player_db::set_name(i, name);
         }
+    }
+}
+
+fn logging_tab(nk: &Nuklear) {
+    const ROW_HEIGHT: f32 = 18.0;
+    // Row height plus nuklear's default vertical item spacing
+    const ROW_STEP: u32 = ROW_HEIGHT as u32 + 4;
+
+    let mut view = LOG_VIEW.lock().unwrap_or_else(|e| e.into_inner());
+    let view = &mut *view;
+
+    if let Some((lines, total)) = logger::lines_since(view.seen) {
+        // Scroll past the new rows, nuklear clamps the offset to the bottom
+        let new_rows = total.saturating_sub(view.seen).min(lines.len() as u64) as u32;
+        view.scroll.y = view.scroll.y.saturating_add(new_rows * ROW_STEP);
+        view.lines = lines;
+        view.seen = total;
+    }
+
+    // Fill the rest of the window
+    let (_, height) = nk.get_content_region();
+    nk.row_dynamic((height - 56.0).max(100.0), 1);
+    if nk.group_scrolled_begin("Log", PanelFlags::BORDER, &mut view.scroll) {
+        nk.row_dynamic(ROW_HEIGHT, 1);
+        for line in &view.lines {
+            let (r, g, b) = if line.contains(" ERROR ") {
+                (255, 80, 80)
+            } else if line.contains(" WARN ") {
+                (255, 200, 80)
+            } else {
+                (200, 200, 200)
+            };
+            nk.colored_label(line.as_str(), TextAlignment::LEFT, r, g, b, 255);
+        }
+        nk.group_end();
     }
 }

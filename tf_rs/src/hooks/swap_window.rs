@@ -42,5 +42,10 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     // Open the input window for the next frame's poll_event calls.
     nuklear.input_begin();
 
+    // Unload after the frame is presented so no hook is torn down mid-draw.
+    if Globals::read().unload_requested {
+        crate::unload();
+    }
+
     rc
 }

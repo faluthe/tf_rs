@@ -1,5 +1,9 @@
 use core::panic;
-use std::process::{Command, ExitCode};
+use std::{
+    io::ErrorKind,
+    path::Path,
+    process::{Command, ExitCode},
+};
 
 use serde::Deserialize;
 
@@ -54,21 +58,46 @@ fn get_pid() -> String {
     pid
 }
 
-fn open_debug_terminal() {
-    let status = Command::new("gnome-terminal")
-        .args(["--", "bash", "-lc", "cat /proc/$(pidof tf_linux64)/fd/1"])
-        .status()
-        .expect("Failed to execute terminal command");
-    if !status.success() {
-        panic!("Failed to open terminal for stdout output");
+/// Must match `LOG_FILE` in tf_rs/src/logger.rs, which writes next to the .so.
+const LOG_FILE: &str = "tf_rs.log";
+
+fn open_debug_terminal(lib_path: &str) {
+    let log_path = Path::new(lib_path)
+        .parent()
+        .expect("Library path has no parent directory")
+        .join(LOG_FILE);
+
+    // -F follows the file across the truncate tf_rs does on each injection
+    let tail = ["tail", "-n", "0", "-F"];
+
+    /* The user's default terminal, in order of preference: $TERMINAL (which
+     * by convention takes -e), the xdg-terminal-exec spec launcher, then
+     * Debian's x-terminal-emulator alternative. */
+    let mut candidates: Vec<(String, Option<&str>)> = Vec::new();
+    if let Ok(term) = std::env::var("TERMINAL") {
+        if !term.is_empty() {
+            candidates.push((term, Some("-e")));
+        }
     }
-    let status = Command::new("gnome-terminal")
-        .args(["--", "bash", "-lc", "cat /proc/$(pidof tf_linux64)/fd/2"])
-        .status()
-        .expect("Failed to execute terminal command");
-    if !status.success() {
-        panic!("Failed to open terminal for stderr output");
+    candidates.push(("xdg-terminal-exec".to_string(), None));
+    candidates.push(("x-terminal-emulator".to_string(), Some("-e")));
+
+    for (term, exec_flag) in &candidates {
+        let mut cmd = Command::new(term);
+        cmd.args(exec_flag).args(tail).arg(&log_path);
+
+        // Don't wait, some terminals only exit when their window closes
+        match cmd.spawn() {
+            Ok(_) => return,
+            Err(e) if e.kind() == ErrorKind::NotFound => continue,
+            Err(e) => eprintln!("Failed to launch {term}: {e}"),
+        }
     }
+
+    eprintln!(
+        "No terminal found, set $TERMINAL or run: tail -n 0 -F {}",
+        log_path.display()
+    );
 }
 
 fn main() -> ExitCode {
@@ -77,7 +106,7 @@ fn main() -> ExitCode {
     let lib_path = get_lib_path(release);
     let pid = get_pid();
     if debug {
-        open_debug_terminal();
+        open_debug_terminal(&lib_path);
     }
 
     let status = Command::new("sudo")

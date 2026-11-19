@@ -16,6 +16,14 @@ use crate::{
     input::Input,
 };
 
+/// Scroll offset of a group, layout compatible with `nk_scroll`.
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct Scroll {
+    pub x: u32,
+    pub y: u32,
+}
+
 static DO_DRAW: AtomicBool = AtomicBool::new(false);
 
 pub struct Nuklear {
@@ -105,6 +113,11 @@ impl Nuklear {
         self
     }
 
+    /// Bounds of the current window, call between `begin` and `end`.
+    pub fn window_get_bounds(&self) -> Rect {
+        self.context.window_get_bounds().into()
+    }
+
     pub fn get_content_region(&self) -> (f32, f32) {
         self.context.window_get_content_region()
     }
@@ -112,6 +125,22 @@ impl Nuklear {
     pub fn group_begin<T: Into<Vec<u8>>>(&self, title: T, flags: PanelFlags) -> bool {
         self.context
             .group_begin(CString::new(title).unwrap(), flags.bits())
+    }
+
+    /// Like `group_begin`, but the scroll offset lives in `scroll` so the caller can read and
+    /// set it. Nuklear keeps a pointer to `scroll` until `group_end`, so it must not move or be
+    /// dropped before then.
+    pub fn group_scrolled_begin<T: Into<Vec<u8>>>(
+        &self,
+        title: T,
+        flags: PanelFlags,
+        scroll: &mut Scroll,
+    ) -> bool {
+        self.context.group_scrolled_begin(
+            CString::new(title).unwrap(),
+            (scroll as *mut Scroll).cast(),
+            flags.bits(),
+        )
     }
 
     pub fn layout_row_begin(&self, fmt: LayoutFormat, row_height: f32, cols: i32) -> &Self {

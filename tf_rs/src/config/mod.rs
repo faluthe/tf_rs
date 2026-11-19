@@ -4,14 +4,14 @@ use std::{
     sync::{RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
-use log::error;
+use log::{error, info, warn};
 use once_cell::sync::Lazy;
 
 use crate::{struct_with_serialize, types::rgba::ColorF};
 
 static C: Lazy<RwLock<Config>> = Lazy::new(|| {
     let cfg = Config::load_or_create("default").unwrap_or_else(|e| {
-        error!("Failed to load config: {}", e);
+        error!("Failed to load default config, using defaults: {e:#}");
         Config::default()
     });
     RwLock::new(cfg)
@@ -287,12 +287,18 @@ impl Config {
     fn get_config_names() -> Vec<String> {
         let home = match env::var("HOME") {
             Ok(h) => h,
-            Err(_) => return Vec::new(),
+            Err(e) => {
+                warn!("Can't list configs, HOME is unset: {e}");
+                return Vec::new();
+            }
         };
         let mut configs = Vec::new();
         let dir = match fs::read_dir(&home) {
             Ok(d) => d,
-            Err(_) => return Vec::new(),
+            Err(e) => {
+                warn!("Can't list configs in {home}: {e}");
+                return Vec::new();
+            }
         };
         for entry in dir {
             if let Ok(entry) = entry {
@@ -317,28 +323,23 @@ impl Config {
     pub fn load(&mut self, name: &str) -> anyhow::Result<()> {
         let path = Config::get_path(name)?;
 
-        if path.exists() {
-            match fs::read_to_string(&path) {
-                Ok(s) => {
-                    if let Ok(cfg) = s.parse::<Config>() {
-                        *self = cfg;
-                        return Ok(());
-                    }
-                }
-                Err(e) => {
-                    return Err(anyhow::anyhow!("Failed to read config file: {}", e));
-                }
-            }
-        }
+        let s = fs::read_to_string(&path)
+            .map_err(|e| anyhow::anyhow!("Failed to read {}: {e}", path.display()))?;
+        *self = s
+            .parse::<Config>()
+            .map_err(|e| anyhow::anyhow!("Failed to parse {}: {e}", path.display()))?;
 
-        Err(anyhow::anyhow!("Config file does not exist"))
+        info!("Loaded config {name}");
+        Ok(())
     }
 
     pub fn save(&self, name: &str) -> anyhow::Result<()> {
         let path = Config::get_path(name)?;
 
-        fs::write(&path, self.to_string())?;
+        fs::write(&path, self.to_string())
+            .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", path.display()))?;
 
+        info!("Saved config {name}");
         Ok(())
     }
 
@@ -347,18 +348,28 @@ impl Config {
 
         if path.exists() {
             match fs::read_to_string(&path) {
-                Ok(s) => {
-                    if let Ok(cfg) = s.parse::<Config>() {
+                Ok(s) => match s.parse::<Config>() {
+                    Ok(cfg) => {
+                        info!("Loaded config {name}");
                         return Ok(cfg);
                     }
-                }
-                Err(_) => {}
+                    Err(e) => warn!(
+                        "Failed to parse {}, overwriting with defaults: {e}",
+                        path.display()
+                    ),
+                },
+                Err(e) => warn!(
+                    "Failed to read {}, overwriting with defaults: {e}",
+                    path.display()
+                ),
             }
         }
 
         let cfg = Config::default();
 
-        fs::write(&path, cfg.to_string())?;
+        fs::write(&path, cfg.to_string())
+            .map_err(|e| anyhow::anyhow!("Failed to write {}: {e}", path.display()))?;
+        info!("Created config {name} at {}", path.display());
 
         Ok(cfg)
     }
