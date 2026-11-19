@@ -16,8 +16,8 @@ use crate::{
     Rect,
     context::Context,
     flags::{EditFlags, LayoutFormat, PanelFlags, TextAlignment},
-    input::Input,
     icon::Icon,
+    input::Input,
     style::{Color, Font, Palette},
 };
 
@@ -400,7 +400,14 @@ impl Nuklear {
         match p {
             Some(p) => {
                 let c = p.accent;
-                self.colored_label(title.to_uppercase(), TextAlignment::LEFT, c.r, c.g, c.b, c.a);
+                self.colored_label(
+                    title.to_uppercase(),
+                    TextAlignment::LEFT,
+                    c.r,
+                    c.g,
+                    c.b,
+                    c.a,
+                );
             }
             None => {
                 self.label(title.to_uppercase(), TextAlignment::LEFT);

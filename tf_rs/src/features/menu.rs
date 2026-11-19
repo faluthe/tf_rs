@@ -342,7 +342,11 @@ fn colors_tab(nk: &Nuklear, config: &mut Config) {
                 ("Dispenser", &mut config.colors.buildings.dispenser),
                 ("Teleporter", &mut config.colors.buildings.teleporter),
             ] {
-                pair_labels(nk, &format!("{name} / enemy"), &format!("{name} / friendly"));
+                pair_labels(
+                    nk,
+                    &format!("{name} / enemy"),
+                    &format!("{name} / friendly"),
+                );
                 nk.row_dynamic(PICKER, 2);
                 pick(nk, &mut c.enemy);
                 pick(nk, &mut c.friendly);
@@ -464,8 +468,7 @@ fn misc_tab(nk: &Nuklear, config: &mut Config) {
         nk.single_select_combo(&font_names, &mut config.menu.font);
     });
 
-    nk.section("Session", false)
-        .row_dynamic(ROW, 1);
+    nk.section("Session", false).row_dynamic(ROW, 1);
     if nk.button_label("Unload") {
         log::info!("Unload requested");
         Globals::write().unload_requested = true;
@@ -628,8 +631,7 @@ fn players_tab(nk: &Nuklear) {
         nk.group_end();
     }
 
-    nk.section("Category names", false)
-        .row_dynamic(ROW, 2);
+    nk.section("Category names", false).row_dynamic(ROW, 2);
     for i in 0..2 {
         let mut buf = CAT_NAME_BUFS[i].write().unwrap();
         nk.edit_string(EditFlags::EDIT_FIELD, buf.as_mut_ptr() as *mut i8, 64);

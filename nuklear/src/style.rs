@@ -85,24 +85,48 @@ impl Palette {
         set(nk_style_colors_NK_COLOR_SELECT_ACTIVE, self.widget_active);
         set(nk_style_colors_NK_COLOR_SLIDER, self.widget);
         set(nk_style_colors_NK_COLOR_SLIDER_CURSOR, self.accent);
-        set(nk_style_colors_NK_COLOR_SLIDER_CURSOR_HOVER, self.accent_hover);
-        set(nk_style_colors_NK_COLOR_SLIDER_CURSOR_ACTIVE, self.accent_hover);
+        set(
+            nk_style_colors_NK_COLOR_SLIDER_CURSOR_HOVER,
+            self.accent_hover,
+        );
+        set(
+            nk_style_colors_NK_COLOR_SLIDER_CURSOR_ACTIVE,
+            self.accent_hover,
+        );
         set(nk_style_colors_NK_COLOR_PROPERTY, self.widget);
         set(nk_style_colors_NK_COLOR_EDIT, self.panel);
         set(nk_style_colors_NK_COLOR_EDIT_CURSOR, self.accent);
         set(nk_style_colors_NK_COLOR_COMBO, self.widget);
         set(nk_style_colors_NK_COLOR_CHART, self.widget);
         set(nk_style_colors_NK_COLOR_CHART_COLOR, self.accent);
-        set(nk_style_colors_NK_COLOR_CHART_COLOR_HIGHLIGHT, self.accent_hover);
+        set(
+            nk_style_colors_NK_COLOR_CHART_COLOR_HIGHLIGHT,
+            self.accent_hover,
+        );
         set(nk_style_colors_NK_COLOR_SCROLLBAR, self.panel);
-        set(nk_style_colors_NK_COLOR_SCROLLBAR_CURSOR, self.widget_active);
-        set(nk_style_colors_NK_COLOR_SCROLLBAR_CURSOR_HOVER, self.text_dim);
-        set(nk_style_colors_NK_COLOR_SCROLLBAR_CURSOR_ACTIVE, self.accent);
+        set(
+            nk_style_colors_NK_COLOR_SCROLLBAR_CURSOR,
+            self.widget_active,
+        );
+        set(
+            nk_style_colors_NK_COLOR_SCROLLBAR_CURSOR_HOVER,
+            self.text_dim,
+        );
+        set(
+            nk_style_colors_NK_COLOR_SCROLLBAR_CURSOR_ACTIVE,
+            self.accent,
+        );
         set(nk_style_colors_NK_COLOR_TAB_HEADER, self.panel);
         set(nk_style_colors_NK_COLOR_KNOB, self.widget);
         set(nk_style_colors_NK_COLOR_KNOB_CURSOR, self.accent);
-        set(nk_style_colors_NK_COLOR_KNOB_CURSOR_HOVER, self.accent_hover);
-        set(nk_style_colors_NK_COLOR_KNOB_CURSOR_ACTIVE, self.accent_hover);
+        set(
+            nk_style_colors_NK_COLOR_KNOB_CURSOR_HOVER,
+            self.accent_hover,
+        );
+        set(
+            nk_style_colors_NK_COLOR_KNOB_CURSOR_ACTIVE,
+            self.accent_hover,
+        );
 
         let border: nk_color = self.border.into();
         let accent: nk_color = self.accent.into();
@@ -238,9 +262,12 @@ impl Font {
 }
 
 // Fonts ship with the vendored nuklear sources
-static FONT_ROBOTO: &[u8] = include_bytes!("../../nuklear_sys/nuklear/extra_font/Roboto-Regular.ttf");
-static FONT_COUSINE: &[u8] = include_bytes!("../../nuklear_sys/nuklear/extra_font/Cousine-Regular.ttf");
+static FONT_ROBOTO: &[u8] =
+    include_bytes!("../../nuklear_sys/nuklear/extra_font/Roboto-Regular.ttf");
+static FONT_COUSINE: &[u8] =
+    include_bytes!("../../nuklear_sys/nuklear/extra_font/Cousine-Regular.ttf");
 static FONT_KARLA: &[u8] = include_bytes!("../../nuklear_sys/nuklear/extra_font/Karla-Regular.ttf");
 static FONT_PROGGY: &[u8] = include_bytes!("../../nuklear_sys/nuklear/extra_font/ProggyClean.ttf");
-pub(crate) static FONT_HEADING: &[u8] = include_bytes!("../../nuklear_sys/nuklear/extra_font/Roboto-Bold.ttf");
+pub(crate) static FONT_HEADING: &[u8] =
+    include_bytes!("../../nuklear_sys/nuklear/extra_font/Roboto-Bold.ttf");
 pub(crate) const HEADING_SIZE: f32 = 13.0;

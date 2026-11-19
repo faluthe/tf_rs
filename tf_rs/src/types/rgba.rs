@@ -43,5 +43,3 @@ pub static ORANGE: ColorF = ColorF {
     b: 0.0,
     a: 1.0,
 };
-
-

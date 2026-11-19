@@ -103,7 +103,11 @@ fn resample(src: &[u8], w: u32, h: u32, size: u32) -> Vec<u8> {
                     weight += wx * wy;
                 }
             }
-            out.push(if weight > 0.0 { (sum / weight).round() as u8 } else { 0 });
+            out.push(if weight > 0.0 {
+                (sum / weight).round() as u8
+            } else {
+                0
+            });
         }
     }
     out
