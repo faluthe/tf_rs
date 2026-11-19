@@ -5,7 +5,7 @@ mod paint_traverse;
 mod poll_event;
 mod sdlhook;
 mod swap_window;
-mod vtablehook;
+mod vmtshadow;
 
 pub use core::*;
 use create_move::*;
@@ -14,4 +14,4 @@ use paint_traverse::*;
 use poll_event::*;
 use sdlhook::*;
 use swap_window::*;
-use vtablehook::*;
+use vmtshadow::*;

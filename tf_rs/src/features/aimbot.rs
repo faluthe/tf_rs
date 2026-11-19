@@ -11,7 +11,7 @@ use crate::{
 
 pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
     let cmd = unsafe { &mut *cmd };
-    if !config.aimbot.master || Globals::read().is_spectated{
+    if !config.aimbot.master || Globals::read().is_spectated {
         Globals::write().target = None;
         return;
     }
@@ -76,6 +76,7 @@ fn get_target(
                 || player.is_dormant()
                 || player.is_dead()
                 || player.team() == localplayer.team()
+                || (config.aimbot.ignore_invis && player.is_invisible())
             {
                 continue;
             }

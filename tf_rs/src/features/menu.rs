@@ -141,7 +141,8 @@ fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
             .single_select_combo(
                 &["Off", "On", "Firstperson only"],
                 &mut config.aimbot.disable_when_spectated,
-            );
+            )
+            .checkbox("Ignore invisible", &mut config.aimbot.ignore_invis);
 
         let cat_names = player_db::get_names();
         let items = [
@@ -233,7 +234,9 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
         .label("Aimbot", TextAlignment::LEFT)
         .horizontal_separator(1.0)
         .row_dynamic(30.0, 1)
-        .checkbox("Show target", &mut config.esp.aimbot_target);
+        .checkbox("Show target", &mut config.esp.aimbot_target)
+        .row_dynamic(30.0, 1)
+        .checkbox("Ignore invis", &mut config.esp.ignore_invis);
 }
 
 fn colors_tab(nk: &Nuklear, config: &mut Config) {

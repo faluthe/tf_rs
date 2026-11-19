@@ -6,12 +6,14 @@ use crate::hooks::FnSig;
 
 #[derive(Clone)]
 pub struct SDLHook {
+    slot: *mut *mut c_void,
     pub original: FnSig,
 }
 
 impl Default for SDLHook {
     fn default() -> Self {
         SDLHook {
+            slot: ptr::null_mut(),
             original: FnSig::None,
         }
     }
@@ -41,9 +43,23 @@ impl SDLHook {
              * function that is wrapped. We save the orignal and call it in the hook. */
             let offset = ptr::read_unaligned((func as usize + 2) as *const i32);
             let ptr_to_func = (func as usize + 6 + offset as usize) as *mut *mut c_void;
+            self.slot = ptr_to_func;
             self.original = FnSig::from_ptr(*ptr_to_func, hook);
 
             ptr::write(ptr_to_func, hook.as_ptr()?);
+        }
+
+        Ok(())
+    }
+
+    pub fn restore(&self) -> anyhow::Result<()> {
+        // Never hooked
+        if self.slot.is_null() {
+            return Ok(());
+        }
+
+        unsafe {
+            ptr::write(self.slot, self.original.as_ptr()?);
         }
 
         Ok(())
