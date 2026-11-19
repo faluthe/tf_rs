@@ -291,6 +291,7 @@ impl Config {
         if let Some(pos) = w.iter().position(|s| s == "default") {
             w.swap(0, pos);
         }
+        info!("Refreshed config list, found {}", w.len());
     }
 
     // TODO: Clean this up
