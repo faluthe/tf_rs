@@ -1,16 +1,17 @@
 use std::sync::{Mutex, RwLock};
 
 use nuklear::{
-    Nuklear, Rect, Scroll,
+    Color, Font, Nuklear, Rect, Scroll,
     flags::{EditFlags, LayoutFormat, PanelFlags, TextAlignment},
 };
 
 use crate::{
     config::{Config, EntityESPConfig},
+    features::theme,
     globals::Globals,
     interfaces::Interfaces,
     logger, player_db,
-    types::{Player, rgba},
+    types::Player,
 };
 
 // TODO: Clean this up lol
@@ -56,171 +57,203 @@ enum MenuTab {
     Logging,
 }
 
+/// Height of a normal widget row
+const ROW: f32 = 26.0;
+/// Width of the navigation sidebar
+const NAV_W: f32 = 128.0;
+const TABS: [(&str, MenuTab); 7] = [
+    ("Aimbot", MenuTab::Aimbot),
+    ("ESP", MenuTab::ESP),
+    ("Colors", MenuTab::Colors),
+    ("Players", MenuTab::Players),
+    ("Misc", MenuTab::Misc),
+    ("Config", MenuTab::Config),
+    ("Log", MenuTab::Logging),
+];
+
 pub fn draw(nk: &Nuklear) {
     let mut bounds = MENU_BOUNDS.lock().unwrap_or_else(|e| e.into_inner());
     if nk.begin(
         "TF_RS",
-        PanelFlags::BORDER | PanelFlags::MOVABLE | PanelFlags::SCALABLE | PanelFlags::TITLE,
+        PanelFlags::BORDER
+            | PanelFlags::MOVABLE
+            | PanelFlags::SCALABLE
+            | PanelFlags::TITLE
+            | PanelFlags::NO_SCROLLBAR,
         *bounds,
     ) {
         *bounds = nk.window_get_bounds();
         let mut config = Config::write();
+        // Not theme::current(), that would read the config we are holding the write lock on
+        let panel = nk.palette().map_or(Color::hex(0x121314), |p| p.panel);
 
-        nk.row_dynamic(30.0, 7);
-        tab_button(nk, "Aimbot", MenuTab::Aimbot);
-        tab_button(nk, "ESP", MenuTab::ESP);
-        tab_button(nk, "Colors", MenuTab::Colors);
-        tab_button(nk, "Players", MenuTab::Players);
-        tab_button(nk, "Misc", MenuTab::Misc);
-        tab_button(nk, "Config", MenuTab::Config);
-        tab_button(nk, "Logging", MenuTab::Logging);
+        // Sidebar on the left, active tab on the right, both filling the window
+        let (width, height) = nk.get_content_region();
+        let height = (height - 4.0).max(100.0);
+        // Minus the window's horizontal item spacing between the two groups
+        let body_w = (width - NAV_W - 6.0).max(100.0);
+        nk.layout_row_begin(LayoutFormat::STATIC, height, 2)
+            .layout_row_push(NAV_W);
 
-        match unsafe { TAB } {
-            MenuTab::Aimbot => aimbot_tab(nk, &mut config),
-            MenuTab::ESP => esp_tab(nk, &mut config),
-            MenuTab::Colors => colors_tab(nk, &mut config),
-            MenuTab::Misc => misc_tab(nk, &mut config),
-            MenuTab::Config => config_tab(nk, &mut config),
-            MenuTab::Players => players_tab(nk),
-            MenuTab::Logging => logging_tab(nk),
+        nk.push_group_padding(0.0, 6.0);
+        if nk.group_begin_bg("nav", PanelFlags::NO_SCROLLBAR, panel) {
+            nav(nk);
+            nk.group_end();
         }
+        nk.pop_group_padding();
+
+        nk.layout_row_push(body_w);
+        if nk.group_begin("body", PanelFlags::empty()) {
+            match unsafe { TAB } {
+                MenuTab::Aimbot => aimbot_tab(nk, &mut config),
+                MenuTab::ESP => esp_tab(nk, &mut config),
+                MenuTab::Colors => colors_tab(nk, &mut config),
+                MenuTab::Misc => misc_tab(nk, &mut config),
+                MenuTab::Config => config_tab(nk, &mut config),
+                MenuTab::Players => players_tab(nk),
+                MenuTab::Logging => logging_tab(nk),
+            }
+            nk.group_end();
+        }
+        nk.layout_row_end();
     }
     nk.end();
 }
 
-fn tab_button(nk: &Nuklear, title: &str, tab: MenuTab) {
-    let color = if tab == unsafe { TAB } {
-        &rgba::DARK_GREY
-    } else {
-        &rgba::LIGHT_GREY
-    };
-
-    nk.set_button_normal_color(
-        (color.r * 255.0) as u8,
-        (color.g * 255.0) as u8,
-        (color.b * 255.0) as u8,
-        (color.a * 255.0) as u8,
-    );
-    nk.set_button_rounding(0.0);
-
-    if nk.button_label(title) {
-        unsafe {
-            TAB = tab;
+fn nav(nk: &Nuklear) {
+    nk.row_dynamic(28.0, 1);
+    for (title, tab) in TABS {
+        if nk.nav_button(title, tab == unsafe { TAB }) {
+            unsafe {
+                TAB = tab;
+            }
         }
     }
+}
 
-    // Restore button default styles
-    nk.set_button_normal_color(
-        (rgba::LIGHT_GREY.r * 255.0) as u8,
-        (rgba::LIGHT_GREY.g * 255.0) as u8,
-        (rgba::LIGHT_GREY.b * 255.0) as u8,
-        (rgba::LIGHT_GREY.a * 255.0) as u8,
-    );
-    nk.set_button_rounding(4.0);
+/// A row with a label on the left and one widget, drawn by `widget`, on the right
+fn field(nk: &Nuklear, label: &str, widget: impl FnOnce(&Nuklear)) {
+    nk.layout_row_begin(LayoutFormat::DYNAMIC, ROW, 2)
+        .layout_row_push(0.45)
+        .label(label, TextAlignment::LEFT)
+        .layout_row_push(0.55);
+    widget(nk);
+    nk.layout_row_end();
+}
+
+/// Button that shows the bound key and starts listening for a new one when clicked
+fn key_button(nk: &Nuklear, editing: &mut bool, code: u32, is_mouse_button: bool) {
+    let label = if *editing {
+        "Press a key...".to_string()
+    } else if is_mouse_button {
+        format!("Mouse {code}")
+    } else {
+        format!("Key {code}")
+    };
+
+    if nk.button_label(label.as_str()) {
+        *editing = !*editing;
+    }
 }
 
 fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
-    nk.row_dynamic(30.0, 1)
-        .checkbox("Master", &mut config.aimbot.master);
+    let aim = &mut config.aimbot;
 
-    if config.aimbot.master {
-        nk.row_dynamic(30.0, 1)
-            .checkbox("Silent aim", &mut config.aimbot.silent_aim)
-            .row_dynamic(30.0, 2)
-            .checkbox("Use key", &mut config.aimbot.key.use_key);
+    nk.section("Aimbot", true)
+        .row_dynamic(ROW, 1)
+        .checkbox("Enabled", &mut aim.master);
 
-        if config.aimbot.key.use_key {
-            let mut g = Globals::write();
-            let label = if g.aimbot_key_editing {
-                "Press a key...".to_string()
-            } else if config.aimbot.key.is_mouse_button {
-                format!("Aimbot key: Mouse {}", config.aimbot.key.code as u32)
-            } else {
-                format!("Aimbot key: {}", config.aimbot.key.code as u32)
-            };
-
-            if nk.button_label(label.as_str()) {
-                g.aimbot_key_editing = !g.aimbot_key_editing;
-            }
-        } else {
-            nk.label("", TextAlignment::LEFT);
-        }
-
-        nk.row_dynamic(30.0, 1)
-            .checkbox("Building aim", &mut config.aimbot.building_aim)
-            .row_dynamic(30.0, 2)
-            .label(
-                format!("Aimbot FOV: {}", config.aimbot.fov),
-                TextAlignment::LEFT,
-            )
-            .slider_int(1, &mut config.aimbot.fov, 100, 1)
-            .row_dynamic(30.0, 1)
-            .checkbox("Draw FOV", &mut config.aimbot.draw_fov)
-            .row_dynamic(30.0, 2)
-            .label("Disable when spectated", TextAlignment::LEFT)
-            .single_select_combo(
-                &["Off", "On", "Firstperson only"],
-                &mut config.aimbot.disable_when_spectated,
-            )
-            .checkbox("Ignore invisible", &mut config.aimbot.ignore_invis);
-
-        let cat_names = player_db::get_names();
-        let items = [
-            "None",
-            cat_names[0].as_str(),
-            cat_names[1].as_str(),
-            cat_names[2].as_str(),
-            cat_names[3].as_str(),
-        ];
-        let old_ignore = config.aimbot.ignore_category as usize;
-        let old_priority = config.aimbot.priority_category as usize;
-        let mut ignore_idx = old_ignore;
-        let mut priority_idx = old_priority;
-        nk.row_dynamic(30.0, 2)
-            .label("Ignore category", TextAlignment::LEFT)
-            .single_select_combo(&items, &mut ignore_idx);
-        nk.row_dynamic(30.0, 2)
-            .label("Priority category", TextAlignment::LEFT)
-            .single_select_combo(&items, &mut priority_idx);
-        if ignore_idx > 0 && ignore_idx == priority_idx {
-            if ignore_idx != old_ignore {
-                priority_idx = 0;
-            } else {
-                ignore_idx = 0;
-            }
-        }
-        config.aimbot.ignore_category = ignore_idx as u8;
-        config.aimbot.priority_category = priority_idx as u8;
+    if !aim.master {
+        return;
     }
+
+    nk.row_dynamic(ROW, 1)
+        .checkbox("Silent aim", &mut aim.silent_aim)
+        .checkbox("Building aim", &mut aim.building_aim)
+        .checkbox("Ignore invisible", &mut aim.ignore_invis);
+
+    nk.row_dynamic(ROW, 2)
+        .checkbox("Aim key", &mut aim.key.use_key);
+    if aim.key.use_key {
+        let mut g = Globals::write();
+        key_button(
+            nk,
+            &mut g.aimbot_key_editing,
+            aim.key.code,
+            aim.key.is_mouse_button,
+        );
+    } else {
+        nk.spacing(1);
+    }
+
+    nk.section("Targeting", false);
+    field(nk, &format!("Field of view ({})", aim.fov), |nk| {
+        nk.slider_int(1, &mut aim.fov, 100, 1);
+    });
+    nk.row_dynamic(ROW, 1)
+        .checkbox("Draw FOV circle", &mut aim.draw_fov);
+    field(nk, "Disable when spectated", |nk| {
+        nk.single_select_combo(
+            &["Off", "On", "Firstperson only"],
+            &mut aim.disable_when_spectated,
+        );
+    });
+
+    nk.section("Player categories", false);
+    let cat_names = player_db::get_names();
+    let items = [
+        "None",
+        cat_names[0].as_str(),
+        cat_names[1].as_str(),
+        cat_names[2].as_str(),
+        cat_names[3].as_str(),
+    ];
+    let old_ignore = aim.ignore_category as usize;
+    let old_priority = aim.priority_category as usize;
+    let mut ignore_idx = old_ignore;
+    let mut priority_idx = old_priority;
+    field(nk, "Ignore", |nk| {
+        nk.single_select_combo(&items, &mut ignore_idx);
+    });
+    field(nk, "Prioritize", |nk| {
+        nk.single_select_combo(&items, &mut priority_idx);
+    });
+    if ignore_idx > 0 && ignore_idx == priority_idx {
+        if ignore_idx != old_ignore {
+            priority_idx = 0;
+        } else {
+            ignore_idx = 0;
+        }
+    }
+    aim.ignore_category = ignore_idx as u8;
+    aim.priority_category = priority_idx as u8;
 }
 
 fn esp_tab(nk: &Nuklear, config: &mut Config) {
     fn entity_esp_combo(nk: &Nuklear, title: &str, esp_cfg: &mut EntityESPConfig) {
-        nk.row_dynamic(30.0, 2)
-            .label(title, TextAlignment::LEFT)
-            .multi_select_combo(
+        field(nk, title, |nk| {
+            nk.multi_select_combo(
                 &["Boxes", "Names", "Health bar"],
                 &mut [&mut esp_cfg.boxes, &mut esp_cfg.names, &mut esp_cfg.health],
             );
+        });
     }
 
-    nk.row_dynamic(30.0, 1)
-        .checkbox("Master", &mut config.esp.master);
+    let esp = &mut config.esp;
 
-    if !config.esp.master {
+    nk.section("ESP", true)
+        .row_dynamic(ROW, 1)
+        .checkbox("Enabled", &mut esp.master);
+
+    if !esp.master {
         return;
     }
 
-    nk.row_dynamic(30.0, 1)
-        .label("Players", TextAlignment::LEFT)
-        .horizontal_separator(1.0);
-
-    entity_esp_combo(nk, "Enemy Players", &mut config.esp.player_enemy);
-    entity_esp_combo(nk, "Friendly Players", &mut config.esp.player_friendly);
-
-    nk.row_dynamic(30.0, 2)
-        .label("Conditions", TextAlignment::LEFT)
-        .multi_select_combo(
+    nk.section("Players", false);
+    entity_esp_combo(nk, "Enemies", &mut esp.player_enemy);
+    entity_esp_combo(nk, "Teammates", &mut esp.player_friendly);
+    field(nk, "Conditions", |nk| {
+        nk.multi_select_combo(
             &[
                 "Disguised",
                 "Taunting",
@@ -232,49 +265,52 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
                 "Category",
             ],
             &mut [
-                &mut config.esp.conds.disguised.enabled,
-                &mut config.esp.conds.taunting.enabled,
-                &mut config.esp.conds.zoomed.enabled,
-                &mut config.esp.conds.invisible.enabled,
-                &mut config.esp.conds.milked.enabled,
-                &mut config.esp.conds.mg.enabled,
-                &mut config.esp.conds.butter.enabled,
-                &mut config.esp.conds.category,
+                &mut esp.conds.disguised.enabled,
+                &mut esp.conds.taunting.enabled,
+                &mut esp.conds.zoomed.enabled,
+                &mut esp.conds.invisible.enabled,
+                &mut esp.conds.milked.enabled,
+                &mut esp.conds.mg.enabled,
+                &mut esp.conds.butter.enabled,
+                &mut esp.conds.category,
             ],
         );
+    });
 
-    nk.row_dynamic(30.0, 1)
-        .label("Buildings", TextAlignment::LEFT)
-        .horizontal_separator(1.0);
+    nk.section("Buildings", false);
+    entity_esp_combo(nk, "Enemy", &mut esp.building_enemy);
+    entity_esp_combo(nk, "Friendly", &mut esp.building_friendly);
 
-    entity_esp_combo(nk, "Enemy Buildings", &mut config.esp.building_enemy);
-    entity_esp_combo(nk, "Friendly Buildings", &mut config.esp.building_friendly);
-
-    nk.row_dynamic(30.0, 1)
-        .label("Aimbot", TextAlignment::LEFT)
-        .horizontal_separator(1.0)
-        .row_dynamic(30.0, 1)
-        .checkbox("Show target", &mut config.esp.aimbot_target)
-        .row_dynamic(30.0, 1)
-        .checkbox("Ignore invis", &mut config.esp.ignore_invis);
+    nk.section("Other", false)
+        .row_dynamic(ROW, 1)
+        .checkbox("Show aimbot target", &mut esp.aimbot_target)
+        .checkbox("Ignore invisible", &mut esp.ignore_invis);
 }
 
 fn colors_tab(nk: &Nuklear, config: &mut Config) {
     use crate::types::ColorF;
 
+    const PICKER: f32 = 180.0;
+
     fn pick(nk: &Nuklear, c: &mut ColorF) {
         nk.color_picker(&mut c.r, &mut c.g, &mut c.b, &mut c.a);
     }
 
+    fn pair_labels(nk: &Nuklear, left: &str, right: &str) {
+        nk.row_dynamic(ROW, 2)
+            .dim_label(left, TextAlignment::LEFT)
+            .dim_label(right, TextAlignment::LEFT);
+    }
+
+    nk.section("ESP colors", true);
+
     // --- Boxes ---
     if nk.tree_push("Boxes") {
-        nk.row_dynamic(30.0, 1)
+        nk.row_dynamic(ROW, 1)
             .checkbox("Use team colors", &mut config.colors.boxes.use_team_colors);
         if !config.colors.boxes.use_team_colors {
-            nk.row_dynamic(30.0, 2)
-                .label("Enemy", TextAlignment::LEFT)
-                .label("Friendly", TextAlignment::LEFT);
-            nk.row_dynamic(200.0, 2);
+            pair_labels(nk, "Enemy", "Friendly");
+            nk.row_dynamic(PICKER, 2);
             pick(nk, &mut config.colors.boxes.enemy);
             pick(nk, &mut config.colors.boxes.friendly);
         }
@@ -283,13 +319,11 @@ fn colors_tab(nk: &Nuklear, config: &mut Config) {
 
     // --- Names ---
     if nk.tree_push("Names") {
-        nk.row_dynamic(30.0, 1)
+        nk.row_dynamic(ROW, 1)
             .checkbox("Use team colors", &mut config.colors.names.use_team_colors);
         if !config.colors.names.use_team_colors {
-            nk.row_dynamic(30.0, 2)
-                .label("Enemy", TextAlignment::LEFT)
-                .label("Friendly", TextAlignment::LEFT);
-            nk.row_dynamic(200.0, 2);
+            pair_labels(nk, "Enemy", "Friendly");
+            nk.row_dynamic(PICKER, 2);
             pick(nk, &mut config.colors.names.enemy);
             pick(nk, &mut config.colors.names.friendly);
         }
@@ -298,7 +332,7 @@ fn colors_tab(nk: &Nuklear, config: &mut Config) {
 
     // --- Buildings ---
     if nk.tree_push("Buildings") {
-        nk.row_dynamic(30.0, 1).checkbox(
+        nk.row_dynamic(ROW, 1).checkbox(
             "Use team colors",
             &mut config.colors.buildings.use_team_colors,
         );
@@ -308,13 +342,8 @@ fn colors_tab(nk: &Nuklear, config: &mut Config) {
                 ("Dispenser", &mut config.colors.buildings.dispenser),
                 ("Teleporter", &mut config.colors.buildings.teleporter),
             ] {
-                nk.row_dynamic(30.0, 1)
-                    .label(name, TextAlignment::LEFT)
-                    .horizontal_separator(1.0)
-                    .row_dynamic(30.0, 2)
-                    .label("Enemy", TextAlignment::LEFT)
-                    .label("Friendly", TextAlignment::LEFT);
-                nk.row_dynamic(200.0, 2);
+                pair_labels(nk, &format!("{name} / enemy"), &format!("{name} / friendly"));
+                nk.row_dynamic(PICKER, 2);
                 pick(nk, &mut c.enemy);
                 pick(nk, &mut c.friendly);
             }
@@ -366,11 +395,11 @@ fn colors_tab(nk: &Nuklear, config: &mut Config) {
         let conds = &mut config.esp.conds;
         for chunk in enabled_indices.chunks(2) {
             let n = chunk.len() as i32;
-            nk.row_dynamic(30.0, n);
+            nk.row_dynamic(ROW, n);
             for &i in chunk {
-                nk.label(COND_NAMES[i], TextAlignment::LEFT);
+                nk.dim_label(COND_NAMES[i], TextAlignment::LEFT);
             }
-            nk.row_dynamic(200.0, n);
+            nk.row_dynamic(PICKER, n);
             for &i in chunk {
                 let c = match i {
                     0 => &mut conds.disguised.color,
@@ -391,16 +420,12 @@ fn colors_tab(nk: &Nuklear, config: &mut Config) {
     if nk.tree_push("Player Categories") {
         let pc = &mut config.colors.player_categories;
         let cat_names = player_db::get_names();
-        nk.row_dynamic(30.0, 2)
-            .label(cat_names[0].as_str(), TextAlignment::LEFT)
-            .label(cat_names[1].as_str(), TextAlignment::LEFT);
-        nk.row_dynamic(200.0, 2);
+        pair_labels(nk, &cat_names[0], &cat_names[1]);
+        nk.row_dynamic(PICKER, 2);
         pick(nk, &mut pc.category1);
         pick(nk, &mut pc.category2);
-        nk.row_dynamic(30.0, 2)
-            .label(cat_names[2].as_str(), TextAlignment::LEFT)
-            .label(cat_names[3].as_str(), TextAlignment::LEFT);
-        nk.row_dynamic(200.0, 2);
+        pair_labels(nk, &cat_names[2], &cat_names[3]);
+        nk.row_dynamic(PICKER, 2);
         pick(nk, &mut pc.category3);
         pick(nk, &mut pc.category4);
         nk.tree_pop();
@@ -408,29 +433,39 @@ fn colors_tab(nk: &Nuklear, config: &mut Config) {
 }
 
 fn misc_tab(nk: &Nuklear, config: &mut Config) {
-    nk.row_dynamic(30.0, 1)
-        .checkbox("Bunnyhop", &mut config.bunnyhop)
-        .row_dynamic(30.0, 1)
-        .checkbox("Spectator list", &mut config.spectator_list)
-        .row_dynamic(30.0, 2)
-        .checkbox("Thirdperson", &mut config.thirdperson.use_key);
+    nk.section("Movement", true)
+        .row_dynamic(ROW, 1)
+        .checkbox("Bunnyhop", &mut config.bunnyhop);
 
+    nk.section("View", false)
+        .row_dynamic(ROW, 1)
+        .checkbox("Spectator list", &mut config.spectator_list)
+        .row_dynamic(ROW, 2)
+        .checkbox("Thirdperson key", &mut config.thirdperson.use_key);
     if config.thirdperson.use_key {
         let mut g = Globals::write();
-        let label = if g.thirdperson_key_editing {
-            "Press a key...".to_string()
-        } else if config.thirdperson.is_mouse_button {
-            format!("Thirdperson key: Mouse {}", config.thirdperson.code as u32)
-        } else {
-            format!("Thirdperson key: {}", config.thirdperson.code as u32)
-        };
-
-        if nk.button_label(label.as_str()) {
-            g.thirdperson_key_editing = !g.thirdperson_key_editing;
-        }
+        key_button(
+            nk,
+            &mut g.thirdperson_key_editing,
+            config.thirdperson.code,
+            config.thirdperson.is_mouse_button,
+        );
+    } else {
+        nk.spacing(1);
     }
 
-    nk.row_dynamic(30.0, 1);
+    nk.section("Interface", false);
+    let theme_names = theme::THEMES.map(|t| t.name);
+    field(nk, "Theme", |nk| {
+        nk.single_select_combo(&theme_names, &mut config.menu.theme);
+    });
+    let font_names = Font::ALL.map(|f| f.name());
+    field(nk, "Font", |nk| {
+        nk.single_select_combo(&font_names, &mut config.menu.font);
+    });
+
+    nk.section("Session", false)
+        .row_dynamic(ROW, 1);
     if nk.button_label("Unload") {
         log::info!("Unload requested");
         Globals::write().unload_requested = true;
@@ -441,11 +476,11 @@ fn config_tab(nk: &Nuklear, config: &mut Config) {
     {
         let configs = Config::list_configs();
 
-        nk.row_dynamic(200.0, 1);
+        nk.section("Configurations", true).row_dynamic(220.0, 1);
         if nk.group_begin("Configs", PanelFlags::BORDER) {
             for (i, cfg) in configs.iter().enumerate() {
-                nk.layout_row_begin(LayoutFormat::DYNAMIC, 30.0, 2)
-                    .layout_row_push(0.8);
+                nk.layout_row_begin(LayoutFormat::DYNAMIC, ROW, 2)
+                    .layout_row_push(0.78);
 
                 let mut selected = (unsafe { SELECTED_CONFIG } == i) as i32;
                 if nk.selectable_label(cfg.as_str(), TextAlignment::LEFT, &mut selected) {
@@ -457,7 +492,7 @@ fn config_tab(nk: &Nuklear, config: &mut Config) {
                     }
                 }
 
-                nk.layout_row_push(0.2);
+                nk.layout_row_push(0.22);
 
                 if selected != 0 && nk.button_label("Save") {
                     if let Err(e) = config.save(cfg) {
@@ -471,16 +506,20 @@ fn config_tab(nk: &Nuklear, config: &mut Config) {
         }
     }
 
-    nk.row_dynamic(30.0, 1);
-
+    nk.row_dynamic(ROW, 3).spacing(2);
     if nk.button_label("Refresh") {
         Config::refresh_configs();
     }
 
+    nk.section("New configuration", false);
     let mut ptr = NEW_CONFIG_NAME.write().unwrap();
-    nk.row_dynamic(30.0, 2)
-        .edit_string(EditFlags::EDIT_FIELD, ptr.as_mut_ptr() as *mut i8, 256);
-    if nk.button_label("Create new") {
+    nk.layout_row_begin(LayoutFormat::DYNAMIC, ROW, 2)
+        .layout_row_push(0.67)
+        .edit_string(EditFlags::EDIT_FIELD, ptr.as_mut_ptr() as *mut i8, 256)
+        .layout_row_push(0.33);
+    let create = nk.button_label("Create");
+    nk.layout_row_end();
+    if create {
         let end = ptr.iter().position(|&c| c == 0).unwrap_or(256);
         match str::from_utf8(&ptr[..end]) {
             Ok(name) if !name.is_empty() => {
@@ -509,20 +548,21 @@ fn players_tab(nk: &Nuklear) {
 
     let engine = Interfaces::engine_client();
 
+    nk.section("Players", true);
     if !engine.is_in_game() {
-        nk.row_dynamic(30.0, 1)
-            .label("Not in a game.", TextAlignment::LEFT);
+        nk.row_dynamic(ROW, 1)
+            .dim_label("Not in a game.", TextAlignment::LEFT);
         return;
     }
 
     nk.layout_row_begin(LayoutFormat::DYNAMIC, 20.0, 3)
-        .layout_row_push(0.30);
-    nk.label("Name", TextAlignment::LEFT);
-    nk.layout_row_push(0.45);
-    nk.label("GUID", TextAlignment::LEFT);
-    nk.layout_row_push(0.25);
-    nk.label("Category", TextAlignment::LEFT);
-    nk.layout_row_end();
+        .layout_row_push(0.30)
+        .dim_label("NAME", TextAlignment::LEFT)
+        .layout_row_push(0.45)
+        .dim_label("GUID", TextAlignment::LEFT)
+        .layout_row_push(0.25)
+        .dim_label("CATEGORY", TextAlignment::LEFT)
+        .layout_row_end();
 
     // Collect players grouped by team name
     let mut teams: Vec<(String, Vec<(String, String)>)> = Vec::new();
@@ -551,7 +591,9 @@ fn players_tab(nk: &Nuklear) {
     }
     teams.sort_by(|a, b| a.0.cmp(&b.0));
 
-    nk.row_dynamic(400.0, 1);
+    // Leave room for the category name editor below
+    let (_, height) = nk.get_content_region();
+    nk.row_dynamic((height - 220.0).max(150.0), 1);
     if nk.group_begin("Players", PanelFlags::BORDER) {
         for (team_name, players) in &teams {
             let (r, g, b) = match team_name.as_str() {
@@ -559,47 +601,48 @@ fn players_tab(nk: &Nuklear) {
                 "Blue" => (100u8, 160u8, 255u8),
                 _ => (200u8, 200u8, 200u8),
             };
-            nk.layout_row_begin(LayoutFormat::DYNAMIC, 26.0, 1)
-                .layout_row_push(1.0);
-            nk.colored_label(team_name.as_str(), TextAlignment::LEFT, r, g, b, 255);
-            nk.layout_row_end();
-            nk.row_dynamic(1.0, 1).horizontal_separator(2.0);
+            nk.row_dynamic(22.0, 1).colored_label(
+                team_name.to_uppercase(),
+                TextAlignment::LEFT,
+                r,
+                g,
+                b,
+                255,
+            );
+            nk.horizontal_separator(1.0);
 
             for (name, guid) in players {
                 let cat = player_db::get(guid.as_str());
                 let cat_display = cat.display_name();
 
-                nk.layout_row_begin(LayoutFormat::DYNAMIC, 20.0, 3)
+                nk.layout_row_begin(LayoutFormat::DYNAMIC, 22.0, 3)
                     .layout_row_push(0.30);
                 nk.label(name.as_str(), TextAlignment::LEFT);
                 nk.layout_row_push(0.45);
-                nk.label(guid.as_str(), TextAlignment::LEFT);
+                nk.dim_label(guid.as_str(), TextAlignment::LEFT);
                 nk.layout_row_push(0.25);
                 if nk.button_label(cat_display.as_str()) {
                     player_db::set(guid.as_str(), cat.next());
                 }
                 nk.layout_row_end();
-                nk.row_dynamic(1.0, 1).horizontal_separator(1.0);
             }
         }
         nk.group_end();
     }
 
-    nk.row_dynamic(1.0, 1).horizontal_separator(1.0);
-    nk.row_dynamic(30.0, 1)
-        .label("Category Names", TextAlignment::LEFT);
-    nk.row_dynamic(30.0, 2);
+    nk.section("Category names", false)
+        .row_dynamic(ROW, 2);
     for i in 0..2 {
         let mut buf = CAT_NAME_BUFS[i].write().unwrap();
         nk.edit_string(EditFlags::EDIT_FIELD, buf.as_mut_ptr() as *mut i8, 64);
     }
-    nk.row_dynamic(30.0, 2);
+    nk.row_dynamic(ROW, 2);
     for i in 2..4 {
         let mut buf = CAT_NAME_BUFS[i].write().unwrap();
         nk.edit_string(EditFlags::EDIT_FIELD, buf.as_mut_ptr() as *mut i8, 64);
     }
-    nk.row_dynamic(30.0, 1);
-    if nk.button_label("Save Names") {
+    nk.row_dynamic(ROW, 2).spacing(1);
+    if nk.button_label("Save names") {
         for i in 0..4 {
             let buf = CAT_NAME_BUFS[i].read().unwrap();
             let end = buf.iter().position(|&c| c == 0).unwrap_or(64);
@@ -611,8 +654,8 @@ fn players_tab(nk: &Nuklear) {
 
 fn logging_tab(nk: &Nuklear) {
     const ROW_HEIGHT: f32 = 18.0;
-    // Row height plus nuklear's default vertical item spacing
-    const ROW_STEP: u32 = ROW_HEIGHT as u32 + 4;
+    // Row height plus the theme's vertical item spacing
+    const ROW_STEP: u32 = ROW_HEIGHT as u32 + 5;
 
     let mut view = LOG_VIEW.lock().unwrap_or_else(|e| e.into_inner());
     let view = &mut *view;
@@ -625,21 +668,26 @@ fn logging_tab(nk: &Nuklear) {
         view.seen = total;
     }
 
+    let text = nk.palette().map_or(Color::hex(0xc8c8c8), |p| p.text);
+
     // Fill the rest of the window
+    nk.section("Log", true);
     let (_, height) = nk.get_content_region();
-    nk.row_dynamic((height - 56.0).max(100.0), 1);
+    nk.row_dynamic((height - 44.0).max(100.0), 1);
+    nk.push_font(Font::Cousine);
     if nk.group_scrolled_begin("Log", PanelFlags::BORDER, &mut view.scroll) {
         nk.row_dynamic(ROW_HEIGHT, 1);
         for line in &view.lines {
             let (r, g, b) = if line.contains(" ERROR ") {
-                (255, 80, 80)
+                (235, 80, 70)
             } else if line.contains(" WARN ") {
-                (255, 200, 80)
+                (230, 180, 70)
             } else {
-                (200, 200, 200)
+                (text.r, text.g, text.b)
             };
             nk.colored_label(line.as_str(), TextAlignment::LEFT, r, g, b, 255);
         }
         nk.group_end();
     }
+    nk.pop_font();
 }
