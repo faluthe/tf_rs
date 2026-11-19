@@ -1,5 +1,6 @@
 use core::panic;
 use std::{
+    io::ErrorKind,
     path::Path,
     process::{Command, ExitCode},
 };
@@ -67,14 +68,36 @@ fn open_debug_terminal(lib_path: &str) {
         .join(LOG_FILE);
 
     // -F follows the file across the truncate tf_rs does on each injection
-    let status = Command::new("gnome-terminal")
-        .args(["--", "tail", "-n", "0", "-F"])
-        .arg(&log_path)
-        .status()
-        .expect("Failed to execute terminal command");
-    if !status.success() {
-        panic!("Failed to open terminal for {}", log_path.display());
+    let tail = ["tail", "-n", "0", "-F"];
+
+    /* The user's default terminal, in order of preference: $TERMINAL (which
+     * by convention takes -e), the xdg-terminal-exec spec launcher, then
+     * Debian's x-terminal-emulator alternative. */
+    let mut candidates: Vec<(String, Option<&str>)> = Vec::new();
+    if let Ok(term) = std::env::var("TERMINAL") {
+        if !term.is_empty() {
+            candidates.push((term, Some("-e")));
+        }
     }
+    candidates.push(("xdg-terminal-exec".to_string(), None));
+    candidates.push(("x-terminal-emulator".to_string(), Some("-e")));
+
+    for (term, exec_flag) in &candidates {
+        let mut cmd = Command::new(term);
+        cmd.args(exec_flag).args(tail).arg(&log_path);
+
+        // Don't wait, some terminals only exit when their window closes
+        match cmd.spawn() {
+            Ok(_) => return,
+            Err(e) if e.kind() == ErrorKind::NotFound => continue,
+            Err(e) => eprintln!("Failed to launch {term}: {e}"),
+        }
+    }
+
+    eprintln!(
+        "No terminal found, set $TERMINAL or run: tail -n 0 -F {}",
+        log_path.display()
+    );
 }
 
 fn main() -> ExitCode {
