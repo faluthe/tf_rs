@@ -10,12 +10,16 @@
  * kept dlclose from unloading us. */
 
 use std::{
+    collections::VecDeque,
     ffi::{CString, OsStr},
     fmt::Write,
     mem,
     os::unix::ffi::OsStrExt,
     path::Path,
-    sync::atomic::{AtomicI32, Ordering},
+    sync::{
+        Mutex,
+        atomic::{AtomicI32, Ordering},
+    },
 };
 
 use log::{LevelFilter, Log, Metadata, Record};
@@ -24,6 +28,12 @@ use crate::helpers;
 
 /// Must match the name the injector tails.
 const LOG_FILE: &str = "tf_rs.log";
+
+/// Most recent lines kept in memory for the menu's log view.
+const MAX_LINES: usize = 1000;
+
+/// Lines written to the log file, oldest first, and the total number ever written.
+static LINES: Mutex<(VecDeque<String>, u64)> = Mutex::new((VecDeque::new(), 0));
 
 static LOGGER: FileLogger = FileLogger {
     fd: AtomicI32::new(-1),
@@ -56,6 +66,14 @@ impl Log for FileLogger {
         let _ = writeln!(line, " {:<5} {target}: {}", record.level(), record.args());
 
         write_all(fd, line.as_bytes());
+
+        line.pop();
+        let mut lines = LINES.lock().unwrap_or_else(|e| e.into_inner());
+        if lines.0.len() == MAX_LINES {
+            lines.0.pop_front();
+        }
+        lines.0.push_back(line);
+        lines.1 += 1;
     }
 
     fn flush(&self) {}
@@ -88,6 +106,17 @@ pub fn shutdown() {
     if fd >= 0 {
         unsafe { libc::close(fd) };
     }
+
+    // Free the buffered lines, the heap outlives our unmapping
+    LINES.lock().unwrap_or_else(|e| e.into_inner()).0 = VecDeque::new();
+}
+
+/// Copy the buffered lines out if more than `seen` lines have been logged since.
+/// Returns the new total line count alongside the lines.
+pub fn lines_since(seen: u64) -> Option<(Vec<String>, u64)> {
+    // Copy rather than hand out the guard, so nothing logs while we hold the lock
+    let lines = LINES.lock().unwrap_or_else(|e| e.into_inner());
+    (lines.1 != seen).then(|| (lines.0.iter().cloned().collect(), lines.1))
 }
 
 fn open_log_file() -> Option<i32> {

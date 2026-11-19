@@ -6,12 +6,12 @@ use nuklear_sys::{
     nk_checkbox_label, nk_color, nk_color_format_NK_RGBA, nk_color_picker, nk_colorf,
     nk_collapse_states_NK_MINIMIZED, nk_combo_begin_label, nk_combo_end, nk_context,
     nk_edit_string_zero_terminated, nk_end, nk_filter_default, nk_flags, nk_font_atlas,
-    nk_group_begin, nk_group_end, nk_input_begin, nk_input_end, nk_input_is_key_released,
+    nk_group_begin, nk_group_end, nk_group_scrolled_begin, nk_input_begin, nk_input_end, nk_input_is_key_released,
     nk_label, nk_label_colored, nk_layout_row_begin, nk_layout_row_dynamic, nk_layout_row_end,
-    nk_layout_row_push, nk_rect, nk_rule_horizontal, nk_sdl_font_stash_begin,
+    nk_layout_row_push, nk_rect, nk_rule_horizontal, nk_scroll, nk_sdl_font_stash_begin,
     nk_sdl_font_stash_end, nk_sdl_handle_event, nk_sdl_init, nk_sdl_render, nk_selectable_label,
     nk_slider_int, nk_tree_pop, nk_tree_push_hashed, nk_tree_type_NK_TREE_NODE, nk_vec2,
-    nk_widget_width, nk_window_get_content_region, nk_window_set_bounds,
+    nk_widget_width, nk_window_get_bounds, nk_window_get_content_region, nk_window_set_bounds,
 };
 
 static CONTEXT: OnceLock<Context> = OnceLock::new();
@@ -97,6 +97,10 @@ impl Context {
         }
     }
 
+    pub(crate) fn window_get_bounds(&self) -> nk_rect {
+        unsafe { nk_window_get_bounds(self.nk_ctx) }
+    }
+
     pub(crate) fn window_get_content_region(&self) -> (f32, f32) {
         unsafe {
             let rect = nk_window_get_content_region(self.nk_ctx);
@@ -106,6 +110,15 @@ impl Context {
 
     pub(crate) fn group_begin(&self, title: CString, flags: nk_flags) -> bool {
         unsafe { nk_group_begin(self.nk_ctx, title.as_ptr(), flags) != 0 }
+    }
+
+    pub(crate) fn group_scrolled_begin(
+        &self,
+        title: CString,
+        scroll: *mut nk_scroll,
+        flags: nk_flags,
+    ) -> bool {
+        unsafe { nk_group_scrolled_begin(self.nk_ctx, scroll, title.as_ptr(), flags) != 0 }
     }
 
     pub(crate) fn layout_row_begin(&self, fmt: u32, row_height: f32, cols: i32) {
