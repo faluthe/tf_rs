@@ -545,9 +545,13 @@ fn players_tab(nk: &Nuklear) {
         }
     });
 
-    let engine = Interfaces::engine_client();
-
     nk.section("Players", true);
+    player_list(nk);
+    category_names(nk);
+}
+
+fn player_list(nk: &Nuklear) {
+    let engine = Interfaces::engine_client();
     if !engine.is_in_game() {
         nk.row_dynamic(ROW, 1)
             .dim_label("Not in a game.", TextAlignment::LEFT);
@@ -628,7 +632,9 @@ fn players_tab(nk: &Nuklear) {
         }
         nk.group_end();
     }
+}
 
+fn category_names(nk: &Nuklear) {
     nk.section("Category names", false).row_dynamic(ROW, 2);
     for i in 0..2 {
         let mut buf = CAT_NAME_BUFS[i].write().unwrap();
@@ -639,7 +645,7 @@ fn players_tab(nk: &Nuklear) {
         let mut buf = CAT_NAME_BUFS[i].write().unwrap();
         nk.edit_string(EditFlags::EDIT_FIELD, buf.as_mut_ptr() as *mut i8, 64);
     }
-    nk.row_dynamic(ROW, 2).spacing(1);
+    nk.row_dynamic(ROW, 1);
     if nk.button_label("Save names") {
         for i in 0..4 {
             let buf = CAT_NAME_BUFS[i].read().unwrap();
