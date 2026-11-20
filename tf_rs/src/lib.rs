@@ -64,6 +64,8 @@ pub(crate) fn unload() {
     if HOOKS_RESTORED.load(Ordering::SeqCst) {
         return;
     }
+    // The open menu made the cursor visible, hand it back to the game
+    Interfaces::surface().set_cursor_visible(false);
     restore_hooks();
     // Nothing may run after a successful dlclose_self, the logger is closing
     if let Err(e) = unsafe { dlclose_self() } {
