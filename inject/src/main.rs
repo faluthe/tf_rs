@@ -1,8 +1,9 @@
 use core::panic;
 use std::{
-    io::ErrorKind,
+    io::{BufRead, BufReader, ErrorKind, IsTerminal, Read},
     path::Path,
-    process::{Command, ExitCode},
+    process::{Command, ExitCode, Stdio},
+    thread,
 };
 
 use serde::Deserialize;
@@ -13,19 +14,86 @@ struct Message {
     filenames: Vec<String>,
 }
 
+/// Drops ANSI escape sequences so cargo's colored status lines can be matched.
+fn strip_ansi(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Skip to the end of the CSI sequence, which ends with a letter
+            for c in chars.by_ref() {
+                if c.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
 fn get_lib_path(release: bool) -> String {
-    let mut args = vec!["build", "-p", "tf_rs", "--message-format=json"];
+    let color = std::io::stderr().is_terminal();
+    let mut args = vec![
+        "build",
+        "-p",
+        "tf_rs",
+        "--message-format=json-render-diagnostics",
+    ];
     if release {
         args.push("--release");
     }
+    // cargo turns color off when its stderr is a pipe
+    if color {
+        args.push("--color=always");
+    }
 
-    let output = Command::new("cargo")
+    let mut child = Command::new("cargo")
         .args(&args)
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .expect("Failed to execute cargo build");
 
+    /* Relay cargo's progress and diagnostics, but replace "Finished" when
+     * nothing was compiled since there was nothing to finish. */
+    let stderr = child.stderr.take().expect("cargo stderr not piped");
+    let relay = thread::spawn(move || {
+        let mut compiled = false;
+        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+            let status = strip_ansi(&line);
+            let status = status.trim_start();
+            if status.starts_with("Compiling") {
+                compiled = true;
+            } else if !compiled && status.starts_with("Finished") {
+                if color {
+                    eprintln!("\x1b[1;32m{:>12}\x1b[0m no rebuild needed", "Up to date,");
+                } else {
+                    eprintln!("{:>12} no rebuild needed", "Up to date,");
+                }
+                continue;
+            }
+            eprintln!("{line}");
+        }
+    });
+
+    let mut stdout = String::new();
+    child
+        .stdout
+        .take()
+        .expect("cargo stdout not piped")
+        .read_to_string(&mut stdout)
+        .expect("Failed to read cargo output");
+    let status = child.wait().expect("Failed to wait on cargo build");
+    relay.join().expect("stderr relay thread panicked");
+    if !status.success() {
+        eprintln!("cargo build failed");
+        std::process::exit(1);
+    }
+
     let mut lib_path = None;
-    for line in String::from_utf8_lossy(&output.stdout).lines() {
+    for line in stdout.lines() {
         if let Ok(msg) = serde_json::from_str::<Message>(line) {
             if msg.reason == "compiler-artifact"
                 && !msg.filenames.is_empty()
