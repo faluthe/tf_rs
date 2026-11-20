@@ -12,6 +12,7 @@ pub(super) fn misc_tab(nk: &Nuklear, config: &mut Config) {
         .row_dynamic(ROW, 1)
         .checkbox("Spectator list", &mut config.spectator_list)
         .checkbox("No zoom", &mut config.no_zoom)
+        .checkbox("Remove scope", &mut config.remove_scope)
         .row_dynamic(ROW, 2)
         .checkbox("Thirdperson key", &mut config.thirdperson.use_key);
     if config.thirdperson.use_key {

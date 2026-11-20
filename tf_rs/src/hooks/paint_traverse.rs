@@ -8,11 +8,18 @@ pub extern "C" fn hk_paint_traverse(
     force_repaint: i8,
     allow_force: i8,
 ) -> i64 {
+    let panel_iface = Interfaces::panel();
+    let panel_name = panel_iface.panel_name(panel);
+
+    if panel_name == "HudScope" && Config::read().remove_scope {
+        return 0;
+    }
+
     let rc = Hooks::paint_traverse()
         .call_paint_traverse(this, panel, force_repaint, allow_force)
         .expect("Invalid PaintTraverse function signature");
 
-    if Interfaces::panel().panel_name(panel) != "FocusOverlayPanel" {
+    if panel_name != "FocusOverlayPanel" {
         return rc;
     }
 

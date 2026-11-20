@@ -34,6 +34,7 @@ struct_with_serialize! {
         pub thirdperson: KeyConfig,
         pub spectator_list: bool,
         pub no_zoom: bool,
+        pub remove_scope: bool,
         pub colors: ColorsConfig,
         pub menu: MenuConfig,
     }
