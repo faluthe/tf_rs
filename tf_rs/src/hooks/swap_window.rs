@@ -4,7 +4,7 @@ use nuklear::Nuklear;
 
 use crate::{
     config::Config,
-    features::{menu, spectator_list},
+    features::{menu, spectator_list, theme},
     globals::Globals,
     helpers,
     hooks::Hooks,
@@ -17,6 +17,8 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     // Close the input window opened by the previous frame's swap (or init),
     // so that all poll_event/nk_sdl_handle_event calls this frame are committed.
     nuklear.input_end();
+
+    theme::apply(&nuklear);
 
     if Nuklear::should_draw() {
         menu::draw(&nuklear);

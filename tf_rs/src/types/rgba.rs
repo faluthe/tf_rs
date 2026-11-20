@@ -43,17 +43,3 @@ pub static ORANGE: ColorF = ColorF {
     b: 0.0,
     a: 1.0,
 };
-
-pub static LIGHT_GREY: ColorF = ColorF {
-    r: 0.1961,
-    g: 0.1961,
-    b: 0.1961,
-    a: 1.0,
-};
-
-pub static DARK_GREY: ColorF = ColorF {
-    r: 0.1373,
-    g: 0.1373,
-    b: 0.1373,
-    a: 1.0,
-};

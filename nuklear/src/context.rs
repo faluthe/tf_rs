@@ -3,15 +3,26 @@ use std::{ffi::CString, sync::OnceLock};
 use nuklear_sys::{
     GLEW_OK, SDL_Event, SDL_GL_CreateContext, SDL_GL_GetCurrentContext, SDL_GLContext, SDL_Window,
     glewInit, nk_anti_aliasing_NK_ANTI_ALIASING_ON, nk_begin, nk_bool, nk_button_label,
-    nk_checkbox_label, nk_color, nk_color_format_NK_RGBA, nk_color_picker, nk_colorf,
-    nk_collapse_states_NK_MINIMIZED, nk_combo_begin_label, nk_combo_end, nk_context,
-    nk_edit_string_zero_terminated, nk_end, nk_filter_default, nk_flags, nk_font_atlas,
-    nk_group_begin, nk_group_end, nk_group_scrolled_begin, nk_input_begin, nk_input_end, nk_input_is_key_released,
-    nk_label, nk_label_colored, nk_layout_row_begin, nk_layout_row_dynamic, nk_layout_row_end,
-    nk_layout_row_push, nk_rect, nk_rule_horizontal, nk_scroll, nk_sdl_font_stash_begin,
-    nk_sdl_font_stash_end, nk_sdl_handle_event, nk_sdl_init, nk_sdl_render, nk_selectable_label,
-    nk_slider_int, nk_tree_pop, nk_tree_push_hashed, nk_tree_type_NK_TREE_NODE, nk_vec2,
-    nk_widget_width, nk_window_get_bounds, nk_window_get_content_region, nk_window_set_bounds,
+    nk_checkbox_label, nk_collapse_states_NK_MINIMIZED, nk_color, nk_color_format_NK_RGBA,
+    nk_color_picker, nk_colorf, nk_combo_begin_label, nk_combo_end, nk_context, nk_draw_image,
+    nk_edit_string_zero_terminated, nk_end, nk_fill_rect, nk_filter_default, nk_flags, nk_font,
+    nk_font_atlas, nk_font_atlas_add_from_memory, nk_group_begin, nk_group_end,
+    nk_group_scrolled_begin, nk_image, nk_input_begin, nk_input_end, nk_input_is_key_released,
+    nk_input_is_mouse_hovering_rect, nk_label, nk_label_colored, nk_layout_row_begin,
+    nk_layout_row_dynamic, nk_layout_row_end, nk_layout_row_push, nk_layout_row_template_begin,
+    nk_layout_row_template_end, nk_layout_row_template_push_dynamic,
+    nk_layout_row_template_push_static, nk_rect, nk_rule_horizontal, nk_scroll,
+    nk_sdl_font_stash_begin, nk_sdl_font_stash_end, nk_sdl_handle_event, nk_sdl_init,
+    nk_sdl_render, nk_selectable_label, nk_slider_int, nk_spacer, nk_style_item_color,
+    nk_style_item_hide, nk_style_pop_font, nk_style_pop_vec2, nk_style_push_font,
+    nk_style_push_vec2, nk_style_set_font, nk_text_alignment_NK_TEXT_LEFT, nk_tree_pop,
+    nk_tree_push_hashed, nk_tree_type_NK_TREE_NODE, nk_vec2, nk_widget_bounds, nk_widget_width,
+    nk_window_get_bounds, nk_window_get_canvas, nk_window_get_content_region, nk_window_set_bounds,
+};
+
+use crate::{
+    icon::{ICON_SIZE, Icon},
+    style::{Color, FONT_HEADING, Font, HEADING_SIZE, Palette},
 };
 
 static CONTEXT: OnceLock<Context> = OnceLock::new();
@@ -21,6 +32,11 @@ pub(crate) struct Context {
     pub nk_ctx: *mut nk_context,
     pub og_ctx: SDL_GLContext,
     pub new_ctx: SDL_GLContext,
+    /// Indexed like `Font::ALL`
+    fonts: [*mut nk_font; Font::ALL.len()],
+    heading_font: *mut nk_font,
+    /// Indexed like `Icon::ALL`, None if the icon failed to load
+    icons: [Option<nk_image>; Icon::ALL.len()],
 }
 
 // TODO: Is this actually thread safe? Pottentially not, trace poll_event and swap_window usage
@@ -42,7 +58,26 @@ impl Context {
 
             let mut atlas: *mut nk_font_atlas = std::ptr::null_mut();
             nk_sdl_font_stash_begin(&mut atlas);
+            // The atlas only reads the TTF data while baking in stash_end, and the slices are
+            // static, so handing out a mut pointer to them is fine
+            let add = |data: &'static [u8], size: f32| {
+                nk_font_atlas_add_from_memory(
+                    atlas,
+                    data.as_ptr() as *mut _,
+                    data.len() as _,
+                    size,
+                    std::ptr::null(),
+                )
+            };
+            // First font added becomes the default
+            let fonts = Font::ALL.map(|f| {
+                let (data, size) = f.data();
+                add(data, size)
+            });
+            let heading_font = add(FONT_HEADING, HEADING_SIZE);
             nk_sdl_font_stash_end();
+
+            let icons = Icon::ALL.map(Icon::load);
 
             // Open the first input window so poll_event calls have a valid begin/end block
             nk_input_begin(nk_ctx);
@@ -51,6 +86,9 @@ impl Context {
                 nk_ctx,
                 og_ctx,
                 new_ctx,
+                fonts,
+                heading_font,
+                icons,
             }
         })
     }
@@ -225,16 +263,29 @@ impl Context {
         }
     }
 
-    pub(crate) fn set_button_normal_color(&self, r: u8, g: u8, b: u8, a: u8) {
-        unsafe { (*self.nk_ctx).style.button.normal.data.color = nk_color { r, g, b, a } };
+    pub(crate) fn set_font(&self, font: Font) {
+        let idx = Font::ALL.iter().position(|f| *f == font).unwrap_or(0);
         unsafe {
-            (*self.nk_ctx).style.button.rounding = 0.0;
+            nk_style_set_font(self.nk_ctx, &(*self.fonts[idx]).handle);
         }
     }
 
-    pub(crate) fn set_button_rounding(&self, rounding: f32) {
+    pub(crate) fn push_heading_font(&self) {
         unsafe {
-            (*self.nk_ctx).style.button.rounding = rounding;
+            nk_style_push_font(self.nk_ctx, &(*self.heading_font).handle);
+        }
+    }
+
+    pub(crate) fn push_font(&self, font: Font) {
+        let idx = Font::ALL.iter().position(|f| *f == font).unwrap_or(0);
+        unsafe {
+            nk_style_push_font(self.nk_ctx, &(*self.fonts[idx]).handle);
+        }
+    }
+
+    pub(crate) fn pop_font(&self) {
+        unsafe {
+            nk_style_pop_font(self.nk_ctx);
         }
     }
 
@@ -265,6 +316,156 @@ impl Context {
             let color = nk_colorf { r, g, b, a };
             let result = nk_color_picker(self.nk_ctx, color, nk_color_format_NK_RGBA);
             (result.r, result.g, result.b, result.a)
+        }
+    }
+
+    pub(crate) fn apply_palette(&self, palette: &Palette) {
+        palette.apply(self.nk_ctx);
+    }
+
+    /// Leave `cols` slots empty. Not nk_spacing, which allocates the next row as soon as the
+    /// skipped slots finish the current one, adding a blank row.
+    pub(crate) fn spacing(&self, cols: i32) {
+        for _ in 0..cols {
+            unsafe {
+                nk_spacer(self.nk_ctx);
+            }
+        }
+    }
+
+    /// Sidebar style button: left aligned, flat, and when `active` tinted with an accent bar on
+    /// its left edge
+    pub(crate) fn nav_button(&self, label: CString, active: bool, p: &Palette) -> bool {
+        unsafe {
+            let ctx = self.nk_ctx;
+            let saved = (*ctx).style.button;
+            let b = &mut (*ctx).style.button;
+            let (bg, fg) = if active {
+                (p.widget_active, p.accent)
+            } else {
+                (p.panel, p.text_dim)
+            };
+            b.normal = nk_style_item_color(bg.into());
+            b.hover = nk_style_item_color(if active { bg } else { p.widget }.into());
+            b.active = nk_style_item_color(p.widget_active.into());
+            b.border = 0.0;
+            b.text_normal = fg.into();
+            b.text_hover = if active { p.accent } else { p.text }.into();
+            b.text_active = p.accent.into();
+            b.text_alignment = nk_text_alignment_NK_TEXT_LEFT;
+            b.padding.x = 14.0;
+
+            let bounds = nk_widget_bounds(ctx);
+            let clicked = nk_button_label(ctx, label.as_ptr()) != 0;
+            if active {
+                let bar = nk_rect(bounds.x, bounds.y, 3.0, bounds.h);
+                nk_fill_rect(nk_window_get_canvas(ctx), bar, 0.0, p.accent.into());
+            }
+
+            (*ctx).style.button = saved;
+            clicked
+        }
+    }
+
+    /// `group_begin` with a background other than the window's
+    pub(crate) fn group_begin_bg(&self, title: CString, flags: nk_flags, bg: Color) -> bool {
+        unsafe {
+            let w = &mut (*self.nk_ctx).style.window;
+            let saved = w.fixed_background;
+            w.fixed_background = nk_style_item_color(bg.into());
+            let open = nk_group_begin(self.nk_ctx, title.as_ptr(), flags) != 0;
+            (*self.nk_ctx).style.window.fixed_background = saved;
+            open
+        }
+    }
+
+    /// Fill the bounds of the next widget slot with `color` and consume the slot
+    pub(crate) fn fill_slot(&self, color: Color) {
+        unsafe {
+            let bounds = nk_widget_bounds(self.nk_ctx);
+            nk_fill_rect(nk_window_get_canvas(self.nk_ctx), bounds, 0.0, color.into());
+            nk_spacer(self.nk_ctx);
+        }
+    }
+
+    pub(crate) fn push_group_padding(&self, x: f32, y: f32) {
+        unsafe {
+            let ctx = self.nk_ctx;
+            nk_style_push_vec2(ctx, &mut (*ctx).style.window.group_padding, nk_vec2(x, y));
+        }
+    }
+
+    pub(crate) fn pop_vec2(&self) {
+        unsafe {
+            nk_style_pop_vec2(self.nk_ctx);
+        }
+    }
+
+    /// Width of `text` in pixels with the current font
+    pub(crate) fn text_width(&self, text: &str) -> f32 {
+        unsafe {
+            let font = (*self.nk_ctx).style.font;
+            match (*font).width {
+                Some(width) => width(
+                    (*font).userdata,
+                    (*font).height,
+                    text.as_ptr() as *const _,
+                    text.len() as i32,
+                ),
+                None => 0.0,
+            }
+        }
+    }
+
+    /// Width available to the label of a combo placed in the next widget slot, mirroring the
+    /// layout in nk_combo_begin_text
+    pub(crate) fn combo_label_width(&self) -> f32 {
+        unsafe {
+            let header = nk_widget_bounds(self.nk_ctx);
+            let c = &(*self.nk_ctx).style.combo;
+            let button_x = header.x + header.w - header.h - c.button_padding.x;
+            let label_x = header.x + c.content_padding.x;
+            button_x - (c.content_padding.x + c.spacing.x) - label_x
+        }
+    }
+
+    /// Row where the first slot takes all the space left over by a trailing `width` slot
+    pub(crate) fn row_fill_then_static(&self, height: f32, width: f32) {
+        unsafe {
+            nk_layout_row_template_begin(self.nk_ctx, height);
+            nk_layout_row_template_push_dynamic(self.nk_ctx);
+            nk_layout_row_template_push_static(self.nk_ctx, width);
+            nk_layout_row_template_end(self.nk_ctx);
+        }
+    }
+
+    /// Borderless button showing only `icon`, dim when idle and accent colored on hover
+    pub(crate) fn icon_button(&self, icon: Icon, p: &Palette) -> bool {
+        unsafe {
+            let ctx = self.nk_ctx;
+            let bounds = nk_widget_bounds(ctx);
+            let hovered = nk_input_is_mouse_hovering_rect(&(*ctx).input, bounds) != 0;
+
+            let saved = (*ctx).style.button;
+            let b = &mut (*ctx).style.button;
+            b.normal = nk_style_item_hide();
+            b.hover = nk_style_item_hide();
+            b.active = nk_style_item_hide();
+            b.border = 0.0;
+            let empty = CString::default();
+            let clicked = nk_button_label(ctx, empty.as_ptr()) != 0;
+            (*ctx).style.button = saved;
+
+            let color = if hovered { p.accent } else { p.text_dim };
+            if let Some(img) = &self.icons[icon.index()] {
+                // Whole pixels at the icon's native size so it isn't filtered blurry
+                let size = ICON_SIZE as f32;
+                let x = (bounds.x + (bounds.w - size) / 2.0).round();
+                let y = (bounds.y + (bounds.h - size) / 2.0).round();
+                let rect = nk_rect(x, y, size, size);
+                nk_draw_image(nk_window_get_canvas(ctx), rect, img, color.into());
+            }
+            clicked
         }
     }
 }

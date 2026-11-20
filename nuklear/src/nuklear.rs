@@ -1,7 +1,10 @@
 use std::{
     ffi::{CString, c_void},
     mem, ptr, slice,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use nuklear_sys::{
@@ -13,7 +16,9 @@ use crate::{
     Rect,
     context::Context,
     flags::{EditFlags, LayoutFormat, PanelFlags, TextAlignment},
+    icon::Icon,
     input::Input,
+    style::{Color, Font, Palette},
 };
 
 /// Scroll offset of a group, layout compatible with `nk_scroll`.
@@ -25,6 +30,8 @@ pub struct Scroll {
 }
 
 static DO_DRAW: AtomicBool = AtomicBool::new(false);
+/// Palette last applied with `set_palette`, used by the custom widgets
+static PALETTE: RwLock<Option<Palette>> = RwLock::new(None);
 
 pub struct Nuklear {
     window: *mut SDL_Window,
@@ -108,8 +115,9 @@ impl Nuklear {
     }
 
     pub fn horizontal_separator(&self, thickness: f32) -> &Self {
+        let c = self.palette().map_or(Color::hex(0x505050), |p| p.border);
         self.row_dynamic(thickness, 1);
-        self.context.rule_horizontal(80, 80, 80, 255, 0);
+        self.context.rule_horizontal(c.r, c.g, c.b, c.a, 0);
         self
     }
 
@@ -265,12 +273,12 @@ impl Nuklear {
     pub fn multi_select_combo(&self, items: &[&str], selected: &mut [&mut bool]) -> &Self {
         assert_eq!(items.len(), selected.len());
 
-        let selected_count = selected.iter().filter(|&s| **s).count();
-        let header = if selected_count == 0 {
-            "None".to_string()
-        } else {
-            format!("{} selected", selected_count)
-        };
+        let names: Vec<&str> = items
+            .iter()
+            .zip(selected.iter())
+            .filter_map(|(item, s)| (**s).then_some(*item))
+            .collect();
+        let header = self.multi_select_preview(&names);
 
         if self
             .context
@@ -292,17 +300,155 @@ impl Nuklear {
         self
     }
 
+    /// Comma separated list of `names` that fits in the next combo slot, e.g.
+    /// "Boxes, Names". Trailing names that don't fit are summarized as "+N".
+    fn multi_select_preview(&self, names: &[&str]) -> String {
+        if names.is_empty() {
+            return "None".to_string();
+        }
+
+        let avail = self.context.combo_label_width();
+        let fits = |s: &str| self.context.text_width(s) <= avail;
+
+        let all = names.join(", ");
+        if fits(&all) {
+            return all;
+        }
+        for shown in (1..names.len()).rev() {
+            let text = format!("{}, +{}", names[..shown].join(", "), names.len() - shown);
+            if fits(&text) {
+                return text;
+            }
+        }
+        format!("{} selected", names.len())
+    }
+
     pub fn window_set_bounds(&self, window: &str, rect: Rect) {
         self.context
             .window_set_bounds(CString::new(window).unwrap(), rect.into());
     }
 
-    pub fn set_button_normal_color(&self, r: u8, g: u8, b: u8, a: u8) {
-        self.context.set_button_normal_color(r, g, b, a);
+    /// Restyle every widget from `palette`. Only does work when the palette changed.
+    pub fn set_palette(&self, palette: &Palette) {
+        let mut cur = PALETTE.write().unwrap_or_else(|e| e.into_inner());
+        if cur.as_ref() != Some(palette) {
+            self.context.apply_palette(palette);
+            *cur = Some(*palette);
+        }
     }
 
-    pub fn set_button_rounding(&self, rounding: f32) {
-        self.context.set_button_rounding(rounding);
+    pub fn palette(&self) -> Option<Palette> {
+        *PALETTE.read().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub fn set_font(&self, font: Font) {
+        self.context.set_font(font);
+    }
+
+    /// Draw everything until `pop_font` with `font`
+    pub fn push_font(&self, font: Font) {
+        self.context.push_font(font);
+    }
+
+    pub fn pop_font(&self) {
+        self.context.pop_font();
+    }
+
+    /// Skip `cols` slots of the current row
+    pub fn spacing(&self, cols: i32) -> &Self {
+        self.context.spacing(cols);
+        self
+    }
+
+    /// Label in the theme's dimmed text color
+    pub fn dim_label<T: Into<Vec<u8>>>(&self, text: T, alignment: TextAlignment) -> &Self {
+        match self.palette() {
+            Some(p) => {
+                let c = p.text_dim;
+                self.colored_label(text, alignment, c.r, c.g, c.b, c.a)
+            }
+            None => self.label(text, alignment),
+        }
+    }
+
+    /// Bold uppercase heading in the accent color with a rule under it. Pass `first = false`
+    /// to leave a gap above it so sections read as separate blocks.
+    pub fn section(&self, title: &str, first: bool) -> &Self {
+        self.section_impl(title, first, None);
+        self
+    }
+
+    /// `section` with a small icon button at the right end of the heading. Returns whether the
+    /// button was clicked.
+    pub fn section_with_icon(&self, title: &str, first: bool, icon: Icon) -> bool {
+        self.section_impl(title, first, Some(icon))
+    }
+
+    fn section_impl(&self, title: &str, first: bool, icon: Option<Icon>) -> bool {
+        const HEIGHT: f32 = 16.0;
+
+        let p = self.palette();
+        if !first {
+            self.row_dynamic(16.0, 1).spacing(1);
+        }
+        self.context.push_heading_font();
+        if icon.is_some() {
+            self.context.row_fill_then_static(HEIGHT, HEIGHT);
+        } else {
+            self.row_dynamic(HEIGHT, 1);
+        }
+        match p {
+            Some(p) => {
+                let c = p.accent;
+                self.colored_label(
+                    title.to_uppercase(),
+                    TextAlignment::LEFT,
+                    c.r,
+                    c.g,
+                    c.b,
+                    c.a,
+                );
+            }
+            None => {
+                self.label(title.to_uppercase(), TextAlignment::LEFT);
+            }
+        }
+        self.context.pop_font();
+        let clicked = match (icon, p) {
+            (Some(icon), Some(p)) => self.context.icon_button(icon, &p),
+            (Some(_), None) => self.button_label("R"),
+            (None, _) => false,
+        };
+        let rule = p.map_or(Color::hex(0x505050), |p| p.border);
+        self.row_dynamic(1.0, 1);
+        self.context.fill_slot(rule);
+        clicked
+    }
+
+    /// Flat left aligned navigation button, highlighted with an accent bar when `active`
+    pub fn nav_button<T: Into<Vec<u8>>>(&self, label: T, active: bool) -> bool {
+        match self.palette() {
+            Some(p) => self
+                .context
+                .nav_button(CString::new(label).unwrap(), active, &p),
+            None => self.button_label(label),
+        }
+    }
+
+    /// Padding for groups begun until `pop_group_padding`. Nuklear reads it while laying out
+    /// every row, so pop it only after the group's `group_end`.
+    pub fn push_group_padding(&self, x: f32, y: f32) {
+        self.context.push_group_padding(x, y);
+    }
+
+    pub fn pop_group_padding(&self) {
+        self.context.pop_vec2();
+    }
+
+    /// `group_begin` with its own background color, e.g. for a sidebar
+    pub fn group_begin_bg<T: Into<Vec<u8>>>(&self, title: T, flags: PanelFlags, bg: Color) -> bool {
+        self.context
+            .group_begin_bg(CString::new(title).unwrap(), flags.bits(), bg)
     }
 
     pub fn tree_push<T: Into<Vec<u8>>>(&self, title: T) -> bool {

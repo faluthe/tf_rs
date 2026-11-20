@@ -34,6 +34,16 @@ struct_with_serialize! {
         pub thirdperson: KeyConfig,
         pub spectator_list: bool,
         pub colors: ColorsConfig,
+        pub menu: MenuConfig,
+    }
+}
+
+// theme indexes `features::theme::THEMES`, font indexes `nuklear::Font::ALL`
+struct_with_serialize! {
+    #[derive(Default)]
+    pub struct MenuConfig {
+        pub theme: usize,
+        pub font: usize,
     }
 }
 
@@ -281,6 +291,7 @@ impl Config {
         if let Some(pos) = w.iter().position(|s| s == "default") {
             w.swap(0, pos);
         }
+        info!("Refreshed config list, found {}", w.len());
     }
 
     // TODO: Clean this up
