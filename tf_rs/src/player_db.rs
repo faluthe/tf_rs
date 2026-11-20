@@ -2,7 +2,7 @@ use std::{collections::HashMap, env, fs, sync::RwLock};
 
 use once_cell::sync::Lazy;
 
-use crate::{config::PlayerCategoryColors, types::rgba::ColorF};
+use crate::{config::PlayerCategoryColors, types::Color};
 
 static DB: Lazy<RwLock<HashMap<String, PlayerCategory>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
@@ -67,9 +67,9 @@ impl PlayerCategory {
         }
     }
 
-    pub fn color(self, colors: &PlayerCategoryColors) -> ColorF {
+    pub fn color(self, colors: &PlayerCategoryColors) -> Color {
         match self {
-            PlayerCategory::None => ColorF::default(),
+            PlayerCategory::None => Color::default(),
             PlayerCategory::Category1 => colors.category1,
             PlayerCategory::Category2 => colors.category2,
             PlayerCategory::Category3 => colors.category3,

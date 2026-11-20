@@ -1,8 +1,9 @@
 use std::{
+    collections::HashMap,
     ffi::{CString, c_void},
     mem, ptr, slice,
     sync::{
-        RwLock,
+        LazyLock, Mutex, RwLock,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -32,6 +33,10 @@ pub struct Scroll {
 static DO_DRAW: AtomicBool = AtomicBool::new(false);
 /// Palette last applied with `set_palette`, used by the custom widgets
 static PALETTE: RwLock<Option<Palette>> = RwLock::new(None);
+/// Hue, saturation, value and alpha for each color picker, plus the color they last produced.
+/// Kept here because black and greys can't be converted back to their hue and saturation.
+static PICKERS: LazyLock<Mutex<HashMap<usize, (Color, [f32; 4])>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub struct Nuklear {
     window: *mut SDL_Window,
@@ -459,8 +464,18 @@ impl Nuklear {
         self.context.tree_pop();
     }
 
-    pub fn color_picker(&self, r: &mut f32, g: &mut f32, b: &mut f32, a: &mut f32) -> &Self {
-        (*r, *g, *b, *a) = self.context.color_picker(*r, *g, *b, *a);
+    pub fn color_picker(&self, color: &mut Color) -> &Self {
+        // Keyed by the address of the color being edited, which lives in the config
+        let key = color as *const Color as usize;
+        let mut pickers = PICKERS.lock().unwrap();
+        let (last, hsva) = pickers.entry(key).or_insert((*color, color.to_hsva()));
+        // Changed from elsewhere, e.g. a configuration was loaded
+        if *last != *color {
+            (*last, *hsva) = (*color, color.to_hsva());
+        }
+        if let Some(new) = self.context.color_picker(hsva) {
+            (*last, *color) = (new, new);
+        }
         self
     }
 }

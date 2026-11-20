@@ -7,7 +7,7 @@ use std::{
 use log::{error, info, warn};
 use once_cell::sync::Lazy;
 
-use crate::{struct_with_serialize, types::rgba::ColorF};
+use crate::{struct_with_serialize, types::Color};
 
 static C: Lazy<RwLock<Config>> = Lazy::new(|| {
     let cfg = Config::load_or_create("default").unwrap_or_else(|e| {
@@ -50,8 +50,8 @@ struct_with_serialize! {
 struct_with_serialize! {
     pub struct EspColorConfig {
         pub use_team_colors: bool,
-        pub enemy: ColorF,
-        pub friendly: ColorF,
+        pub enemy: Color,
+        pub friendly: Color,
     }
 }
 
@@ -60,45 +60,25 @@ impl Default for EspColorConfig {
         EspColorConfig {
             use_team_colors: true,
             // Match rgba::RED (220, 45, 35)
-            enemy: ColorF {
-                r: 0.863,
-                g: 0.176,
-                b: 0.137,
-                a: 1.0,
-            },
+            enemy: Color::hex(0xdc2d23),
             // Match rgba::BLUE (40, 110, 240)
-            friendly: ColorF {
-                r: 0.157,
-                g: 0.431,
-                b: 0.941,
-                a: 1.0,
-            },
+            friendly: Color::hex(0x286ef0),
         }
     }
 }
 
 struct_with_serialize! {
     pub struct BuildingColorConfig {
-        pub enemy: ColorF,
-        pub friendly: ColorF,
+        pub enemy: Color,
+        pub friendly: Color,
     }
 }
 
 impl Default for BuildingColorConfig {
     fn default() -> Self {
         BuildingColorConfig {
-            enemy: ColorF {
-                r: 0.863,
-                g: 0.176,
-                b: 0.137,
-                a: 1.0,
-            },
-            friendly: ColorF {
-                r: 0.157,
-                g: 0.431,
-                b: 0.941,
-                a: 1.0,
-            },
+            enemy: Color::hex(0xdc2d23),
+            friendly: Color::hex(0x286ef0),
         }
     }
 }
@@ -125,10 +105,10 @@ impl Default for BuildingsColorsConfig {
 
 struct_with_serialize! {
     pub struct PlayerCategoryColors {
-        pub category1: ColorF,
-        pub category2: ColorF,
-        pub category3: ColorF,
-        pub category4: ColorF,
+        pub category1: Color,
+        pub category2: Color,
+        pub category3: Color,
+        pub category4: Color,
     }
 }
 
@@ -136,33 +116,13 @@ impl Default for PlayerCategoryColors {
     fn default() -> Self {
         PlayerCategoryColors {
             // purple
-            category1: ColorF {
-                r: 0.627,
-                g: 0.125,
-                b: 0.941,
-                a: 1.0,
-            },
+            category1: Color::hex(0xa020f0),
             // yellow
-            category2: ColorF {
-                r: 1.0,
-                g: 0.922,
-                b: 0.016,
-                a: 1.0,
-            },
+            category2: Color::hex(0xffeb04),
             // cyan
-            category3: ColorF {
-                r: 0.0,
-                g: 0.929,
-                b: 0.929,
-                a: 1.0,
-            },
+            category3: Color::hex(0x00eded),
             // pink
-            category4: ColorF {
-                r: 1.0,
-                g: 0.412,
-                b: 0.706,
-                a: 1.0,
-            },
+            category4: Color::hex(0xff69b4),
         }
     }
 }
@@ -204,7 +164,7 @@ struct_with_serialize! {
 struct_with_serialize! {
     pub struct CondDisplayConfig {
         pub enabled: bool,
-        pub color: ColorF,
+        pub color: Color,
     }
 }
 
@@ -212,12 +172,7 @@ impl Default for CondDisplayConfig {
     fn default() -> Self {
         CondDisplayConfig {
             enabled: true,
-            color: ColorF {
-                r: 1.0,
-                g: 1.0,
-                b: 1.0,
-                a: 1.0,
-            },
+            color: Color::hex(0xffffff),
         }
     }
 }

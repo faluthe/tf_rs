@@ -1,9 +1,11 @@
+use std::{fmt, str::FromStr};
+
 use nuklear_sys::{
-    nk_color, nk_context, nk_style_colors_NK_COLOR_BORDER, nk_style_colors_NK_COLOR_BUTTON,
-    nk_style_colors_NK_COLOR_BUTTON_ACTIVE, nk_style_colors_NK_COLOR_BUTTON_HOVER,
-    nk_style_colors_NK_COLOR_CHART, nk_style_colors_NK_COLOR_CHART_COLOR,
-    nk_style_colors_NK_COLOR_CHART_COLOR_HIGHLIGHT, nk_style_colors_NK_COLOR_COMBO,
-    nk_style_colors_NK_COLOR_COUNT, nk_style_colors_NK_COLOR_EDIT,
+    nk_color, nk_colorf, nk_colorf_hsva_fv, nk_context, nk_style_colors_NK_COLOR_BORDER,
+    nk_style_colors_NK_COLOR_BUTTON, nk_style_colors_NK_COLOR_BUTTON_ACTIVE,
+    nk_style_colors_NK_COLOR_BUTTON_HOVER, nk_style_colors_NK_COLOR_CHART,
+    nk_style_colors_NK_COLOR_CHART_COLOR, nk_style_colors_NK_COLOR_CHART_COLOR_HIGHLIGHT,
+    nk_style_colors_NK_COLOR_COMBO, nk_style_colors_NK_COLOR_COUNT, nk_style_colors_NK_COLOR_EDIT,
     nk_style_colors_NK_COLOR_EDIT_CURSOR, nk_style_colors_NK_COLOR_HEADER,
     nk_style_colors_NK_COLOR_KNOB, nk_style_colors_NK_COLOR_KNOB_CURSOR,
     nk_style_colors_NK_COLOR_KNOB_CURSOR_ACTIVE, nk_style_colors_NK_COLOR_KNOB_CURSOR_HOVER,
@@ -27,6 +29,8 @@ pub struct Color {
 }
 
 impl Color {
+    pub const WHITE: Color = Color::hex(0xffffff);
+
     pub const fn hex(rgb: u32) -> Self {
         Color {
             r: (rgb >> 16) as u8,
@@ -34,6 +38,89 @@ impl Color {
             b: rgb as u8,
             a: 255,
         }
+    }
+
+    pub(crate) fn from_f32(r: f32, g: f32, b: f32, a: f32) -> Self {
+        let q = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+        Color {
+            r: q(r),
+            g: q(g),
+            b: q(b),
+            a: q(a),
+        }
+    }
+
+    pub(crate) fn to_hsva(self) -> [f32; 4] {
+        let f = |v: u8| v as f32 / 255.0;
+        let rgba = nk_colorf {
+            r: f(self.r),
+            g: f(self.g),
+            b: f(self.b),
+            a: f(self.a),
+        };
+        let mut hsva = [0.0; 4];
+        unsafe { nk_colorf_hsva_fv(hsva.as_mut_ptr(), rgba) };
+        hsva
+    }
+}
+
+impl Default for Color {
+    fn default() -> Self {
+        Color::WHITE
+    }
+}
+
+/// Written as `#rrggbbaa`
+impl fmt::Display for Color {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "#{:02x}{:02x}{:02x}{:02x}",
+            self.r, self.g, self.b, self.a
+        )
+    }
+}
+
+/// Reads `#rrggbbaa` or `#rrggbb`, and also the older layout of one `r: 0.0..1.0` line per
+/// channel so saved configurations from before the switch to 8 bit colors still load
+impl FromStr for Color {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim();
+
+        if let Some(hex) = s.strip_prefix('#') {
+            let v = u32::from_str_radix(hex, 16).map_err(|e| format!("bad color `{s}`: {e}"))?;
+            return match hex.len() {
+                6 => Ok(Color::hex(v)),
+                8 => Ok(Color {
+                    r: (v >> 24) as u8,
+                    g: (v >> 16) as u8,
+                    b: (v >> 8) as u8,
+                    a: v as u8,
+                }),
+                _ => Err(format!("bad color `{s}`: expected #rrggbb or #rrggbbaa")),
+            };
+        }
+
+        let (mut r, mut g, mut b, mut a) = (1.0, 1.0, 1.0, 1.0);
+        for line in s.lines() {
+            let Some((key, val)) = line.split_once(':') else {
+                continue;
+            };
+            let val: f32 = val
+                .trim()
+                .parse()
+                .map_err(|e| format!("bad color channel `{}`: {e}", line.trim()))?;
+            match key.trim() {
+                "r" => r = val,
+                "g" => g = val,
+                "b" => b = val,
+                "a" => a = val,
+                _ => {}
+            }
+        }
+        Ok(Color::from_f32(r, g, b, a))
     }
 }
 

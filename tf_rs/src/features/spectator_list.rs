@@ -89,10 +89,10 @@ pub fn draw(localplayer: &Player, config: &Config, nk: &Nuklear) -> bool {
             nk.row_dynamic(20.0, 1).colored_label(
                 spec.as_str(),
                 TextAlignment::LEFT,
-                (color.r * 255.0) as u8,
-                (color.g * 255.0) as u8,
-                (color.b * 255.0) as u8,
-                (color.a * 255.0) as u8,
+                color.r,
+                color.g,
+                color.b,
+                color.a,
             );
         }
     }

@@ -19,7 +19,7 @@ pub use player::Cond;
 pub use player::Player;
 pub use player_info::PlayerInfo;
 pub use ray::Ray;
-pub use rgba::ColorF;
+pub use rgba::Color;
 pub use trace_filter::TraceFilter;
 pub use trace_result::TraceResult;
 pub use user_cmd::UserCmd;
