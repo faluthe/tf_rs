@@ -5,6 +5,7 @@ use once_cell::sync::Lazy;
 
 use crate::{hooks::*, interfaces::Interfaces};
 
+const OVERRIDE_VIEW_INDEX: usize = 17;
 const CREATE_MOVE_INDEX: usize = 22;
 const PAINT_TRAVERSE_INDEX: usize = 42;
 
@@ -28,8 +29,11 @@ impl Hooks {
         w.client_mode
             .hook(CREATE_MOVE_INDEX, FnSig::CreateMove(hk_create_move))
             .context("CreateMove hook")?;
+        w.client_mode
+            .hook(OVERRIDE_VIEW_INDEX, FnSig::OverrideView(hk_override_view))
+            .context("OverrideView hook")?;
         w.client_mode.install().context("ClientMode vtable")?;
-        log::debug!("Hooked CreateMove");
+        log::debug!("Hooked CreateMove and OverrideView");
 
         w.panel = VmtShadow::new(Interfaces::panel().ptr()).context("Panel vtable")?;
         w.panel
@@ -58,7 +62,7 @@ impl Hooks {
         let mut w = H.write().unwrap();
 
         let results = [
-            ("CreateMove", w.client_mode.restore()),
+            ("ClientMode", w.client_mode.restore()),
             ("PaintTraverse", w.panel.restore()),
             ("SDL_PollEvent", w.poll_event.restore()),
             ("SDL_GL_SwapWindow", w.swap_window.restore()),
@@ -75,6 +79,10 @@ impl Hooks {
 
     pub fn create_move() -> FnSig {
         H.read().unwrap().client_mode.original(CREATE_MOVE_INDEX)
+    }
+
+    pub fn override_view() -> FnSig {
+        H.read().unwrap().client_mode.original(OVERRIDE_VIEW_INDEX)
     }
 
     pub fn paint_traverse() -> FnSig {

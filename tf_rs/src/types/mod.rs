@@ -10,6 +10,7 @@ pub mod user_cmd;
 pub mod vec2;
 pub mod vec3;
 pub mod vec3_aligned;
+pub mod view_setup;
 pub mod weapon;
 
 pub use bbox::BBox;
@@ -26,4 +27,5 @@ pub use user_cmd::UserCmd;
 pub use vec2::Vec2;
 pub use vec3::Vec3;
 pub use vec3_aligned::Vec3Aligned;
+pub use view_setup::ViewSetup;
 pub use weapon::Weapon;

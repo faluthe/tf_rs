@@ -1,12 +1,13 @@
 use anyhow::{Result, anyhow};
 use std::{ffi::c_void, fmt, mem};
 
-use crate::types::UserCmd;
+use crate::types::{UserCmd, ViewSetup};
 
 #[derive(Copy, Clone)]
 pub enum FnSig {
     CreateMove(extern "C" fn(*mut c_void, f32, *mut UserCmd) -> i64),
     PaintTraverse(extern "C" fn(*mut c_void, *mut c_void, i8, i8) -> i64),
+    OverrideView(extern "C" fn(*mut c_void, *mut ViewSetup)),
     PollEvent(extern "C" fn(*mut c_void) -> i32),
     SwapWindow(extern "C" fn(*mut c_void) -> i32),
     None,
@@ -17,6 +18,7 @@ impl fmt::Pointer for FnSig {
         match self {
             FnSig::CreateMove(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::PaintTraverse(func) => write!(f, "{:p}", *func as *const c_void),
+            FnSig::OverrideView(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::PollEvent(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::SwapWindow(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::None => write!(f, "None"),
@@ -50,6 +52,13 @@ impl FnSig {
         }
     }
 
+    pub fn call_override_view(&self, this: *mut c_void, setup: *mut ViewSetup) -> Result<()> {
+        match self {
+            FnSig::OverrideView(f) => Ok(f(this, setup)),
+            _ => Err(anyhow!("Invalid OverrideView function signature")),
+        }
+    }
+
     pub fn call_poll_event(&self, a: *mut c_void) -> Result<i32> {
         match self {
             FnSig::PollEvent(f) => Ok(f(a)),
@@ -76,6 +85,9 @@ impl FnSig {
                     ptr,
                 )
             }),
+            FnSig::OverrideView(_) => FnSig::OverrideView(unsafe {
+                mem::transmute::<*mut c_void, extern "C" fn(*mut c_void, *mut ViewSetup)>(ptr)
+            }),
             FnSig::PollEvent(_) => FnSig::PollEvent(unsafe {
                 mem::transmute::<*mut c_void, extern "C" fn(*mut c_void) -> i32>(ptr)
             }),
@@ -90,6 +102,7 @@ impl FnSig {
         match self {
             FnSig::CreateMove(f) => Ok(*f as *mut c_void),
             FnSig::PaintTraverse(f) => Ok(*f as *mut c_void),
+            FnSig::OverrideView(f) => Ok(*f as *mut c_void),
             FnSig::PollEvent(f) => Ok(*f as *mut c_void),
             FnSig::SwapWindow(f) => Ok(*f as *mut c_void),
             FnSig::None => Err(anyhow!("FnSig is None")),

@@ -33,6 +33,7 @@ struct_with_serialize! {
         pub aimbot: AimbotConfig,
         pub thirdperson: KeyConfig,
         pub spectator_list: bool,
+        pub no_zoom: bool,
         pub colors: ColorsConfig,
         pub menu: MenuConfig,
     }
