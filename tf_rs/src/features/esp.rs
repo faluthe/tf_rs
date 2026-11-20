@@ -6,7 +6,7 @@ use crate::{
     helpers,
     interfaces::{Interfaces, Surface},
     player_db,
-    types::{BBox, ClassId, ColorF, Cond, Entity, Player, rgba},
+    types::{BBox, ClassId, Color, Cond, Entity, Player, rgba},
 };
 
 static ESP_FONT: OnceLock<u64> = OnceLock::new();
@@ -33,7 +33,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                 continue;
             }
 
-            let mut conds: Vec<(String, ColorF)> = Vec::new();
+            let mut conds: Vec<(String, Color)> = Vec::new();
 
             let is_target = if config.esp.aimbot_target {
                 if Some(i) == target.map(|t| t.target_index) {
@@ -264,7 +264,7 @@ fn building_esp(
     name: &str,
     cfg: &EntityESPConfig,
     surface: &Surface,
-    color: &ColorF,
+    color: &Color,
 ) -> Option<BBox> {
     let Some(bbox) = helpers::get_bounding_box(entity) else {
         return None;
@@ -286,7 +286,7 @@ fn building_esp(
 }
 
 // TODO: Outline in black for visibility
-fn draw_box(bbox: &BBox, color: &ColorF, surface: &Surface) {
+fn draw_box(bbox: &BBox, color: &Color, surface: &Surface) {
     surface.draw_set_color(0, 0, 0, 255);
     surface.draw_outlined_rect(bbox.left - 1, bbox.top - 1, bbox.right + 1, bbox.bottom + 1);
     surface.draw_outlined_rect(bbox.left + 1, bbox.top + 1, bbox.right - 1, bbox.bottom - 1);
@@ -295,7 +295,7 @@ fn draw_box(bbox: &BBox, color: &ColorF, surface: &Surface) {
 }
 
 // TODO: Add custom positioning
-fn draw_name(bbox: &BBox, name: &str, color: &ColorF, surface: &Surface) {
+fn draw_name(bbox: &BBox, name: &str, color: &Color, surface: &Surface) {
     surface.draw_set_text_color_c(color);
     surface.draw_set_text_pos(bbox.left as u32, (bbox.top - 20) as u32);
     surface.draw_print_text(name);
@@ -376,10 +376,10 @@ pub fn draw_fov(surface: &Surface, config: &Config) {
 fn building_color(
     is_target: bool,
     friendly: bool,
-    team_color: &ColorF,
+    team_color: &Color,
     use_team_colors: bool,
     bldg: &BuildingColorConfig,
-) -> ColorF {
+) -> Color {
     if is_target {
         rgba::ORANGE
     } else if use_team_colors {
@@ -391,7 +391,7 @@ fn building_color(
     }
 }
 
-fn esp_color(is_target: bool, friendly: bool, team_color: &ColorF, cfg: &EspColorConfig) -> ColorF {
+fn esp_color(is_target: bool, friendly: bool, team_color: &Color, cfg: &EspColorConfig) -> Color {
     if is_target {
         rgba::ORANGE
     } else if cfg.use_team_colors {

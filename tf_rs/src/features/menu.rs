@@ -288,12 +288,10 @@ fn esp_tab(nk: &Nuklear, config: &mut Config) {
 }
 
 fn colors_tab(nk: &Nuklear, config: &mut Config) {
-    use crate::types::ColorF;
-
     const PICKER: f32 = 180.0;
 
-    fn pick(nk: &Nuklear, c: &mut ColorF) {
-        nk.color_picker(&mut c.r, &mut c.g, &mut c.b, &mut c.a);
+    fn pick(nk: &Nuklear, c: &mut Color) {
+        nk.color_picker(c);
     }
 
     fn pair_labels(nk: &Nuklear, left: &str, right: &str) {

@@ -3,21 +3,25 @@ use std::{ffi::CString, sync::OnceLock};
 use nuklear_sys::{
     GLEW_OK, SDL_Event, SDL_GL_CreateContext, SDL_GL_GetCurrentContext, SDL_GLContext, SDL_Window,
     glewInit, nk_anti_aliasing_NK_ANTI_ALIASING_ON, nk_begin, nk_bool, nk_button_label,
-    nk_checkbox_label, nk_collapse_states_NK_MINIMIZED, nk_color, nk_color_format_NK_RGBA,
-    nk_color_picker, nk_colorf, nk_combo_begin_label, nk_combo_end, nk_context, nk_draw_image,
-    nk_edit_string_zero_terminated, nk_end, nk_fill_rect, nk_filter_default, nk_flags, nk_font,
+    nk_buttons_NK_BUTTON_LEFT, nk_checkbox_label, nk_collapse_states_NK_MINIMIZED, nk_color,
+    nk_combo_begin_label, nk_combo_end, nk_context, nk_draw_image, nk_edit_string_zero_terminated,
+    nk_end, nk_fill_rect, nk_fill_rect_multi_color, nk_filter_default, nk_flags, nk_font,
     nk_font_atlas, nk_font_atlas_add_from_memory, nk_group_begin, nk_group_end,
-    nk_group_scrolled_begin, nk_image, nk_input_begin, nk_input_end, nk_input_is_key_released,
+    nk_group_scrolled_begin, nk_hsv_f, nk_hsva_colorfv, nk_image, nk_input_begin, nk_input_end,
+    nk_input_has_mouse_click_down_in_rect, nk_input_is_key_released,
     nk_input_is_mouse_hovering_rect, nk_label, nk_label_colored, nk_layout_row_begin,
     nk_layout_row_dynamic, nk_layout_row_end, nk_layout_row_push, nk_layout_row_template_begin,
     nk_layout_row_template_end, nk_layout_row_template_push_dynamic,
     nk_layout_row_template_push_static, nk_rect, nk_rule_horizontal, nk_scroll,
     nk_sdl_font_stash_begin, nk_sdl_font_stash_end, nk_sdl_handle_event, nk_sdl_init,
-    nk_sdl_render, nk_selectable_label, nk_slider_int, nk_spacer, nk_style_item_color,
-    nk_style_item_hide, nk_style_pop_font, nk_style_pop_vec2, nk_style_push_font,
-    nk_style_push_vec2, nk_style_set_font, nk_text_alignment_NK_TEXT_LEFT, nk_tree_pop,
-    nk_tree_push_hashed, nk_tree_type_NK_TREE_NODE, nk_vec2, nk_widget_bounds, nk_widget_width,
-    nk_window_get_bounds, nk_window_get_canvas, nk_window_get_content_region, nk_window_set_bounds,
+    nk_sdl_render, nk_selectable_label, nk_slider_int, nk_spacer, nk_stroke_line,
+    nk_style_item_color, nk_style_item_hide, nk_style_pop_font, nk_style_pop_vec2,
+    nk_style_push_font, nk_style_push_vec2, nk_style_set_font, nk_text_alignment_NK_TEXT_LEFT,
+    nk_tree_pop, nk_tree_push_hashed, nk_tree_type_NK_TREE_NODE, nk_vec2, nk_widget,
+    nk_widget_bounds, nk_widget_layout_states_NK_WIDGET_DISABLED,
+    nk_widget_layout_states_NK_WIDGET_INVALID, nk_widget_layout_states_NK_WIDGET_ROM,
+    nk_widget_width, nk_window_get_bounds, nk_window_get_canvas, nk_window_get_content_region,
+    nk_window_set_bounds,
 };
 
 use crate::{
@@ -311,11 +315,130 @@ impl Context {
         }
     }
 
-    pub(crate) fn color_picker(&self, r: f32, g: f32, b: f32, a: f32) -> (f32, f32, f32, f32) {
+    /// Same look and layout as `nk_color_picker`, but driven by `hsva` instead of an RGB color.
+    /// Nuklear's picker re-derives HSV from RGB every frame, so hue and saturation are lost the
+    /// moment the color reaches black (or grey) and the cursor jumps to the red, left edge.
+    /// Returns the new color if the user changed it.
+    pub(crate) fn color_picker(&self, hsva: &mut [f32; 4]) -> Option<Color> {
         unsafe {
-            let color = nk_colorf { r, g, b, a };
-            let result = nk_color_picker(self.nk_ctx, color, nk_color_format_NK_RGBA);
-            (result.r, result.g, result.b, result.a)
+            let ctx = self.nk_ctx;
+            let mut bounds = nk_rect(0.0, 0.0, 0.0, 0.0);
+            let state = nk_widget(&mut bounds, ctx);
+            if state == nk_widget_layout_states_NK_WIDGET_INVALID {
+                return None;
+            }
+
+            let bar_w = (*(*ctx).style.font).height;
+            let matrix = nk_rect(bounds.x, bounds.y, bounds.w - 2.0 * bar_w, bounds.h);
+            let hue_bar = nk_rect(matrix.x + matrix.w, bounds.y, bar_w, matrix.h);
+            let alpha_bar = nk_rect(hue_bar.x + hue_bar.w, bounds.y, bar_w, matrix.h);
+
+            let mut changed = false;
+            if state != nk_widget_layout_states_NK_WIDGET_ROM
+                && state != nk_widget_layout_states_NK_WIDGET_DISABLED
+            {
+                let input = &(*ctx).input;
+                let mouse = input.mouse.pos;
+                // Pressed inside the rect and still held, so dragging past the edge keeps working
+                let held = |r: nk_rect| {
+                    nk_input_has_mouse_click_down_in_rect(input, nk_buttons_NK_BUTTON_LEFT, r, 1)
+                        != 0
+                };
+                let frac =
+                    |v: f32, start: f32, len: f32| ((v - start) / (len - 1.0)).clamp(0.0, 1.0);
+
+                if held(matrix) {
+                    hsva[1] = frac(mouse.x, matrix.x, matrix.w);
+                    hsva[2] = 1.0 - frac(mouse.y, matrix.y, matrix.h);
+                    changed = true;
+                }
+                if held(hue_bar) {
+                    hsva[0] = frac(mouse.y, hue_bar.y, hue_bar.h);
+                    changed = true;
+                }
+                if held(alpha_bar) {
+                    hsva[3] = 1.0 - frac(mouse.y, alpha_bar.y, alpha_bar.h);
+                    changed = true;
+                }
+            }
+
+            let out = nk_window_get_canvas(ctx);
+            let white = nk_color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            };
+            let black = nk_color {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255,
+            };
+            let clear = nk_color {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            };
+
+            // Hue bar, red at both ends
+            const HUES: [u32; 7] = [
+                0xff0000, 0xffff00, 0x00ff00, 0x00ffff, 0x0000ff, 0xff00ff, 0xff0000,
+            ];
+            let seg = hue_bar.h / 6.0;
+            for i in 0..6 {
+                let (a, b) = (Color::hex(HUES[i]).into(), Color::hex(HUES[i + 1]).into());
+                let r = nk_rect(
+                    hue_bar.x,
+                    hue_bar.y + i as f32 * seg + 0.5,
+                    hue_bar.w,
+                    seg + 0.5,
+                );
+                nk_fill_rect_multi_color(out, r, a, a, b, b);
+            }
+            let y = (hue_bar.y + hsva[0] * matrix.h + 0.5).trunc();
+            nk_stroke_line(
+                out,
+                hue_bar.x - 1.0,
+                y,
+                hue_bar.x + hue_bar.w + 2.0,
+                y,
+                1.0,
+                white,
+            );
+
+            // Alpha bar
+            nk_fill_rect_multi_color(out, alpha_bar, white, white, black, black);
+            let y = (alpha_bar.y + (1.0 - hsva[3].clamp(0.0, 1.0)) * matrix.h + 0.5).trunc();
+            nk_stroke_line(
+                out,
+                alpha_bar.x - 1.0,
+                y,
+                alpha_bar.x + alpha_bar.w + 2.0,
+                y,
+                1.0,
+                white,
+            );
+
+            // Saturation/value square
+            let hue = nk_hsv_f(hsva[0], 1.0, 1.0);
+            nk_fill_rect_multi_color(out, matrix, white, hue, hue, white);
+            nk_fill_rect_multi_color(out, matrix, clear, clear, black, black);
+
+            // Crosshair
+            const ARM: f32 = 7.0;
+            let x = (matrix.x + hsva[1] * matrix.w).trunc();
+            let y = (matrix.y + (1.0 - hsva[2]) * matrix.h).trunc();
+            nk_stroke_line(out, x - ARM, y, x - 2.0, y, 1.0, white);
+            nk_stroke_line(out, x + ARM + 1.0, y, x + 3.0, y, 1.0, white);
+            nk_stroke_line(out, x, y + ARM + 1.0, x, y + 3.0, 1.0, white);
+            nk_stroke_line(out, x, y - ARM, x, y - 2.0, 1.0, white);
+
+            changed.then(|| {
+                let c = nk_hsva_colorfv(hsva.as_ptr());
+                Color::from_f32(c.r, c.g, c.b, c.a)
+            })
         }
     }
 
