@@ -37,10 +37,25 @@ impl FromRaw for Weapon {
 
 impl Weapon {
     offset_get!(pub fn next_attack: f32, 0xE94);
+    offset_get!(fn weapon_mode: i32, 0xF70);
+    // CTFWeaponBaseMelee: when the current swing lands, negative when not swinging
+    offset_get!(pub fn smack_time: f32, 0x10A0);
 
     pub fn weapon_class(&self) -> WeaponClass {
         let f = vfunc!(self.vtable, 451, extern "C" fn(*mut c_void) -> WeaponClass);
         f(self.this)
+    }
+
+    /// Seconds from starting a melee swing until it lands
+    pub fn smack_delay(&self) -> f32 {
+        // Returns curtime plus the weapon mode's smack delay
+        let f = vfunc!(self.vtable, 532, extern "C" fn(*mut c_void, i32) -> f32);
+        (f(self.this, self.weapon_mode()) - crate::interfaces::Interfaces::global_vars().curtime)
+            .max(0.0)
+    }
+
+    pub fn is_knife(&self) -> bool {
+        matches!(self.weapon_class(), WeaponClass::Knife)
     }
 
     /// Reach of a melee swing before attributes and model scale

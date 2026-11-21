@@ -53,8 +53,8 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
     let config = Config::read().clone();
 
     movement::bunnyhop(&localplayer, cmd, &config);
-    aimbot::run(&localplayer, cmd, &config);
-    backtrack::run(&localplayer, cmd, &config);
+    let choice = aimbot::run(&localplayer, cmd, &config);
+    backtrack::run(&localplayer, cmd, &config, choice);
 
     let pressed = Globals::read().thirdperson_pressed;
     unsafe {

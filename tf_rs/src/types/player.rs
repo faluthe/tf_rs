@@ -50,6 +50,7 @@ impl Player {
     offset_get!(fn conds_4: u32, 0x1F74);
     offset_get!(fn invisibility: f32, 0x1FE8);
     offset_get!(fn observer_target_: i32, 0x1648);
+    offset_get!(pub fn eye_yaw: f32, 0x23F0);
 
     pub fn is_on_ground(&self) -> bool {
         (self.flags() & 1) != 0
@@ -69,6 +70,11 @@ impl Player {
         let mut eye_pos = self.origin();
         eye_pos.z += self.eye_z_diff();
         eye_pos
+    }
+
+    /// Server time of the command being built, from our tick base
+    pub fn curtime(&self) -> f32 {
+        self.tick_base() as f32 * Interfaces::global_vars().interval_per_tick
     }
 
     pub fn can_attack(&self) -> bool {

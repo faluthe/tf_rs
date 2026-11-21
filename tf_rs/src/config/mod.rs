@@ -338,6 +338,13 @@ struct_with_serialize! {
         pub priority_category: u8,
         pub disable_when_spectated: usize,
         pub ignore_invis: bool,
+        pub melee: bool,
+        // Swing on its own whenever a target is in reach
+        pub auto_swing: bool,
+        // Start swinging when the target will be in reach once the swing lands
+        pub swing_prediction: bool,
+        // With a knife, only go for backstabs and stab on its own when one is possible
+        pub auto_backstab: bool,
     }
 }
 

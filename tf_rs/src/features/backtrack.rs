@@ -15,11 +15,14 @@ use once_cell::sync::{Lazy, OnceCell};
 
 use crate::{
     config::{BacktrackConfig, Config},
-    features::fake_ping,
+    features::{
+        fake_ping,
+        melee::{Hull, Swing},
+    },
     helpers,
     interfaces::Interfaces,
     types::{
-        ConVar, Flow, Matrix3x4, Player, UserCmd, Vec3, Weapon,
+        ConVar, Flow, Matrix3x4, Player, UserCmd, Vec3,
         player::{BONE_USED_BY_ANYTHING, MAX_BONES},
         user_cmd::Buttons,
     },
@@ -34,9 +37,7 @@ pub struct Record {
     head: Vec3,
     body: Vec3,
     // Collision box, what melee swings trace against
-    origin: Vec3,
-    mins: Vec3,
-    maxs: Vec3,
+    hull: Hull,
 }
 
 /// Records of each player by entity index, newest first
@@ -153,9 +154,13 @@ impl Timing {
     /// The server will rewind to the record, it's within the configured length and it isn't
     /// ahead of the drawn model
     fn usable(&self, sim_time: f32) -> bool {
-        self.delta(sim_time).abs() < WINDOW
-            && self.age(sim_time) <= self.max_age
-            && sim_time <= self.render_time
+        self.usable_in(sim_time, 0.0)
+    }
+
+    /// Whether the record will still be usable for a command run `lead` seconds from now
+    fn usable_in(&self, sim_time: f32, lead: f32) -> bool {
+        let age = self.age(sim_time) + lead;
+        (self.correct - age).abs() < WINDOW && age <= self.max_age && sim_time <= self.render_time
     }
 }
 
@@ -185,9 +190,13 @@ pub fn disable_interpolation() {
 pub fn update_records() {
     let mut records = records();
 
-    let config = Config::read().backtrack.clone();
+    let (config, melee_aimbot) = {
+        let c = Config::read();
+        (c.backtrack.clone(), c.aimbot.master && c.aimbot.melee)
+    };
     let localplayer = helpers::get_localplayer().filter(|p| !p.is_dead());
-    let (Some(localplayer), true) = (localplayer, config.enabled) else {
+    // The melee aimbot uses records to tell how enemies are moving
+    let (Some(localplayer), true) = (localplayer, config.enabled || melee_aimbot) else {
         records.iter_mut().for_each(VecDeque::clear);
         return;
     };
@@ -233,9 +242,7 @@ pub fn update_records() {
             sim_time,
             head: bones[player.head_bone_id()].position(),
             body: bones[1].position(),
-            origin: player.origin(),
-            mins: player.mins(),
-            maxs: player.maxs(),
+            hull: Hull::of(&player),
             bones,
         });
 
@@ -249,11 +256,29 @@ pub fn update_records() {
     }
 }
 
+/// Which tick a command should use
+pub enum Choice {
+    /// Pick one from where we're aiming
+    Auto,
+    /// Leave the tick alone, the melee aimbot is going for where the player is now
+    Keep,
+    /// The melee aimbot picked this entity index and simulation time
+    Record(i32, f32),
+}
+
 /// Pick the record closest to where we're aiming, or with a melee weapon one the swing would
 /// connect with, and set the tick to it when shooting
-pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
+pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config, choice: Choice) {
     let cmd = unsafe { &mut *cmd };
-    let target = select(localplayer, cmd, &config.backtrack);
+    let target = if !config.backtrack.enabled {
+        None
+    } else {
+        match choice {
+            Choice::Auto => select(localplayer, cmd, &config.backtrack),
+            Choice::Keep => None,
+            Choice::Record(index, sim_time) => Some((index, sim_time, true)),
+        }
+    };
     *TARGET.lock().unwrap() = target.map(|t| (t.0, t.1));
 
     let Some((_, sim_time, melee)) = target else {
@@ -271,9 +296,6 @@ fn select(
     cmd: &UserCmd,
     config: &BacktrackConfig,
 ) -> Option<(i32, f32, bool)> {
-    if !config.enabled {
-        return None;
-    }
     let timing = Timing::now(config)?;
     let records = records();
     let usable = records
@@ -284,11 +306,11 @@ fn select(
 
     if let Some(swing) = localplayer
         .active_weapon()
-        .and_then(|w| Swing::new(localplayer, &w, cmd))
+        .and_then(|w| Swing::new(localplayer, &w, &cmd.view_angles, 0.0))
     {
         // Any record the swing connects with works, the newest relies least on timing
         return usable
-            .filter(|(_, r)| swing.hits(r))
+            .filter(|(_, r)| swing.hits(&r.hull))
             .max_by(|a, b| a.1.sim_time.total_cmp(&b.1.sim_time))
             .map(|(i, r)| (i, r.sim_time, true));
     }
@@ -305,92 +327,41 @@ fn select(
         .map(|(_, i, sim_time)| (i, sim_time, false))
 }
 
-/// A melee swing as the server traces it: from the eye along the view angles for the weapon's
-/// range, first as a line then as a cube, against players' collision boxes
-struct Swing {
-    start: Vec3,
-    end: Vec3,
-    hull: f32,
+/// Collision boxes and simulation times of player `index`'s records that will still be usable
+/// for a command run `lead` seconds from now, none when backtrack is off
+pub fn candidates(index: i32, lead: f32, config: &Config) -> Vec<(Hull, f32)> {
+    if !config.backtrack.enabled {
+        return Vec::new();
+    }
+    let Some(timing) = Timing::now(&config.backtrack) else {
+        return Vec::new();
+    };
+    let records = records();
+    records
+        .get(index as usize)
+        .into_iter()
+        .flatten()
+        .filter(|r| timing.usable_in(r.sim_time, lead))
+        .map(|r| (r.hull, r.sim_time))
+        .collect()
 }
 
-impl Swing {
-    const HULL: f32 = 18.0;
-
-    fn new(localplayer: &Player, weapon: &Weapon, cmd: &UserCmd) -> Option<Self> {
-        if !weapon.is_melee() {
-            return None;
-        }
-        let range = weapon.attrib_float(weapon.swing_range(), c"melee_range_multiplier");
-        let hull = weapon.attrib_float(Self::HULL, c"melee_bounds_multiplier");
-
-        // The server swings after moving us with this command
-        let tick = Interfaces::global_vars().interval_per_tick;
-        let velocity = localplayer.velocity();
-        let mut start = localplayer.eye_pos();
-        start.x += velocity.x * tick;
-        start.y += velocity.y * tick;
-        start.z += velocity.z * tick;
-
-        let forward = forward(&cmd.view_angles);
-        let end = Vec3::new(
-            start.x + forward.x * range,
-            start.y + forward.y * range,
-            start.z + forward.z * range,
-        );
-        Some(Swing { start, end, hull })
+/// How player `index` has been moving between their two newest updates
+pub fn velocity(index: i32) -> Option<Vec3> {
+    let records = records();
+    let mut player_records = records.get(index as usize)?.iter();
+    let (new, old) = (player_records.next()?, player_records.next()?);
+    let dt = new.sim_time - old.sim_time;
+    // Too far apart and it's not one movement anymore
+    if dt <= 0.0 || dt > 0.25 {
+        return None;
     }
-
-    fn hits(&self, record: &Record) -> bool {
-        // Origins are networked with a little less precision than they're stored with
-        let shrink = 0.125;
-        let mins = Vec3::new(
-            record.origin.x + record.mins.x + shrink,
-            record.origin.y + record.mins.y + shrink,
-            record.origin.z + record.mins.z + shrink,
-        );
-        let maxs = Vec3::new(
-            record.origin.x + record.maxs.x - shrink,
-            record.origin.y + record.maxs.y - shrink,
-            record.origin.z + record.maxs.z - shrink,
-        );
-        // Sweeping the cube is the same as a line against the box grown by the cube, and the
-        // line trace the server tries first can only hit inside that
-        segment_hits_box(&self.start, &self.end, &mins, &maxs, self.hull)
-    }
-}
-
-/// Unit vector pointing along `angles` (pitch, yaw)
-fn forward(angles: &Vec3) -> Vec3 {
-    let (sp, cp) = angles.x.to_radians().sin_cos();
-    let (sy, cy) = angles.y.to_radians().sin_cos();
-    Vec3::new(cp * cy, cp * sy, -sp)
-}
-
-/// Whether the segment from `start` to `end` passes through the box grown by `grow` on each side
-fn segment_hits_box(start: &Vec3, end: &Vec3, mins: &Vec3, maxs: &Vec3, grow: f32) -> bool {
-    let axes = [
-        (start.x, end.x, mins.x, maxs.x),
-        (start.y, end.y, mins.y, maxs.y),
-        (start.z, end.z, mins.z, maxs.z),
-    ];
-    let (mut enter, mut exit) = (0.0f32, 1.0f32);
-    for (s, e, lo, hi) in axes {
-        let (lo, hi) = (lo - grow, hi + grow);
-        let d = e - s;
-        if d.abs() < f32::EPSILON {
-            if s < lo || s > hi {
-                return false;
-            }
-            continue;
-        }
-        let (t0, t1) = ((lo - s) / d, (hi - s) / d);
-        enter = enter.max(t0.min(t1));
-        exit = exit.min(t0.max(t1));
-        if enter > exit {
-            return false;
-        }
-    }
-    true
+    let (a, b) = (new.hull.origin, old.hull.origin);
+    Some(Vec3::new(
+        (a.x - b.x) / dt,
+        (a.y - b.y) / dt,
+        (a.z - b.z) / dt,
+    ))
 }
 
 /// Bones of each record of player `index` that can be shot at, oldest first with the record

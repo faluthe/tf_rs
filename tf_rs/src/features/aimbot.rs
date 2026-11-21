@@ -2,6 +2,7 @@ use core::f32;
 
 use crate::{
     config::Config,
+    features::{backtrack::Choice, melee},
     globals::{Globals, Target},
     helpers,
     interfaces::Interfaces,
@@ -9,21 +10,26 @@ use crate::{
     types::{ClassId, Entity, Player, UserCmd, Vec3, Weapon, user_cmd::Buttons},
 };
 
-pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
+/// Aim with the active weapon, returns which backtrack tick the command should use
+pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) -> Choice {
     let cmd = unsafe { &mut *cmd };
     if !config.aimbot.master || Globals::read().is_spectated {
         Globals::write().target = None;
-        return;
+        return Choice::Auto;
     }
 
     let Some(weapon) = localplayer.active_weapon() else {
         Globals::write().target = None;
-        return;
+        return Choice::Auto;
     };
+
+    if weapon.is_melee() && config.aimbot.melee {
+        return melee::run(localplayer, &weapon, cmd, config);
+    }
 
     if !weapon.is_hitscan() {
         Globals::write().target = None;
-        return;
+        return Choice::Auto;
     }
 
     let (target, aim_angle) = get_target(localplayer, &weapon, &cmd.view_angles, config);
@@ -32,11 +38,11 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
     Globals::write().target = target;
 
     let Some(aim_angle) = aim_angle else {
-        return;
+        return Choice::Auto;
     };
 
     if should_headshot && weapon.spread() > 0.0 {
-        return;
+        return Choice::Auto;
     }
 
     let use_key = config.aimbot.key.use_key;
@@ -49,6 +55,8 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
             cmd.buttons |= Buttons::InAttack as i32;
         }
     }
+
+    Choice::Auto
 }
 
 // TODO: Add sentry + other entity checks

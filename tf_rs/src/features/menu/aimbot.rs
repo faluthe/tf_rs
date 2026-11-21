@@ -66,6 +66,16 @@ fn aimbot_settings(nk: &Nuklear, config: &mut Config) {
         );
     });
 
+    nk.section("Melee", false)
+        .row_dynamic(ROW, 1)
+        .checkbox("Enabled", &mut aim.melee);
+    if aim.melee {
+        nk.row_dynamic(ROW, 1)
+            .checkbox("Auto swing", &mut aim.auto_swing)
+            .checkbox("Swing prediction", &mut aim.swing_prediction)
+            .checkbox("Auto backstab", &mut aim.auto_backstab);
+    }
+
     nk.section("Player categories", false);
     let cat_names = player_db::get_names();
     let items = [
