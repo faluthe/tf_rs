@@ -261,7 +261,12 @@ impl Context {
     }
 
     /// `combo_begin_label` whose popup is at least `min_width` wide and at most `height` tall
-    pub(crate) fn combo_begin_label_sized(&self, label: CString, min_width: f32, height: f32) -> bool {
+    pub(crate) fn combo_begin_label_sized(
+        &self,
+        label: CString,
+        min_width: f32,
+        height: f32,
+    ) -> bool {
         unsafe {
             let width = nk_widget_width(self.nk_ctx).max(min_width);
             nk_combo_begin_label(self.nk_ctx, label.as_ptr(), nk_vec2(width, height)) != 0
@@ -324,7 +329,12 @@ impl Context {
             (*ctx).style.button = saved;
 
             let hovered = nk_input_is_mouse_hovering_rect(&(*ctx).input, bounds) != 0;
-            let rect = nk_rect(bounds.x + 2.0, bounds.y + 3.0, bounds.w - 4.0, bounds.h - 6.0);
+            let rect = nk_rect(
+                bounds.x + 2.0,
+                bounds.y + 3.0,
+                bounds.w - 4.0,
+                bounds.h - 6.0,
+            );
             let canvas = nk_window_get_canvas(ctx);
             nk_fill_rect(canvas, rect, 0.0, color.opaque().into());
             let (outline, thickness) = if active {

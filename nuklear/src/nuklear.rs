@@ -446,7 +446,10 @@ impl Nuklear {
         }
 
         // Fall back to the first visible color when the active one is hidden or elsewhere
-        let mut shown = items.iter().filter(|i| i.shows_color()).filter_map(|i| i.key());
+        let mut shown = items
+            .iter()
+            .filter(|i| i.shows_color())
+            .filter_map(|i| i.key());
         let first = shown.next();
         let target = if first == Some(active) || shown.any(|k| k == active) {
             Some(active)
