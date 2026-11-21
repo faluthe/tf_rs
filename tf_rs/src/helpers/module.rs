@@ -108,3 +108,13 @@ pub fn function_start(segments: &[Segment], addr: usize) -> Option<usize> {
     }
     None
 }
+
+/// Target of the `call rel32` at `addr`, if that's what is there
+pub fn call_target(addr: usize) -> Option<usize> {
+    let bytes = unsafe { std::slice::from_raw_parts(addr as *const u8, 5) };
+    if bytes[0] != 0xE8 {
+        return None;
+    }
+    let rel = i32::from_le_bytes(bytes[1..5].try_into().unwrap());
+    Some((addr + 5).wrapping_add_signed(rel as isize))
+}

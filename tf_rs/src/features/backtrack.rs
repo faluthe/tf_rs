@@ -19,7 +19,7 @@ use crate::{
     helpers,
     interfaces::Interfaces,
     types::{
-        ConVar, Flow, Matrix3x4, Player, UserCmd, Vec3,
+        ConVar, Flow, Matrix3x4, Player, UserCmd, Vec3, Weapon,
         player::{BONE_USED_BY_ANYTHING, MAX_BONES},
         user_cmd::Buttons,
     },
@@ -33,6 +33,10 @@ pub struct Record {
     pub bones: Box<[Matrix3x4; MAX_BONES]>,
     head: Vec3,
     body: Vec3,
+    // Collision box, what melee swings trace against
+    origin: Vec3,
+    mins: Vec3,
+    maxs: Vec3,
 }
 
 /// Records of each player by entity index, newest first
@@ -229,6 +233,9 @@ pub fn update_records() {
             sim_time,
             head: bones[player.head_bone_id()].position(),
             body: bones[1].position(),
+            origin: player.origin(),
+            mins: player.mins(),
+            maxs: player.maxs(),
             bones,
         });
 
@@ -242,8 +249,8 @@ pub fn update_records() {
     }
 }
 
-/// Pick the record closest to where we're aiming, or with a melee weapon the one physically
-/// closest to us, and set the tick to it when shooting
+/// Pick the record closest to where we're aiming, or with a melee weapon one the swing would
+/// connect with, and set the tick to it when shooting
 pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
     let cmd = unsafe { &mut *cmd };
     let target = select(localplayer, cmd, &config.backtrack);
@@ -268,32 +275,122 @@ fn select(
         return None;
     }
     let timing = Timing::now(config)?;
-    let melee = localplayer.active_weapon().is_some_and(|w| w.is_melee());
-
-    let shoot_pos = localplayer.eye_pos();
-    let score = |pos: Vec3| {
-        if melee {
-            let (dx, dy, dz) = (
-                pos.x - shoot_pos.x,
-                pos.y - shoot_pos.y,
-                pos.z - shoot_pos.z,
-            );
-            dx * dx + dy * dy + dz * dz
-        } else {
-            let angle = helpers::calculate_angle(&shoot_pos, &pos);
-            cmd.view_angles.fov_to(&angle)
-        }
-    };
-
     let records = records();
-    records
+    let usable = records
         .iter()
         .enumerate()
         .flat_map(|(i, player_records)| player_records.iter().map(move |r| (i as i32, r)))
-        .filter(|(_, r)| timing.usable(r.sim_time))
-        .flat_map(|(i, r)| [r.head, r.body].map(|pos| (score(pos), i, r.sim_time)))
+        .filter(|(_, r)| timing.usable(r.sim_time));
+
+    if let Some(swing) = localplayer
+        .active_weapon()
+        .and_then(|w| Swing::new(localplayer, &w, cmd))
+    {
+        // Any record the swing connects with works, the newest relies least on timing
+        return usable
+            .filter(|(_, r)| swing.hits(r))
+            .max_by(|a, b| a.1.sim_time.total_cmp(&b.1.sim_time))
+            .map(|(i, r)| (i, r.sim_time, true));
+    }
+
+    let shoot_pos = localplayer.eye_pos();
+    usable
+        .flat_map(|(i, r)| {
+            [r.head, r.body].map(|pos| {
+                let angle = helpers::calculate_angle(&shoot_pos, &pos);
+                (cmd.view_angles.fov_to(&angle), i, r.sim_time)
+            })
+        })
         .min_by(|a, b| a.0.total_cmp(&b.0))
-        .map(|(_, i, sim_time)| (i, sim_time, melee))
+        .map(|(_, i, sim_time)| (i, sim_time, false))
+}
+
+/// A melee swing as the server traces it: from the eye along the view angles for the weapon's
+/// range, first as a line then as a cube, against players' collision boxes
+struct Swing {
+    start: Vec3,
+    end: Vec3,
+    hull: f32,
+}
+
+impl Swing {
+    const HULL: f32 = 18.0;
+
+    fn new(localplayer: &Player, weapon: &Weapon, cmd: &UserCmd) -> Option<Self> {
+        if !weapon.is_melee() {
+            return None;
+        }
+        let range = weapon.attrib_float(weapon.swing_range(), c"melee_range_multiplier");
+        let hull = weapon.attrib_float(Self::HULL, c"melee_bounds_multiplier");
+
+        // The server swings after moving us with this command
+        let tick = Interfaces::global_vars().interval_per_tick;
+        let velocity = localplayer.velocity();
+        let mut start = localplayer.eye_pos();
+        start.x += velocity.x * tick;
+        start.y += velocity.y * tick;
+        start.z += velocity.z * tick;
+
+        let forward = forward(&cmd.view_angles);
+        let end = Vec3::new(
+            start.x + forward.x * range,
+            start.y + forward.y * range,
+            start.z + forward.z * range,
+        );
+        Some(Swing { start, end, hull })
+    }
+
+    fn hits(&self, record: &Record) -> bool {
+        // Origins are networked with a little less precision than they're stored with
+        let shrink = 0.125;
+        let mins = Vec3::new(
+            record.origin.x + record.mins.x + shrink,
+            record.origin.y + record.mins.y + shrink,
+            record.origin.z + record.mins.z + shrink,
+        );
+        let maxs = Vec3::new(
+            record.origin.x + record.maxs.x - shrink,
+            record.origin.y + record.maxs.y - shrink,
+            record.origin.z + record.maxs.z - shrink,
+        );
+        // Sweeping the cube is the same as a line against the box grown by the cube, and the
+        // line trace the server tries first can only hit inside that
+        segment_hits_box(&self.start, &self.end, &mins, &maxs, self.hull)
+    }
+}
+
+/// Unit vector pointing along `angles` (pitch, yaw)
+fn forward(angles: &Vec3) -> Vec3 {
+    let (sp, cp) = angles.x.to_radians().sin_cos();
+    let (sy, cy) = angles.y.to_radians().sin_cos();
+    Vec3::new(cp * cy, cp * sy, -sp)
+}
+
+/// Whether the segment from `start` to `end` passes through the box grown by `grow` on each side
+fn segment_hits_box(start: &Vec3, end: &Vec3, mins: &Vec3, maxs: &Vec3, grow: f32) -> bool {
+    let axes = [
+        (start.x, end.x, mins.x, maxs.x),
+        (start.y, end.y, mins.y, maxs.y),
+        (start.z, end.z, mins.z, maxs.z),
+    ];
+    let (mut enter, mut exit) = (0.0f32, 1.0f32);
+    for (s, e, lo, hi) in axes {
+        let (lo, hi) = (lo - grow, hi + grow);
+        let d = e - s;
+        if d.abs() < f32::EPSILON {
+            if s < lo || s > hi {
+                return false;
+            }
+            continue;
+        }
+        let (t0, t1) = ((lo - s) / d, (hi - s) / d);
+        enter = enter.max(t0.min(t1));
+        exit = exit.min(t0.max(t1));
+        if enter > exit {
+            return false;
+        }
+    }
+    true
 }
 
 /// Bones of each record of player `index` that can be shot at, oldest first with the record

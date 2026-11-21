@@ -1,6 +1,27 @@
-use std::ffi::c_void;
+use std::ffi::{CStr, c_char, c_void};
 
-use crate::{offset_get, traits::FromRaw, vfunc};
+use once_cell::sync::OnceCell;
+
+use crate::{helpers::module, offset_get, traits::FromRaw, vfunc};
+
+type AttribHookFloat = extern "C" fn(f32, *const c_char, *mut c_void, *mut c_void, bool) -> f32;
+
+/// CAttributeManager::AttribHookValue<float>, called right after the melee swing trace loads
+/// the name of the bounds multiplier
+fn attrib_hook_float() -> Option<AttribHookFloat> {
+    static HOOK: OnceCell<Option<usize>> = OnceCell::new();
+    let addr = HOOK.get_or_init(|| {
+        let segments = module::segments("client.so");
+        let name = module::find_string(&segments, c"melee_bounds_multiplier")?;
+        let lea = module::find_lea_to(&segments, name)?;
+        let hook = module::call_target(lea + 7);
+        if hook.is_none() {
+            log::warn!("Attribute hook not found, melee multipliers are ignored");
+        }
+        hook
+    });
+    addr.map(|a| unsafe { std::mem::transmute::<usize, AttribHookFloat>(a) })
+}
 
 pub struct Weapon {
     this: *mut c_void,
@@ -20,6 +41,20 @@ impl Weapon {
     pub fn weapon_class(&self) -> WeaponClass {
         let f = vfunc!(self.vtable, 451, extern "C" fn(*mut c_void) -> WeaponClass);
         f(self.this)
+    }
+
+    /// Reach of a melee swing before attributes and model scale
+    pub fn swing_range(&self) -> f32 {
+        let f = vfunc!(self.vtable, 528, extern "C" fn(*mut c_void) -> i32);
+        f(self.this) as f32
+    }
+
+    /// `value` with the weapon's attribute `name` applied, unchanged if attributes can't be read
+    pub fn attrib_float(&self, value: f32, name: &CStr) -> f32 {
+        match attrib_hook_float() {
+            Some(f) => f(value, name.as_ptr(), self.this, std::ptr::null_mut(), true),
+            None => value,
+        }
     }
 
     pub fn can_headshot(&self) -> bool {
