@@ -14,6 +14,22 @@ use crate::{
 static mut TP: i32 = 0;
 static mut LAST_TP: bool = false;
 
+/// Put the local player back in firstperson if we left them in thirdperson.
+pub fn reset_thirdperson() {
+    unsafe {
+        if TP == 0 {
+            return;
+        }
+        TP = 0;
+    }
+    if !Interfaces::engine_client().is_in_game() {
+        return;
+    }
+    if let Some(localplayer) = helpers::get_localplayer() {
+        localplayer.set_thirdperson(0);
+    }
+}
+
 pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut UserCmd) -> i64 {
     let rc = Hooks::create_move()
         .call_create_move(this, sample_time, cmd)

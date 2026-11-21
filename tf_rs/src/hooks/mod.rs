@@ -11,6 +11,7 @@ mod vmtshadow;
 
 pub use core::*;
 use create_move::*;
+pub use create_move::reset_thirdperson;
 use draw_model_execute::*;
 use fn_sig::*;
 use override_view::*;
