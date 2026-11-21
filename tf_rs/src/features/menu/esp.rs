@@ -7,7 +7,7 @@ use nuklear::{
 
 use super::{ROW, field};
 use crate::{
-    config::{ChamsConfig, Config, EntityESPConfig},
+    config::{ChamsConfig, ChamsGroupConfig, Config, EntityESPConfig},
     features::chams,
     player_db,
 };
@@ -72,8 +72,9 @@ pub(super) fn esp_tab(nk: &Nuklear, config: &mut Config) {
     chams_section(nk, &mut esp.chams);
 }
 
-/// Chams group shown in the menu, index into the labels in `chams_section`
-static CHAMS_GROUP: AtomicUsize = AtomicUsize::new(0);
+/// Chams tab shown in the menu, index into `CHAMS_TABS`
+static CHAMS_TAB: AtomicUsize = AtomicUsize::new(0);
+const CHAMS_TABS: [&str; 4] = ["Players", "Buildings", "Categories", "First person"];
 
 fn chams_section(nk: &Nuklear, chams: &mut ChamsConfig) {
     nk.section("Chams", false)
@@ -83,55 +84,70 @@ fn chams_section(nk: &Nuklear, chams: &mut ChamsConfig) {
         return;
     }
 
-    let names = player_db::get_names();
-    let labels = [
-        "Enemies",
-        "Teammates",
-        "Local player",
-        "Buildings",
-        names[0].as_str(),
-        names[1].as_str(),
-        names[2].as_str(),
-        names[3].as_str(),
-        "Hands",
-        "Weapon",
-    ];
-    let mut selected = CHAMS_GROUP.load(Ordering::Relaxed);
-    field(nk, "Group", |nk| {
-        nk.single_select_combo(&labels, &mut selected);
-    });
-    CHAMS_GROUP.store(selected, Ordering::Relaxed);
+    let mut tab = CHAMS_TAB.load(Ordering::Relaxed);
+    nk.tab_bar(&CHAMS_TABS, &mut tab);
+    CHAMS_TAB.store(tab, Ordering::Relaxed);
 
-    let (group, first_person) = match selected {
-        1 => (&mut chams.friendly, false),
-        2 => (&mut chams.local, false),
-        3 => (&mut chams.buildings, false),
-        4 => (&mut chams.category1, false),
-        5 => (&mut chams.category2, false),
-        6 => (&mut chams.category3, false),
-        7 => (&mut chams.category4, false),
-        8 => (&mut chams.hands, true),
-        9 => (&mut chams.weapon, true),
-        _ => (&mut chams.enemy, false),
+    match tab {
+        1 => chams_group(nk, "Buildings", &mut chams.buildings),
+        2 => {
+            let names = player_db::get_names();
+            chams_group(nk, &names[0], &mut chams.category1);
+            chams_group(nk, &names[1], &mut chams.category2);
+            chams_group(nk, &names[2], &mut chams.category3);
+            chams_group(nk, &names[3], &mut chams.category4);
+        }
+        3 => {
+            first_person_group(nk, "Hands", &mut chams.hands);
+            first_person_group(nk, "Weapon", &mut chams.weapon);
+        }
+        _ => {
+            chams_group(nk, "Enemies", &mut chams.enemy);
+            chams_group(nk, "Teammates", &mut chams.friendly);
+            chams_group(nk, "Local player", &mut chams.local);
+        }
+    }
+}
+
+fn chams_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig) {
+    group_title(nk, title);
+    material_field(nk, &mut group.material);
+    toggle_color_field(nk, "Visible", &mut group.visible, &mut group.visible_color);
+    toggle_color_field(
+        nk,
+        "Occluded",
+        &mut group.occluded,
+        &mut group.occluded_color,
+    );
+}
+
+// Viewmodels are never behind anything, so only the visible pass applies
+fn first_person_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig) {
+    group_title(nk, title);
+    material_field(nk, &mut group.material);
+    toggle_color_field(nk, "Enabled", &mut group.visible, &mut group.visible_color);
+}
+
+fn group_title(nk: &Nuklear, title: &str) {
+    nk.row_dynamic(ROW, 1);
+    match nk.palette() {
+        Some(p) => nk.colored_label(
+            title,
+            TextAlignment::LEFT,
+            p.accent.r,
+            p.accent.g,
+            p.accent.b,
+            p.accent.a,
+        ),
+        None => nk.label(title, TextAlignment::LEFT),
     };
+}
 
+fn material_field(nk: &Nuklear, material: &mut usize) {
     field(nk, "Material", |nk| {
         let labels: Vec<&str> = chams::MATERIALS.iter().map(|m| m.label).collect();
-        nk.single_select_combo(&labels, &mut group.material);
+        nk.single_select_combo(&labels, material);
     });
-
-    // Viewmodels are never behind anything, so only the visible pass applies
-    if first_person {
-        toggle_color_field(nk, "Enabled", &mut group.visible, &mut group.visible_color);
-    } else {
-        toggle_color_field(nk, "Visible", &mut group.visible, &mut group.visible_color);
-        toggle_color_field(
-            nk,
-            "Occluded",
-            &mut group.occluded,
-            &mut group.occluded_color,
-        );
-    }
 }
 
 /// A `field` row whose widget is a checkbox followed by a color swatch
