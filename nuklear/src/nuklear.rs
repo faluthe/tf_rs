@@ -4,7 +4,7 @@ use std::{
     mem, ptr, slice,
     sync::{
         LazyLock, Mutex, RwLock,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
@@ -37,6 +37,59 @@ static PALETTE: RwLock<Option<Palette>> = RwLock::new(None);
 /// Kept here because black and greys can't be converted back to their hue and saturation.
 static PICKERS: LazyLock<Mutex<HashMap<usize, (Color, [f32; 4])>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Color the picker of the open `toggle_color_list` edits, keyed by its address
+static ACTIVE_SWATCH: AtomicUsize = AtomicUsize::new(0);
+
+/// Preview of one option in a `summary_combo` header
+#[derive(Clone, Copy)]
+pub enum Swatch {
+    /// Option is on, shown filled with its color
+    On(Color),
+    /// Option is off, shown as an empty outline
+    Off,
+}
+
+impl Swatch {
+    pub fn new(on: bool, color: Color) -> Self {
+        if on { Swatch::On(color) } else { Swatch::Off }
+    }
+}
+
+/// One row of a `toggle_color_list`
+pub struct ToggleColor<'a> {
+    pub label: &'a str,
+    /// Checkbox for the row, `None` for a plain label
+    pub on: Option<&'a mut bool>,
+    /// Color for the row, shown only while `on` is set
+    pub color: Option<&'a mut Color>,
+}
+
+impl<'a> ToggleColor<'a> {
+    pub fn new(label: &'a str, on: &'a mut bool, color: Option<&'a mut Color>) -> Self {
+        ToggleColor {
+            label,
+            on: Some(on),
+            color,
+        }
+    }
+
+    pub fn color(label: &'a str, color: &'a mut Color) -> Self {
+        ToggleColor {
+            label,
+            on: None,
+            color: Some(color),
+        }
+    }
+
+    fn shows_color(&self) -> bool {
+        self.color.is_some() && self.on.as_deref().is_none_or(|on| *on)
+    }
+
+    fn key(&self) -> Option<usize> {
+        self.color.as_deref().map(|c| c as *const Color as usize)
+    }
+}
 
 pub struct Nuklear {
     window: *mut SDL_Window,
@@ -283,7 +336,7 @@ impl Nuklear {
             .zip(selected.iter())
             .filter_map(|(item, s)| (**s).then_some(*item))
             .collect();
-        let header = self.multi_select_preview(&names);
+        let header = self.list_preview(&names, self.context.combo_label_width());
 
         if self
             .context
@@ -305,14 +358,124 @@ impl Nuklear {
         self
     }
 
-    /// Comma separated list of `names` that fits in the next combo slot, e.g.
-    /// "Boxes, Names". Trailing names that don't fit are summarized as "+N".
-    fn multi_select_preview(&self, names: &[&str]) -> String {
+    /// Combo whose header lists `names` followed by `swatches`, with `body` drawn in its popup.
+    /// The popup is at least `width` wide.
+    pub fn summary_combo(
+        &self,
+        names: &[&str],
+        swatches: &[Swatch],
+        width: f32,
+        body: impl FnOnce(&Self),
+    ) -> &Self {
+        let header = self.context.widget_bounds();
+        let avail =
+            self.context.combo_label_width() - self.context.combo_swatches_width(swatches.len());
+        let text = self.list_preview(names, avail);
+
+        if self
+            .context
+            .combo_begin_label_sized(CString::new(text).unwrap(), width, 800.0)
+        {
+            body(self);
+            self.context.combo_end();
+        }
+
+        // Drawn after the popup is done so they land on the window, under the popup
+        if let Some(p) = self.palette() {
+            let swatches: Vec<Option<Color>> = swatches
+                .iter()
+                .map(|s| match s {
+                    Swatch::On(c) => Some(*c),
+                    Swatch::Off => None,
+                })
+                .collect();
+            self.context.combo_swatches(header, &swatches, &p);
+        }
+        self
+    }
+
+    /// Selectable labels laid out `cols` to a row, `selected` is the index of the chosen one
+    pub fn select_grid(&self, items: &[&str], selected: &mut usize, cols: usize) -> &Self {
+        for (i, item) in items.iter().enumerate() {
+            if i % cols == 0 {
+                self.context.row_dynamic(24.0, cols as i32);
+            }
+            let mut sel = (*selected == i) as i32;
+            self.context.selectable_label(
+                CString::new(*item).unwrap(),
+                TextAlignment::CENTER as u32,
+                &mut sel,
+            );
+            if sel != 0 {
+                *selected = i;
+            }
+        }
+        self
+    }
+
+    /// Rows of checkboxes, each with a swatch of its color while checked, and one color picker
+    /// below them for the swatch last clicked
+    pub fn toggle_color_list(&self, items: &mut [ToggleColor]) -> &Self {
+        const ROW: f32 = 24.0;
+        const SWATCH_W: f32 = 40.0;
+        const PICKER_H: f32 = 150.0;
+
+        let palette = self.palette();
+        let mut active = ACTIVE_SWATCH.load(Ordering::Relaxed);
+        for item in items.iter_mut() {
+            self.context.row_fill_then_static(ROW, SWATCH_W);
+            match item.on.as_deref_mut() {
+                Some(on) => {
+                    self.checkbox(item.label, on);
+                }
+                None => {
+                    self.label(item.label, TextAlignment::LEFT);
+                }
+            }
+            match (item.shows_color(), item.color.as_deref(), &palette) {
+                (true, Some(color), Some(p)) => {
+                    let key = color as *const Color as usize;
+                    if self.context.swatch_button(*color, key == active, p) {
+                        active = key;
+                    }
+                }
+                _ => {
+                    self.spacing(1);
+                }
+            }
+        }
+
+        // Fall back to the first visible color when the active one is hidden or elsewhere
+        let mut shown = items.iter().filter(|i| i.shows_color()).filter_map(|i| i.key());
+        let first = shown.next();
+        let target = if first == Some(active) || shown.any(|k| k == active) {
+            Some(active)
+        } else {
+            first
+        };
+        let Some(target_key) = target else {
+            return self;
+        };
+        ACTIVE_SWATCH.store(target_key, Ordering::Relaxed);
+
+        if let Some(color) = items
+            .iter_mut()
+            .find(|i| i.key() == Some(target_key))
+            .and_then(|i| i.color.as_deref_mut())
+        {
+            self.context.row_dynamic(PICKER_H, 1);
+            self.color_picker(color);
+        }
+        self
+    }
+
+    /// Comma separated list of `names` that fits in `avail` pixels, e.g. "Boxes, Names".
+    /// Trailing names that don't fit are summarized as "+N".
+    fn list_preview(&self, names: &[&str], avail: f32) -> String {
         if names.is_empty() {
             return "None".to_string();
         }
 
-        let avail = self.context.combo_label_width();
         let fits = |s: &str| self.context.text_width(s) <= avail;
 
         let all = names.join(", ");

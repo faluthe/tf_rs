@@ -29,6 +29,11 @@ pub struct Color {
 }
 
 impl Color {
+    /// Same color with full alpha, for previews
+    pub const fn opaque(self) -> Color {
+        Color { a: 255, ..self }
+    }
+
     pub const WHITE: Color = Color::hex(0xffffff);
 
     pub const fn hex(rgb: u32) -> Self {
