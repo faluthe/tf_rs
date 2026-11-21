@@ -18,11 +18,11 @@ use std::{
     path::Path,
     sync::{
         Mutex,
-        atomic::{AtomicI32, Ordering},
+        atomic::{AtomicI32, AtomicUsize, Ordering},
     },
 };
 
-use log::{LevelFilter, Log, Metadata, Record};
+use log::{Level, LevelFilter, Log, Metadata, Record};
 
 use crate::helpers;
 
@@ -32,8 +32,16 @@ const LOG_FILE: &str = "tf_rs.log";
 /// Most recent lines kept in memory for the menu's log view.
 const MAX_LINES: usize = 1000;
 
-/// Lines written to the log file, oldest first, and the total number ever written.
-static LINES: Mutex<(VecDeque<String>, u64)> = Mutex::new((VecDeque::new(), 0));
+/// Every line logged at any level, oldest first, and the total number ever logged.
+static LINES: Mutex<(VecDeque<(Level, String)>, u64)> = Mutex::new((VecDeque::new(), 0));
+
+/// Most verbose level written to the log file and shown in the menu, as a `LevelFilter`.
+/// Every level is still kept in `LINES`, so lowering this later shows the earlier lines.
+static LEVEL: AtomicUsize = AtomicUsize::new(if cfg!(debug_assertions) {
+    LevelFilter::Debug as usize
+} else {
+    LevelFilter::Info as usize
+});
 
 static LOGGER: FileLogger = FileLogger {
     fd: AtomicI32::new(-1),
@@ -49,10 +57,6 @@ impl Log for FileLogger {
     }
 
     fn log(&self, record: &Record) {
-        if !self.enabled(record.metadata()) {
-            return;
-        }
-
         let fd = self.fd.load(Ordering::Acquire);
         if fd < 0 {
             return;
@@ -65,14 +69,16 @@ impl Log for FileLogger {
         write_timestamp(&mut line);
         let _ = writeln!(line, " {:<5} {target}: {}", record.level(), record.args());
 
-        write_all(fd, line.as_bytes());
+        if record.level() <= level() {
+            write_all(fd, line.as_bytes());
+        }
 
         line.pop();
         let mut lines = LINES.lock().unwrap_or_else(|e| e.into_inner());
         if lines.0.len() == MAX_LINES {
             lines.0.pop_front();
         }
-        lines.0.push_back(line);
+        lines.0.push_back((record.level(), line));
         lines.1 += 1;
     }
 
@@ -85,11 +91,8 @@ pub fn init() {
     LOGGER.fd.store(fd, Ordering::Release);
 
     if log::set_logger(&LOGGER).is_ok() {
-        log::set_max_level(if cfg!(debug_assertions) {
-            LevelFilter::Debug
-        } else {
-            LevelFilter::Info
-        });
+        // Record everything, `LEVEL` filters what is written and shown
+        log::set_max_level(LevelFilter::Trace);
     }
 
     if file_fd.is_none() {
@@ -111,9 +114,19 @@ pub fn shutdown() {
     LINES.lock().unwrap_or_else(|e| e.into_inner()).0 = VecDeque::new();
 }
 
+pub fn level() -> LevelFilter {
+    LevelFilter::iter()
+        .nth(LEVEL.load(Ordering::Relaxed))
+        .unwrap_or(LevelFilter::Info)
+}
+
+pub fn set_level(level: LevelFilter) {
+    LEVEL.store(level as usize, Ordering::Relaxed);
+}
+
 /// Copy the buffered lines out if more than `seen` lines have been logged since.
 /// Returns the new total line count alongside the lines.
-pub fn lines_since(seen: u64) -> Option<(Vec<String>, u64)> {
+pub fn lines_since(seen: u64) -> Option<(Vec<(Level, String)>, u64)> {
     // Copy rather than hand out the guard, so nothing logs while we hold the lock
     let lines = LINES.lock().unwrap_or_else(|e| e.into_inner());
     (lines.1 != seen).then(|| (lines.0.iter().cloned().collect(), lines.1))
