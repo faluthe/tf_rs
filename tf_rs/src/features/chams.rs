@@ -70,6 +70,32 @@ pub const MATERIALS: &[(&str, Source)] = &[
 }"#,
         ),
     ),
+    (
+        "Caustic",
+        Source::Create(
+            r#""UnlitGeneric"
+{
+    "$basetexture" "effects/animatedcaustic/caustic"
+    "$additive" "1"
+    "$model" "1"
+    "Proxies"
+    {
+        "AnimatedTexture"
+        {
+            "animatedtexturevar" "$basetexture"
+            "animatedtextureframenumvar" "$frame"
+            "animatedtextureframerate" "24"
+        }
+        "TextureScroll"
+        {
+            "texturescrollvar" "$basetexturetransform"
+            "texturescrollrate" ".15"
+            "texturescrollangle" "60"
+        }
+    }
+}"#,
+        ),
+    ),
 ];
 
 static LOADED: OnceLock<Vec<Option<Material>>> = OnceLock::new();
