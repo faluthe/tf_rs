@@ -6,7 +6,12 @@ use nuklear::{
 };
 
 use super::ROW;
-use crate::{interfaces::Interfaces, player_db, types::Player};
+use crate::{
+    config::{Config, PlayerCategoryColors},
+    interfaces::Interfaces,
+    player_db,
+    types::Player,
+};
 
 static CAT_NAME_BUFS: [RwLock<[u8; 64]>; 4] = [
     RwLock::new([0u8; 64]),
@@ -16,7 +21,7 @@ static CAT_NAME_BUFS: [RwLock<[u8; 64]>; 4] = [
 ];
 static CAT_NAMES_BUF_INIT: std::sync::Once = std::sync::Once::new();
 
-pub(super) fn players_tab(nk: &Nuklear) {
+pub(super) fn players_tab(nk: &Nuklear, config: &mut Config) {
     CAT_NAMES_BUF_INIT.call_once(|| {
         let names = player_db::get_names();
         for (i, name) in names.iter().enumerate() {
@@ -30,7 +35,7 @@ pub(super) fn players_tab(nk: &Nuklear) {
 
     nk.section("Players", true);
     player_list(nk);
-    category_names(nk);
+    category_names(nk, &mut config.colors.player_categories);
 }
 
 fn player_list(nk: &Nuklear) {
@@ -79,7 +84,7 @@ fn player_list(nk: &Nuklear) {
 
     // Leave room for the category name editor below
     let (_, height) = nk.get_content_region();
-    nk.row_dynamic((height - 220.0).max(150.0), 1);
+    nk.row_dynamic((height - 260.0).max(150.0), 1);
     if nk.group_begin("Players", PanelFlags::BORDER) {
         for (team_name, players) in &teams {
             let (r, g, b) = match team_name.as_str() {
@@ -117,16 +122,21 @@ fn player_list(nk: &Nuklear) {
     }
 }
 
-fn category_names(nk: &Nuklear) {
-    nk.section("Category names", false).row_dynamic(ROW, 2);
-    for i in 0..2 {
-        let mut buf = CAT_NAME_BUFS[i].write().unwrap();
+fn category_names(nk: &Nuklear, colors: &mut PlayerCategoryColors) {
+    nk.section("Categories", false);
+    let colors = [
+        &mut colors.category1,
+        &mut colors.category2,
+        &mut colors.category3,
+        &mut colors.category4,
+    ];
+    for (buf, color) in CAT_NAME_BUFS.iter().zip(colors) {
+        nk.layout_row_begin(LayoutFormat::DYNAMIC, ROW, 2)
+            .layout_row_push(0.75);
+        let mut buf = buf.write().unwrap();
         nk.edit_string(EditFlags::EDIT_FIELD, buf.as_mut_ptr() as *mut i8, 64);
-    }
-    nk.row_dynamic(ROW, 2);
-    for i in 2..4 {
-        let mut buf = CAT_NAME_BUFS[i].write().unwrap();
-        nk.edit_string(EditFlags::EDIT_FIELD, buf.as_mut_ptr() as *mut i8, 64);
+        nk.layout_row_push(0.25).color_combo(color);
+        nk.layout_row_end();
     }
     nk.row_dynamic(ROW, 1);
     if nk.button_label("Save names") {
