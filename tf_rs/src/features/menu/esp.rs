@@ -1,7 +1,10 @@
-use nuklear::Nuklear;
+use nuklear::{Nuklear, flags::TextAlignment};
 
 use super::{ROW, field};
-use crate::config::{Config, EntityESPConfig};
+use crate::{
+    config::{Config, EntityESPConfig},
+    features::chams,
+};
 
 pub(super) fn esp_tab(nk: &Nuklear, config: &mut Config) {
     fn entity_esp_combo(nk: &Nuklear, title: &str, esp_cfg: &mut EntityESPConfig) {
@@ -59,4 +62,20 @@ pub(super) fn esp_tab(nk: &Nuklear, config: &mut Config) {
         .row_dynamic(ROW, 1)
         .checkbox("Show aimbot target", &mut esp.aimbot_target)
         .checkbox("Ignore invisible", &mut esp.ignore_invis);
+
+    nk.section("Chams", false)
+        .row_dynamic(ROW, 1)
+        .checkbox("Enabled", &mut esp.chams.enabled);
+    if esp.chams.enabled {
+        field(nk, "Material", |nk| {
+            let labels: Vec<&str> = chams::MATERIALS.iter().map(|(label, _)| *label).collect();
+            nk.single_select_combo(&labels, &mut esp.chams.material);
+        });
+        nk.row_dynamic(ROW, 2)
+            .dim_label("Visible", TextAlignment::LEFT)
+            .dim_label("Occluded", TextAlignment::LEFT);
+        nk.row_dynamic(180.0, 2)
+            .color_picker(&mut esp.chams.visible)
+            .color_picker(&mut esp.chams.occluded);
+    }
 }

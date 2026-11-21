@@ -160,6 +160,27 @@ struct_with_serialize! {
         pub aimbot_target: bool,
         pub conds: CondsDisplayConfig,
         pub ignore_invis: bool,
+        pub chams: ChamsConfig,
+    }
+}
+
+struct_with_serialize! {
+    pub struct ChamsConfig {
+        pub enabled: bool,
+        pub material: usize,
+        pub visible: Color,
+        pub occluded: Color,
+    }
+}
+
+impl Default for ChamsConfig {
+    fn default() -> Self {
+        ChamsConfig {
+            enabled: false,
+            material: 0,
+            visible: Color::hex(0x00ff00),
+            occluded: Color::hex(0xff0000),
+        }
     }
 }
 
