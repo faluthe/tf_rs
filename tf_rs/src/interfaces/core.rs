@@ -21,6 +21,7 @@ pub struct Interfaces {
     pub material_system: MaterialSystem,
     pub render_view: RenderView,
     pub key_values: KeyValues,
+    pub model_info: ModelInfo,
 }
 
 unsafe impl Send for Interfaces {}
@@ -42,6 +43,7 @@ impl Default for Interfaces {
             material_system: MaterialSystem::default(),
             render_view: RenderView::default(),
             key_values: KeyValues::default(),
+            model_info: ModelInfo::default(),
         }
     }
 }
@@ -64,6 +66,7 @@ impl Interfaces {
         w.engine_trace = EngineTrace::new(engine_factory.get("EngineTraceClient003")?);
         w.model_render = ModelRender::new(engine_factory.get("VEngineModel016")?);
         w.render_view = RenderView::new(engine_factory.get("VEngineRenderView014")?);
+        w.model_info = ModelInfo::new(engine_factory.get("VModelInfoClient006")?);
         w.key_values = KeyValues::new().unwrap_or_else(|e| {
             warn!("Custom materials unavailable: {e:#}");
             KeyValues::default()
@@ -151,5 +154,9 @@ impl Interfaces {
 
     pub fn key_values() -> KeyValues {
         I.read().unwrap().key_values.clone()
+    }
+
+    pub fn model_info() -> ModelInfo {
+        I.read().unwrap().model_info.clone()
     }
 }
