@@ -44,7 +44,7 @@ pub extern "C" fn hk_draw_model_execute(
         return call_original();
     };
 
-    let Some(material) = chams::material(group.material) else {
+    let Some(layers) = chams::layers(group.material) else {
         return call_original();
     };
 
@@ -66,28 +66,37 @@ pub extern "C" fn hk_draw_model_execute(
         render_view.set_color_modulation(old_color);
         render_view.set_blend(old_blend);
     };
+    let call_original_normal = || {
+        model_render.forced_material_override(None);
+        call_original();
+    };
+
+    // Every layer drawn on top of the last, each in its own shade of `color`
+    let draw_layers = |color: Color, ignore_z: bool| {
+        for (i, material) in layers.iter().enumerate() {
+            model_render.forced_material_override(Some(material));
+            material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, ignore_z);
+            set_color(chams::layer_color(color, i));
+            call_original();
+        }
+    };
 
     if group.occluded {
-        model_render.forced_material_override(Some(&material));
-        material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, true);
-        set_color(group.occluded_color);
-        call_original();
+        draw_layers(group.occluded_color, true);
     }
 
     if group.visible {
-        model_render.forced_material_override(Some(&material));
-        material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, false);
-        set_color(group.visible_color);
-        call_original();
-        model_render.forced_material_override(None);
+        draw_layers(group.visible_color, false);
     } else {
         // Normal model wherever the entity can be seen
-        model_render.forced_material_override(None);
-        material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, false);
         restore_color();
-        call_original();
+        call_original_normal();
     }
 
+    model_render.forced_material_override(None);
+    for material in layers {
+        material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, false);
+    }
     restore_color();
 }
 
