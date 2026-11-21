@@ -1,5 +1,6 @@
 mod core;
 mod create_move;
+mod draw_model_execute;
 mod fn_sig;
 mod override_view;
 mod paint_traverse;
@@ -10,6 +11,7 @@ mod vmtshadow;
 
 pub use core::*;
 use create_move::*;
+use draw_model_execute::*;
 use fn_sig::*;
 use override_view::*;
 use paint_traverse::*;

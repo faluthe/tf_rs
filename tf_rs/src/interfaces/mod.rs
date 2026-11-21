@@ -5,6 +5,7 @@ mod engine_trace;
 mod entity_list;
 mod factory;
 mod global_vars;
+mod model_render;
 mod panel;
 pub mod surface;
 
@@ -15,5 +16,6 @@ use engine_trace::*;
 use entity_list::*;
 use factory::*;
 use global_vars::*;
+use model_render::*;
 use panel::*;
 pub use surface::*;

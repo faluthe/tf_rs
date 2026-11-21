@@ -8,6 +8,7 @@ use crate::{hooks::*, interfaces::Interfaces};
 const OVERRIDE_VIEW_INDEX: usize = 17;
 const CREATE_MOVE_INDEX: usize = 22;
 const PAINT_TRAVERSE_INDEX: usize = 42;
+const DRAW_MODEL_EXECUTE_INDEX: usize = 19;
 
 pub static H: Lazy<RwLock<Hooks>> = Lazy::new(|| RwLock::new(Hooks::default()));
 
@@ -15,6 +16,7 @@ pub static H: Lazy<RwLock<Hooks>> = Lazy::new(|| RwLock::new(Hooks::default()));
 pub struct Hooks {
     pub client_mode: VmtShadow,
     pub panel: VmtShadow,
+    pub model_render: VmtShadow,
     pub poll_event: SDLHook,
     pub swap_window: SDLHook,
 }
@@ -45,6 +47,17 @@ impl Hooks {
         w.panel.install().context("Panel vtable")?;
         log::debug!("Hooked PaintTraverse");
 
+        w.model_render =
+            VmtShadow::new(Interfaces::model_render().ptr()).context("ModelRender vtable")?;
+        w.model_render
+            .hook(
+                DRAW_MODEL_EXECUTE_INDEX,
+                FnSig::DrawModelExecute(hk_draw_model_execute),
+            )
+            .context("DrawModelExecute hook")?;
+        w.model_render.install().context("ModelRender vtable")?;
+        log::debug!("Hooked DrawModelExecute");
+
         w.poll_event
             .hook("SDL_PollEvent\0", FnSig::PollEvent(hk_poll_event))
             .context("SDL_PollEvent hook")?;
@@ -64,6 +77,7 @@ impl Hooks {
         let results = [
             ("ClientMode", w.client_mode.restore()),
             ("PaintTraverse", w.panel.restore()),
+            ("DrawModelExecute", w.model_render.restore()),
             ("SDL_PollEvent", w.poll_event.restore()),
             ("SDL_GL_SwapWindow", w.swap_window.restore()),
         ];
@@ -87,6 +101,13 @@ impl Hooks {
 
     pub fn paint_traverse() -> FnSig {
         H.read().unwrap().panel.original(PAINT_TRAVERSE_INDEX)
+    }
+
+    pub fn draw_model_execute() -> FnSig {
+        H.read()
+            .unwrap()
+            .model_render
+            .original(DRAW_MODEL_EXECUTE_INDEX)
     }
 
     pub fn poll_event() -> SDLHook {
