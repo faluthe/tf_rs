@@ -305,6 +305,7 @@ impl Nuklear {
 
     pub fn single_select_combo(&self, items: &[&str], selected: &mut usize) -> &Self {
         let header = items.get(*selected).copied().unwrap_or("None");
+        let bounds = self.context.widget_bounds();
 
         if self
             .context
@@ -324,6 +325,7 @@ impl Nuklear {
             }
             self.context.combo_end();
         }
+        self.combo_chevron(bounds);
 
         self
     }
@@ -337,6 +339,7 @@ impl Nuklear {
             .filter_map(|(item, s)| (**s).then_some(*item))
             .collect();
         let header = self.list_preview(&names, self.context.combo_label_width());
+        let bounds = self.context.widget_bounds();
 
         if self
             .context
@@ -354,6 +357,7 @@ impl Nuklear {
             }
             self.context.combo_end();
         }
+        self.combo_chevron(bounds);
 
         self
     }
@@ -381,6 +385,7 @@ impl Nuklear {
         }
 
         // Drawn after the popup is done so they land on the window, under the popup
+        self.combo_chevron(header);
         if let Some(p) = self.palette() {
             let swatches: Vec<Option<Color>> = swatches
                 .iter()
@@ -392,6 +397,14 @@ impl Nuklear {
             self.context.combo_swatches(header, &swatches, &p);
         }
         self
+    }
+
+    /// Arrow for a combo whose header was at `header`, drawn after the combo so an open popup
+    /// stays on top of it
+    fn combo_chevron(&self, header: nuklear_sys::nk_rect) {
+        if let Some(p) = self.palette() {
+            self.context.combo_chevron(header, &p);
+        }
     }
 
     /// Selectable labels laid out `cols` to a row, `selected` is the index of the chosen one
@@ -650,6 +663,7 @@ impl Nuklear {
     /// Swatch of `color` that opens a color picker when clicked
     pub fn color_combo(&self, color: &mut Color) -> &Self {
         const PICKER_H: f32 = 200.0;
+        let header = self.context.widget_bounds();
 
         if self
             .context
@@ -659,6 +673,7 @@ impl Nuklear {
             self.color_picker(color);
             self.context.combo_end();
         }
+        self.combo_chevron(header);
         self
     }
 

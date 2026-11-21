@@ -312,6 +312,33 @@ impl Context {
         }
     }
 
+    /// Small chevron in the arrow slot of the combo whose header was at `header`. Palettes turn
+    /// nuklear's own triangle off, so this draws the arrow instead.
+    pub(crate) fn combo_chevron(&self, header: nk_rect, p: &Palette) {
+        const HALF_W: f32 = 4.0;
+        const HALF_H: f32 = 2.0;
+        unsafe {
+            let ctx = self.nk_ctx;
+            let c = &(*ctx).style.combo;
+            let button_w = header.h - 2.0 * c.button_padding.y;
+            let button_x = header.x + header.w - header.h - c.button_padding.x;
+            let cx = (button_x + button_w / 2.0).round();
+            let cy = (header.y + header.h / 2.0).round();
+            let hovered = nk_input_is_mouse_hovering_rect(&(*ctx).input, header) != 0;
+            let color = if hovered { p.accent } else { p.text_dim };
+
+            let canvas = nk_window_get_canvas(ctx);
+            let (left, tip, right) = (
+                (cx - HALF_W, cy - HALF_H),
+                (cx, cy + HALF_H),
+                (cx + HALF_W, cy - HALF_H),
+            );
+            for (a, b) in [(left, tip), (tip, right)] {
+                nk_stroke_line(canvas, a.0, a.1, b.0, b.1, 1.5, color.into());
+            }
+        }
+    }
+
     /// Button filled with `color`, outlined in the accent color when `active`
     pub(crate) fn swatch_button(&self, color: Color, active: bool, p: &Palette) -> bool {
         unsafe {
