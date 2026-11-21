@@ -43,6 +43,7 @@ impl Player {
     offset_get!(fn lifestate: i8, 0x746);
     offset_get!(fn active_weapon_: i32, 0x11D0);
     offset_get!(pub fn tick_base: i32, 0x1718);
+    offset_get!(fn next_attack: f32, 0x1088);
     offset_get!(fn eye_z_diff: f32, 0x14C);
     offset_get!(fn player_class: PlayerClass, 0x1BA0);
     offset_get!(fn conds_0: u32, 0x1F64);
@@ -142,14 +143,9 @@ impl Player {
             None => return false,
         };
 
-        let next_attack = weapon.next_attack();
-        let cur_time = self.tick_base() as f32 * Interfaces::global_vars().interval_per_tick;
-
-        if next_attack > cur_time {
-            return false;
-        }
-
-        true
+        // The weapon's own delay, and the player's, which reloads and switching weapons set
+        let cur_time = self.curtime();
+        weapon.next_attack() <= cur_time && self.next_attack() <= cur_time
     }
 
     /// Fill `out` with the bone to world matrices of every bone in `mask`

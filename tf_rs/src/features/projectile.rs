@@ -585,7 +585,6 @@ struct Found {
 pub enum Reject {
     Late,
     Bad,
-    Fov,
     Blocked,
 }
 
@@ -615,15 +614,17 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
 
     // Charged weapons fire when attack is let go. With the key they charge while it's held and
     // let go once there's a shot, otherwise the shot is aimed when the user lets go.
+    // Others aim whenever they'd fire, even while the weapon isn't ready: attack with a loaded
+    // clip cuts a reload short, and the shot leaves as soon as the game allows.
     let looking = if info.charge {
         if key && key_down {
             cmd.buttons |= ATTACK;
         }
         charging && if key { key_down } else { !attacking }
     } else if key {
-        key_down && can_attack
+        key_down
     } else {
-        attacking && can_attack
+        attacking
     };
     if !looking {
         Globals::write().target = None;
@@ -660,7 +661,7 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
     } else {
         can_attack && (cmd.buttons & ATTACK) != 0
     };
-    // Out of ammo the attack does nothing
+    // Out of ammo the attack does nothing, and mid reload the first press only cuts it short
     let fires = fires && weapon.clip() != 0;
     let tick = Interfaces::global_vars().interval_per_tick;
     let s = &found.shot;
@@ -729,7 +730,7 @@ fn find_target(
                 p,
             )
         })
-        .filter(|(fov, _)| *fov <= aim.fov as f32 * 1.5 + 10.0)
+        .filter(|(fov, _)| *fov <= aim.fov as f32)
         .collect();
     targets.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
     targets.truncate(MAX_TARGETS);
@@ -788,7 +789,6 @@ fn find_target(
                     count(attempt(
                         &solver,
                         cmd,
-                        aim.fov as f32,
                         &point,
                         ticks,
                         direct_tolerance + extra,
@@ -809,15 +809,8 @@ fn find_target(
                     hit = splash_points(origin, &target, &info, &eye)
                         .iter()
                         .find_map(|point| {
-                            count(attempt(
-                                &solver,
-                                cmd,
-                                aim.fov as f32,
-                                point,
-                                ticks,
-                                tolerance,
-                            ))
-                            .map(|hit| (hit, *point, true))
+                            count(attempt(&solver, cmd, point, ticks, tolerance))
+                                .map(|hit| (hit, *point, true))
                         });
                 }
             }
@@ -860,11 +853,10 @@ fn find_target(
     (best, diagnostics)
 }
 
-/// A shot landing on `point` within `ticks` that's inside the FOV and gets there unobstructed
+/// A shot landing on `point` within `ticks` that gets there unobstructed
 fn attempt(
     solver: &Solver,
     cmd: &UserCmd,
-    max_fov: f32,
     point: &Vec3,
     ticks: i32,
     tolerance: f32,
@@ -875,9 +867,6 @@ fn attempt(
         Solve::Bad => return Err(Reject::Bad),
     };
     let fov = cmd.view_angles.fov_to(&solution.angles);
-    if fov > max_fov {
-        return Err(Reject::Fov);
-    }
     let path = solver.path(&solution.angles, solution.time);
     if !solver.clear(&path, point, tolerance) {
         return Err(Reject::Blocked);
