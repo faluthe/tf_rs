@@ -15,14 +15,12 @@ use std::{
 use once_cell::sync::Lazy;
 
 use crate::{
-    features::projectile::Reject,
+    features::projectile::{self, Reject},
     helpers,
     interfaces::Interfaces,
-    types::{ClassId, Entity, Player, Vec3},
+    types::{Player, Vec3},
 };
 
-const OWNER: usize = 0x754;
-const THROWER: usize = 0xC30;
 const OFFSETS: i32 = 4;
 /// Seconds a shot waits for its projectile to show up
 const SPAWN_WINDOW: f32 = 1.0;
@@ -204,19 +202,6 @@ pub fn shot(localplayer: &Player, p: &Prediction, path: &[Vec3], flight_time: f3
     });
 }
 
-fn is_projectile(ent: &Entity) -> bool {
-    matches!(
-        ent.class_id(),
-        Some(
-            ClassId::Rocket
-                | ClassId::PillOrSticky
-                | ClassId::Arrow
-                | ClassId::Flare
-                | ClassId::CrossbowBolt
-        )
-    )
-}
-
 fn nearest_distance(point: &Vec3, player: &Player) -> f32 {
     let (o, mins, maxs) = (player.network_origin(), player.mins(), player.maxs());
     let nearest = Vec3::new(
@@ -237,25 +222,7 @@ pub fn observe() {
     let tick = tick();
     let now = Interfaces::global_vars().realtime;
 
-    // Our projectiles out right now
-    let mut ours: Vec<(u32, Entity)> = Vec::new();
-    for i in 1..=list.max_entities() {
-        let Some(ent) = list.get_client_entity::<Entity>(i) else {
-            continue;
-        };
-        if ent.is_dormant() || !is_projectile(&ent) {
-            continue;
-        }
-        let owner = (unsafe { *ent.field::<u32>(OWNER) }) & 0xFFF;
-        let thrower = if matches!(ent.class_id(), Some(ClassId::PillOrSticky)) {
-            (unsafe { *ent.field::<u32>(THROWER) }) & 0xFFF
-        } else {
-            u32::MAX
-        };
-        if owner as i32 == local || thrower as i32 == local {
-            ours.push((ent.ref_handle(), ent));
-        }
-    }
+    let ours = projectile::our_projectiles(local);
 
     let mut state = STATE.lock().unwrap();
     let mut rows = [String::new(), String::new()];
