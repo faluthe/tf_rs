@@ -5,7 +5,18 @@ use nuklear::{
     flags::{PanelFlags, TextAlignment},
 };
 
+use log::LevelFilter;
+
+use super::{ROW, field};
 use crate::logger;
+
+const LEVELS: [(&str, LevelFilter); 5] = [
+    ("Error", LevelFilter::Error),
+    ("Warn", LevelFilter::Warn),
+    ("Info", LevelFilter::Info),
+    ("Debug", LevelFilter::Debug),
+    ("Trace", LevelFilter::Trace),
+];
 
 static LOG_VIEW: Mutex<LogView> = Mutex::new(LogView {
     lines: Vec::new(),
@@ -38,10 +49,21 @@ pub(super) fn logging_tab(nk: &Nuklear) {
 
     let text = nk.palette().map_or(Color::hex(0xc8c8c8), |p| p.text);
 
-    // Fill the rest of the window
     nk.section("Log", true);
+    let names = LEVELS.map(|(name, _)| name);
+    let current = log::max_level();
+    let mut selected = LEVELS.iter().position(|&(_, l)| l == current).unwrap_or(2);
+    field(nk, "Level", |nk| {
+        nk.single_select_combo(&names, &mut selected);
+    });
+    if LEVELS[selected].1 != current {
+        log::set_max_level(LEVELS[selected].1);
+        log::info!("Log level set to {}", names[selected]);
+    }
+
+    // Fill the rest of the window, below the heading and level row
     let (_, height) = nk.get_content_region();
-    nk.row_dynamic((height - 44.0).max(100.0), 1);
+    nk.row_dynamic((height - 44.0 - ROW - 5.0).max(100.0), 1);
     nk.push_font(Font::Cousine);
     if nk.group_scrolled_begin("Log", PanelFlags::BORDER, &mut view.scroll) {
         nk.row_dynamic(ROW_HEIGHT, 1);
