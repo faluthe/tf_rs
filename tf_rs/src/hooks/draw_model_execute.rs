@@ -149,7 +149,13 @@ fn chams_group(info: &ModelRenderInfo, config: &ChamsConfig) -> Option<ChamsGrou
                 Some(config.enemy)
             }
         }
-        Some(ClassId::Sentry | ClassId::Dispenser | ClassId::Teleporter) => Some(config.buildings),
+        Some(ClassId::Sentry | ClassId::Dispenser | ClassId::Teleporter) => {
+            if entity.team() == localplayer.team() {
+                Some(config.building_friendly)
+            } else {
+                Some(config.building_enemy)
+            }
+        }
         _ if entity.class_name() == "CTFViewModel" => Some(config.hands),
         _ => None,
     }

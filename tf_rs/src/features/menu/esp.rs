@@ -233,7 +233,10 @@ fn chams_section(nk: &Nuklear, chams: &mut ChamsConfig) {
     CHAMS_TAB.store(tab, Ordering::Relaxed);
 
     match tab {
-        1 => chams_group(nk, "Buildings", &mut chams.buildings),
+        1 => {
+            chams_group(nk, "Enemy", &mut chams.building_enemy);
+            chams_group(nk, "Friendly", &mut chams.building_friendly);
+        }
         2 => {
             let names = player_db::get_names();
             chams_group(nk, &names[0], &mut chams.category1);
