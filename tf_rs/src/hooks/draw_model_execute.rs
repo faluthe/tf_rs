@@ -2,7 +2,7 @@ use std::ffi::c_void;
 
 use crate::{
     config::{ChamsConfig, ChamsGroupConfig, Config},
-    features::chams,
+    features::{backtrack, chams},
     helpers,
     hooks::Hooks,
     interfaces::Interfaces,
@@ -39,6 +39,12 @@ pub extern "C" fn hk_draw_model_execute(
     let Some(info_ref) = (unsafe { info.as_ref() }) else {
         return call_original();
     };
+
+    draw_backtrack(info_ref, &chams_config, |bones| {
+        Hooks::draw_model_execute()
+            .call_draw_model_execute(this, state, info, bones)
+            .expect("Invalid DrawModelExecute function signature");
+    });
 
     let Some(group) = chams_group(info_ref, &chams_config).filter(|g| g.active()) else {
         return call_original();
@@ -99,6 +105,69 @@ pub extern "C" fn hk_draw_model_execute(
         material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, false);
     }
     restore_color();
+}
+
+/// Draw the model posed at each backtrack record of an enemy player, `draw` renders it with
+/// the given bones
+fn draw_backtrack(info: &ModelRenderInfo, config: &ChamsConfig, draw: impl Fn(*mut Matrix3x4)) {
+    let group = config.backtrack;
+    if !group.active() || !is_enemy_player(info.entity_index) {
+        return;
+    }
+    let Some((layers, materials)) = chams::layers(group.material) else {
+        return;
+    };
+
+    let render_view = Interfaces::render_view();
+    let model_render = Interfaces::model_render();
+    let old_color = render_view.get_color_modulation();
+    let old_blend = render_view.get_blend();
+    let time = Interfaces::global_vars().realtime;
+
+    backtrack::valid_bones(info.entity_index, |bones| {
+        let passes = [
+            (group.occluded, group.occluded_color, true),
+            (group.visible, group.visible_color, false),
+        ];
+        for (_, color, ignore_z) in passes.into_iter().filter(|p| p.0) {
+            for (layer, material) in layers.iter().zip(materials) {
+                let color = layer.color(color, time);
+                model_render.forced_material_override(Some(material));
+                material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, ignore_z);
+                render_view.set_color_modulation([
+                    color.r as f32 / 255.0,
+                    color.g as f32 / 255.0,
+                    color.b as f32 / 255.0,
+                ]);
+                render_view.set_blend(color.a as f32 / 255.0);
+                // The engine only reads the bones, the cast is for the signature
+                draw(bones.as_ptr() as *mut Matrix3x4);
+            }
+        }
+    });
+
+    model_render.forced_material_override(None);
+    for material in materials {
+        material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, false);
+    }
+    render_view.set_color_modulation(old_color);
+    render_view.set_blend(old_blend);
+}
+
+fn is_enemy_player(index: i32) -> bool {
+    let Some(localplayer) = helpers::get_localplayer() else {
+        return false;
+    };
+    Interfaces::entity_list()
+        .get_client_entity::<Player>(index)
+        .is_some_and(|p| {
+            p.ent
+                .class_id()
+                .is_some_and(|c| matches!(c, ClassId::Player))
+                && !p.is_dormant()
+                && !p.is_dead()
+                && p.team() != localplayer.team()
+        })
 }
 
 /// Which chams configuration applies to the model being drawn, if any
