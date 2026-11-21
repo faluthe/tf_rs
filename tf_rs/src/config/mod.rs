@@ -168,7 +168,6 @@ struct_with_serialize! {
     #[derive(Clone)]
     pub struct ChamsConfig {
         pub enabled: bool,
-        pub material: usize,
         pub enemy: ChamsGroupConfig,
         pub friendly: ChamsGroupConfig,
         pub local: ChamsGroupConfig,
@@ -187,7 +186,6 @@ impl Default for ChamsConfig {
         let categories = PlayerCategoryColors::default();
         ChamsConfig {
             enabled: false,
-            material: 0,
             enemy: ChamsGroupConfig::new(true, 0xff4040, 0x9a0000),
             friendly: ChamsGroupConfig::new(false, 0x40ff40, 0x008a00),
             local: ChamsGroupConfig::new(false, 0xffffff, 0x808080),
@@ -205,6 +203,8 @@ impl Default for ChamsConfig {
 struct_with_serialize! {
     #[derive(Clone, Copy)]
     pub struct ChamsGroupConfig {
+        // Index into chams::MATERIALS
+        pub material: usize,
         // Draw chams where the entity can be seen, otherwise draw the normal model there
         pub visible: bool,
         // Draw chams through walls
@@ -217,6 +217,7 @@ struct_with_serialize! {
 impl ChamsGroupConfig {
     fn new(enabled: bool, visible: u32, occluded: u32) -> Self {
         ChamsGroupConfig {
+            material: 0,
             visible: enabled,
             occluded: enabled,
             visible_color: Color::hex(visible),
@@ -227,6 +228,7 @@ impl ChamsGroupConfig {
     fn from_color(color: Color) -> Self {
         let dim = |c: u8| (c as u16 * 3 / 5) as u8;
         ChamsGroupConfig {
+            material: 0,
             visible: false,
             occluded: false,
             visible_color: color,

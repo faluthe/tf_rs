@@ -70,11 +70,6 @@ pub(super) fn esp_tab(nk: &Nuklear, config: &mut Config) {
         .row_dynamic(ROW, 1)
         .checkbox("Enabled", &mut esp.chams.enabled);
     if esp.chams.enabled {
-        field(nk, "Material", |nk| {
-            let labels: Vec<&str> = chams::MATERIALS.iter().map(|(label, _)| *label).collect();
-            nk.single_select_combo(&labels, &mut esp.chams.material);
-        });
-
         let c = &mut esp.chams;
         let names = player_db::get_names();
         chams_group(nk, "Enemies", &mut c.enemy);
@@ -94,6 +89,7 @@ fn chams_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig) {
     if !nk.tree_push(title) {
         return;
     }
+    material_field(nk, group);
     nk.row_dynamic(ROW, 2)
         .checkbox("Visible", &mut group.visible)
         .checkbox("Occluded", &mut group.occluded);
@@ -108,9 +104,17 @@ fn first_person_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig) {
     if !nk.tree_push(title) {
         return;
     }
+    material_field(nk, group);
     nk.row_dynamic(ROW, 1)
         .checkbox("Enabled", &mut group.visible);
     nk.row_dynamic(PICKER, 1)
         .color_picker(&mut group.visible_color);
     nk.tree_pop();
+}
+
+fn material_field(nk: &Nuklear, group: &mut ChamsGroupConfig) {
+    field(nk, "Material", |nk| {
+        let labels: Vec<&str> = chams::MATERIALS.iter().map(|(label, _)| *label).collect();
+        nk.single_select_combo(&labels, &mut group.material);
+    });
 }

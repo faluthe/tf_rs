@@ -44,7 +44,7 @@ pub extern "C" fn hk_draw_model_execute(
         return call_original();
     };
 
-    let Some(material) = chams::material(chams_config.material) else {
+    let Some(material) = chams::material(group.material) else {
         return call_original();
     };
 
