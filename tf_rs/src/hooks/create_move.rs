@@ -36,7 +36,13 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
 
     let pressed = Globals::read().thirdperson_pressed;
     unsafe {
-        if pressed && !LAST_TP {
+        if !config.thirdperson.use_key {
+            // Turned off from the menu while in thirdperson
+            if TP != 0 {
+                TP = 0;
+                localplayer.set_thirdperson(TP);
+            }
+        } else if pressed && !LAST_TP {
             TP = if TP == 0 { 1 } else { 0 };
             localplayer.set_thirdperson(TP);
         }
