@@ -7,6 +7,7 @@ pub mod melee;
 pub mod menu;
 pub mod movement;
 pub mod movesim;
+pub mod prediction_log;
 pub mod projectile;
 pub mod spectator_list;
 pub mod sticky;

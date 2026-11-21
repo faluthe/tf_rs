@@ -356,6 +356,8 @@ struct_with_serialize! {
         // Detonate stickies when an enemy will be in a blast
         pub auto_detonate: bool,
         pub draw_prediction: bool,
+        // Write how far movement prediction is off to prediction.csv
+        pub log_prediction: bool,
     }
 }
 
@@ -395,6 +397,7 @@ impl Default for AimbotConfig {
             splash: true,
             auto_detonate: false,
             draw_prediction: false,
+            log_prediction: false,
         }
     }
 }

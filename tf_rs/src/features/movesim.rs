@@ -517,6 +517,7 @@ pub struct MoveSim {
     predicted_delta: f32,
     predicted_sim_time: f32,
     predicted_origin: Vec3,
+    choke: i32,
     /// Origin before each simulated tick
     pub path: Vec<Vec3>,
 }
@@ -559,6 +560,7 @@ impl MoveSim {
             predicted_delta: tick_interval(),
             predicted_sim_time: 0.0,
             predicted_origin: Vec3::default(),
+            choke,
             path: Vec::new(),
         };
 
@@ -782,6 +784,20 @@ impl MoveSim {
     /// Where the server last got the player to, they only move there when their packets arrive
     pub fn predicted_origin(&self) -> Vec3 {
         self.predicted_origin
+    }
+
+    pub fn average_yaw(&self) -> f32 {
+        self.average_yaw
+    }
+
+    /// Ticks run to catch up to now when the sim started
+    pub fn choke(&self) -> i32 {
+        self.choke
+    }
+
+    /// Average time between the player's updates
+    pub fn predicted_delta(&self) -> f32 {
+        self.predicted_delta
     }
 
     pub fn on_ground(&self) -> bool {
