@@ -2,7 +2,7 @@ use core::f32;
 
 use crate::{
     config::Config,
-    features::{backtrack::Choice, melee},
+    features::{backtrack::Choice, melee, projectile},
     globals::{Globals, Target},
     helpers,
     interfaces::Interfaces,
@@ -25,6 +25,16 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) -> Choice {
 
     if weapon.is_melee() && config.aimbot.melee {
         return melee::run(localplayer, &weapon, cmd, config);
+    }
+
+    if projectile::is_projectile_weapon(&weapon) {
+        if config.aimbot.projectile {
+            projectile::run(localplayer, &weapon, cmd, config);
+        } else {
+            Globals::write().target = None;
+        }
+        // Projectiles aren't lag compensated
+        return Choice::Keep;
     }
 
     if !weapon.is_hitscan() {

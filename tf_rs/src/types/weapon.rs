@@ -40,6 +40,8 @@ impl Weapon {
     offset_get!(fn weapon_mode: i32, 0xF70);
     // CTFWeaponBaseMelee: when the current swing lands, negative when not swinging
     offset_get!(pub fn smack_time: f32, 0x10A0);
+    // CTFPipebombLauncher, and CTFCompoundBow which derives from it
+    offset_get!(pub fn charge_begin_time: f32, 0x10D8);
 
     pub fn weapon_class(&self) -> WeaponClass {
         let f = vfunc!(self.vtable, 451, extern "C" fn(*mut c_void) -> WeaponClass);

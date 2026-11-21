@@ -56,7 +56,6 @@ impl Player {
     offset_get!(pub fn eye_pitch: f32, 0x23EC);
     offset_get!(pub fn view_offset: Vec3, 0x144);
     offset_get!(pub fn max_speed: f32, 0x1680);
-    offset_get!(pub fn model_scale: f32, 0x914);
     offset_get!(pub fn water_level: u8, 0x218);
     offset_get!(pub fn ducked: bool, 0x1288);
     offset_get!(pub fn constraint_entity: u32, 0x1628);

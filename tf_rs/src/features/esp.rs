@@ -6,7 +6,7 @@ use crate::{
     helpers,
     interfaces::{Interfaces, Surface},
     player_db,
-    types::{BBox, ClassId, Color, Cond, Entity, Player, rgba},
+    types::{BBox, ClassId, Color, Cond, Entity, Player, Vec3, rgba},
 };
 
 static ESP_FONT: OnceLock<u64> = OnceLock::new();
@@ -358,6 +358,33 @@ fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface, horizontal: bool
         surface.draw_set_color(red, green, 0, 255);
         surface.draw_filled_rect(bbox.right + 2, bar_top, bbox.right + 3, bbox.bottom - 1);
     }
+}
+
+/// The paths the projectile aimbot predicted for its last shot
+pub fn draw_prediction(surface: &Surface, config: &Config) {
+    if !config.aimbot.master || !config.aimbot.draw_prediction {
+        return;
+    }
+    // A copy, nothing is drawn while holding the lock
+    let Some(paths) = Globals::read().prediction.clone() else {
+        return;
+    };
+    if Interfaces::global_vars().realtime > paths.until {
+        return;
+    }
+    let overlay = Interfaces::debug_overlay();
+    let draw = |points: &[Vec3]| {
+        let screen: Vec<_> = points.iter().map(|p| overlay.screen_position(p)).collect();
+        for w in screen.windows(2) {
+            if let (Some(a), Some(b)) = (w[0], w[1]) {
+                surface.draw_line(a.x as i32, a.y as i32, b.x as i32, b.y as i32);
+            }
+        }
+    };
+    surface.draw_set_color(255, 255, 255, 255);
+    draw(&paths.player);
+    surface.draw_set_color(255, 208, 0, 255);
+    draw(&paths.projectile);
 }
 
 // TODO: Fix for scoped weapons

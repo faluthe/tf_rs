@@ -780,16 +780,8 @@ impl MoveSim {
         self.predicted_origin
     }
 
-    pub fn velocity(&self) -> Vec3 {
-        self.data.velocity
-    }
-
     pub fn on_ground(&self) -> bool {
         self.player.is_on_ground()
-    }
-
-    pub fn ducked(&self) -> bool {
-        self.player.ducked()
     }
 }
 

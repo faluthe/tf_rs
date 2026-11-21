@@ -44,6 +44,7 @@ pub extern "C" fn hk_paint_traverse(
     }
 
     esp::draw_fov(&surface, &config);
+    esp::draw_prediction(&surface, &config);
 
     rc
 }
