@@ -1,13 +1,16 @@
-use nuklear::Nuklear;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use nuklear::{
+    Color, Nuklear,
+    flags::{LayoutFormat, TextAlignment},
+};
 
 use super::{ROW, field};
 use crate::{
-    config::{ChamsGroupConfig, Config, EntityESPConfig},
+    config::{ChamsConfig, Config, EntityESPConfig},
     features::chams,
     player_db,
 };
-
-const PICKER: f32 = 180.0;
 
 pub(super) fn esp_tab(nk: &Nuklear, config: &mut Config) {
     fn entity_esp_combo(nk: &Nuklear, title: &str, esp_cfg: &mut EntityESPConfig) {
@@ -66,55 +69,79 @@ pub(super) fn esp_tab(nk: &Nuklear, config: &mut Config) {
         .checkbox("Show aimbot target", &mut esp.aimbot_target)
         .checkbox("Ignore invisible", &mut esp.ignore_invis);
 
+    chams_section(nk, &mut esp.chams);
+}
+
+/// Chams group shown in the menu, index into the labels in `chams_section`
+static CHAMS_GROUP: AtomicUsize = AtomicUsize::new(0);
+
+fn chams_section(nk: &Nuklear, chams: &mut ChamsConfig) {
     nk.section("Chams", false)
         .row_dynamic(ROW, 1)
-        .checkbox("Enabled", &mut esp.chams.enabled);
-    if esp.chams.enabled {
-        let c = &mut esp.chams;
-        let names = player_db::get_names();
-        chams_group(nk, "Enemies", &mut c.enemy);
-        chams_group(nk, "Teammates", &mut c.friendly);
-        chams_group(nk, "Local player", &mut c.local);
-        chams_group(nk, "Buildings", &mut c.buildings);
-        chams_group(nk, &names[0], &mut c.category1);
-        chams_group(nk, &names[1], &mut c.category2);
-        chams_group(nk, &names[2], &mut c.category3);
-        chams_group(nk, &names[3], &mut c.category4);
-        first_person_group(nk, "Hands", &mut c.hands);
-        first_person_group(nk, "Weapon", &mut c.weapon);
-    }
-}
-
-fn chams_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig) {
-    if !nk.tree_push(title) {
+        .checkbox("Enabled", &mut chams.enabled);
+    if !chams.enabled {
         return;
     }
-    material_field(nk, group);
-    nk.row_dynamic(ROW, 2)
-        .checkbox("Visible", &mut group.visible)
-        .checkbox("Occluded", &mut group.occluded);
-    nk.row_dynamic(PICKER, 2)
-        .color_picker(&mut group.visible_color)
-        .color_picker(&mut group.occluded_color);
-    nk.tree_pop();
-}
 
-// Viewmodels are never behind anything, so only the visible pass applies
-fn first_person_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig) {
-    if !nk.tree_push(title) {
-        return;
-    }
-    material_field(nk, group);
-    nk.row_dynamic(ROW, 1)
-        .checkbox("Enabled", &mut group.visible);
-    nk.row_dynamic(PICKER, 1)
-        .color_picker(&mut group.visible_color);
-    nk.tree_pop();
-}
+    let names = player_db::get_names();
+    let labels = [
+        "Enemies",
+        "Teammates",
+        "Local player",
+        "Buildings",
+        names[0].as_str(),
+        names[1].as_str(),
+        names[2].as_str(),
+        names[3].as_str(),
+        "Hands",
+        "Weapon",
+    ];
+    let mut selected = CHAMS_GROUP.load(Ordering::Relaxed);
+    field(nk, "Group", |nk| {
+        nk.single_select_combo(&labels, &mut selected);
+    });
+    CHAMS_GROUP.store(selected, Ordering::Relaxed);
 
-fn material_field(nk: &Nuklear, group: &mut ChamsGroupConfig) {
+    let (group, first_person) = match selected {
+        1 => (&mut chams.friendly, false),
+        2 => (&mut chams.local, false),
+        3 => (&mut chams.buildings, false),
+        4 => (&mut chams.category1, false),
+        5 => (&mut chams.category2, false),
+        6 => (&mut chams.category3, false),
+        7 => (&mut chams.category4, false),
+        8 => (&mut chams.hands, true),
+        9 => (&mut chams.weapon, true),
+        _ => (&mut chams.enemy, false),
+    };
+
     field(nk, "Material", |nk| {
         let labels: Vec<&str> = chams::MATERIALS.iter().map(|(label, _)| *label).collect();
         nk.single_select_combo(&labels, &mut group.material);
     });
+
+    // Viewmodels are never behind anything, so only the visible pass applies
+    if first_person {
+        toggle_color_field(nk, "Enabled", &mut group.visible, &mut group.visible_color);
+    } else {
+        toggle_color_field(nk, "Visible", &mut group.visible, &mut group.visible_color);
+        toggle_color_field(
+            nk,
+            "Occluded",
+            &mut group.occluded,
+            &mut group.occluded_color,
+        );
+    }
+}
+
+/// A `field` row whose widget is a checkbox followed by a color swatch
+fn toggle_color_field(nk: &Nuklear, label: &str, on: &mut bool, color: &mut Color) {
+    nk.layout_row_begin(LayoutFormat::DYNAMIC, ROW, 3)
+        .layout_row_push(0.45)
+        .label(label, TextAlignment::LEFT)
+        .layout_row_push(0.1)
+        .checkbox("", on)
+        .layout_row_push(0.45)
+        .color_combo(color);
+    nk.layout_row_end();
 }
