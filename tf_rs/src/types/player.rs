@@ -80,6 +80,10 @@ impl Player {
         unsafe { *self.field::<i32>(0x460) = flags }
     }
 
+    pub fn set_max_speed(&self, speed: f32) {
+        unsafe { *self.ent.field::<f32>(0x1680) = speed };
+    }
+
     pub fn set_velocity(&self, velocity: Vec3) {
         unsafe { *self.field::<Vec3>(0x168) = velocity }
     }

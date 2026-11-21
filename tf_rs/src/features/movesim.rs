@@ -585,6 +585,11 @@ impl MoveSim {
                 let mut v = player.velocity();
                 v.z = v.z.min(0.0);
                 player.set_velocity(v);
+                // Moving faster than their max speed allows, keep up with how they really move
+                let speed = v.length_2d();
+                if speed > player.max_speed() * 1.02 {
+                    player.set_max_speed(speed);
+                }
             } else {
                 // Otherwise the first tick snaps them back onto the ground
                 player.clear_ground_entity();
