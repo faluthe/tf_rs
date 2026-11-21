@@ -17,7 +17,7 @@ impl Segment {
     }
 }
 
-/// Loaded segments of the library whose path ends with `lib`
+/// Loaded segments of the library whose file name is `lib`
 pub fn segments(lib: &str) -> Vec<Segment> {
     struct Search<'a> {
         lib: &'a str,
@@ -33,7 +33,9 @@ pub fn segments(lib: &str) -> Vec<Segment> {
             }
 
             let name = CStr::from_ptr(info.dlpi_name).to_string_lossy();
-            if !name.ends_with(search.lib) {
+            // A whole file name, so client.so doesn't match steamclient.so
+            let file = name.rsplit('/').next().unwrap_or(&name);
+            if file != search.lib {
                 return 0;
             }
 

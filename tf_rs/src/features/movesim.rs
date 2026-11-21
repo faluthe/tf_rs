@@ -474,7 +474,11 @@ fn view_vectors() -> Option<*mut [f32; 12]> {
             -24.0, -24.0, 0.0, 24.0, 24.0, 82.0, -24.0, -24.0, 0.0, 24.0, 24.0, 62.0,
         ];
         let bytes: Vec<u8> = floats.iter().flat_map(|f| f.to_ne_bytes()).collect();
-        module::find_bytes_writable(&module::segments("client.so"), &bytes).unwrap_or(0)
+        let found = module::find_bytes_writable(&module::segments("client.so"), &bytes);
+        if found.is_none() {
+            log::warn!("Hull view vectors not found, simulated players keep their full size");
+        }
+        found.unwrap_or(0)
     });
     (addr != 0).then_some(addr as *mut [f32; 12])
 }

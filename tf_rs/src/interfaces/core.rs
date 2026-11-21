@@ -85,10 +85,16 @@ impl Interfaces {
         w.game_movement = GameMovement::new(client_factory.get("GameMovement001")?);
         w.prediction = Prediction::new(client_factory.get("VClientPrediction001")?);
         // Only movement simulation needs it, carry on without
-        w.move_helper = MoveHelper::find().unwrap_or_else(|e| {
-            warn!("Movement simulation unavailable: {e:#}");
-            MoveHelper::default()
-        });
+        w.move_helper = match MoveHelper::find() {
+            Ok(helper) => {
+                info!("Move helper at {:p}", helper.this());
+                helper
+            }
+            Err(e) => {
+                warn!("Movement simulation unavailable: {e:#}");
+                MoveHelper::default()
+            }
+        };
 
         /*
          * https://github.com/OthmanAba/TeamFortress2/blob/1b81dded673d49adebf4d0958e52236ecc28a956/tf2_src/game/client/cdll_client_int.cpp#L1255

@@ -23,6 +23,10 @@ impl MoveHelper {
         })
     }
 
+    pub fn this(&self) -> *mut c_void {
+        self.this
+    }
+
     pub fn is_valid(&self) -> bool {
         !self.this.is_null()
     }

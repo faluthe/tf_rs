@@ -12,11 +12,11 @@ fn attrib_hook_float() -> Option<AttribHookFloat> {
     static HOOK: OnceCell<Option<usize>> = OnceCell::new();
     let addr = HOOK.get_or_init(|| {
         let segments = module::segments("client.so");
-        let name = module::find_string(&segments, c"melee_bounds_multiplier")?;
-        let lea = module::find_lea_to(&segments, name)?;
-        let hook = module::call_target(lea + 7);
+        let hook = module::find_string(&segments, c"melee_bounds_multiplier")
+            .and_then(|name| module::find_lea_to(&segments, name))
+            .and_then(|lea| module::call_target(lea + 7));
         if hook.is_none() {
-            log::warn!("Attribute hook not found, melee multipliers are ignored");
+            log::warn!("Attribute hook not found, weapon attributes are ignored");
         }
         hook
     });
