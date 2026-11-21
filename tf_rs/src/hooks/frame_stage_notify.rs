@@ -2,7 +2,7 @@ use std::ffi::c_void;
 
 use crate::{
     config::Config,
-    features::{backtrack, movesim, prediction_log},
+    features::{backtrack, movesim, prediction_log, shot_log},
     hooks::Hooks,
     interfaces::Interfaces,
 };
@@ -37,6 +37,7 @@ pub extern "C" fn hk_frame_stage_notify(this: *mut c_void, stage: i32) {
             }
             if logging {
                 prediction_log::observe();
+                shot_log::observe();
             }
         }
         _ => {}

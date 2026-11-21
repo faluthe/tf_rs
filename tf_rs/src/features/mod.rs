@@ -9,6 +9,7 @@ pub mod movement;
 pub mod movesim;
 pub mod prediction_log;
 pub mod projectile;
+pub mod shot_log;
 pub mod spectator_list;
 pub mod sticky;
 pub mod theme;

@@ -12,7 +12,10 @@ use std::cmp::Ordering;
 
 use crate::{
     config::Config,
-    features::movesim::{self, MoveSim, Strafe},
+    features::{
+        movesim::{self, MoveSim, Strafe},
+        shot_log,
+    },
     globals::{Globals, PredictionPaths, Target},
     helpers,
     interfaces::Interfaces,
@@ -469,6 +472,17 @@ struct Found {
     time: f32,
     fov: f32,
     paths: PredictionPaths,
+    /// What the shot was worked out from, for the shot log
+    shot: shot_log::Prediction,
+}
+
+/// Why a shot at a point was turned down
+#[derive(Clone, Copy)]
+pub enum Reject {
+    Late,
+    Bad,
+    Fov,
+    Blocked,
 }
 
 /// Total real latency, how long until the server fires our projectile plus how old what we see is
@@ -511,12 +525,16 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
         return;
     }
 
-    let found = find_target(localplayer, cmd, config, info);
+    let logging = aim.log_prediction;
+    let (found, diagnostics) = find_target(localplayer, cmd, config, info, logging);
     Globals::write().target = found.as_ref().map(|f| Target {
         target_index: f.index,
         should_headshot: info.headshot,
     });
     let Some(found) = found else {
+        if logging {
+            shot_log::no_shot(&diagnostics);
+        }
         return;
     };
 
@@ -526,6 +544,22 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
         cmd.buttons |= ATTACK;
     }
     cmd.view_angles = found.angles;
+
+    // Charged weapons fire on the command that lets go, others on any with attack held
+    let fires = if info.charge {
+        charging && (cmd.buttons & ATTACK) == 0
+    } else {
+        can_attack && (cmd.buttons & ATTACK) != 0
+    };
+    if logging && fires {
+        shot_log::shot(
+            localplayer,
+            &found.shot,
+            &found.paths.projectile,
+            found.time,
+            found.fov,
+        );
+    }
 
     if aim.draw_prediction {
         let now = Interfaces::global_vars().realtime;
@@ -540,8 +574,10 @@ fn find_target(
     cmd: &UserCmd,
     config: &Config,
     info: ProjectileInfo,
-) -> Option<Found> {
+    logging: bool,
+) -> (Option<Found>, Vec<shot_log::TargetDiagnostics>) {
     let aim = &config.aimbot;
+    let mut diagnostics = Vec::new();
     let tick = Interfaces::global_vars().interval_per_tick;
     let eye = localplayer.eye_pos();
     let solver = Solver::new(localplayer, eye, info);
@@ -579,9 +615,29 @@ fn find_target(
     let splash_slack = info.splash_radius / solver.speed;
 
     let mut best: Option<Found> = None;
-    for (_, target) in targets {
+    for (center_fov, target) in targets {
+        let mut diag = shot_log::TargetDiagnostics {
+            index: target.index(),
+            fov: center_fov,
+            distance: target.origin().distance_to(&eye),
+            on_ground: target.is_on_ground(),
+            ..Default::default()
+        };
         let Some(mut sim) = MoveSim::new(&target, None, strafe) else {
+            diag.no_sim = true;
+            diagnostics.push(diag);
             continue;
+        };
+        let start_time = target.simulation_time();
+        let choke = sim.choke();
+        let mut count = |r: Result<_, Reject>| match r {
+            Ok(v) => Some(v),
+            Err(reject) => {
+                if logging {
+                    diag.count(reject);
+                }
+                None
+            }
         };
         // The projectile leaves once the server gets the command, and what we see is behind
         for _ in 0..latency_ticks {
@@ -598,14 +654,16 @@ fn find_target(
                 .enumerate()
                 .find_map(|(n, offset)| {
                     let extra = if n == 0 && info.splash { 8.0 } else { 0.0 };
-                    attempt(
+                    let point = origin + offset;
+                    count(attempt(
                         &solver,
                         cmd,
                         aim.fov as f32,
-                        &(origin + offset),
+                        &point,
                         ticks,
                         direct_tolerance + extra,
-                    )
+                    ))
+                    .map(|hit| (hit, point, false))
                 });
 
             // Spots near the target are at most the blast radius closer than it, so there's
@@ -621,12 +679,20 @@ fn find_target(
                     hit = splash_points(origin, &target, &info, &eye)
                         .iter()
                         .find_map(|point| {
-                            attempt(&solver, cmd, aim.fov as f32, point, ticks, tolerance)
+                            count(attempt(
+                                &solver,
+                                cmd,
+                                aim.fov as f32,
+                                point,
+                                ticks,
+                                tolerance,
+                            ))
+                            .map(|hit| (hit, *point, true))
                         });
                 }
             }
 
-            let Some((solution, path, fov)) = hit else {
+            let Some(((solution, path, fov), point, splash)) = hit else {
                 continue;
             };
             if best.as_ref().is_none_or(|b| fov < b.fov) {
@@ -642,12 +708,25 @@ fn find_target(
                         projectile: path,
                         until: 0.0,
                     },
+                    shot: shot_log::Prediction {
+                        target: target.index(),
+                        start_time,
+                        choke,
+                        latency_ticks,
+                        ticks,
+                        origin,
+                        point,
+                        splash,
+                        target_on_ground: sim.on_ground(),
+                    },
                 });
             }
             break;
         }
+        drop(count);
+        diagnostics.push(diag);
     }
-    best
+    (best, diagnostics)
 }
 
 /// A shot landing on `point` within `ticks` that's inside the FOV and gets there unobstructed
@@ -658,16 +737,19 @@ fn attempt(
     point: &Vec3,
     ticks: i32,
     tolerance: f32,
-) -> Option<(Solution, Vec<Vec3>, f32)> {
-    let Solve::Good(solution) = solver.solve(point, ticks) else {
-        return None;
+) -> Result<(Solution, Vec<Vec3>, f32), Reject> {
+    let solution = match solver.solve(point, ticks) {
+        Solve::Good(s) => s,
+        Solve::Late => return Err(Reject::Late),
+        Solve::Bad => return Err(Reject::Bad),
     };
     let fov = cmd.view_angles.fov_to(&solution.angles);
     if fov > max_fov {
-        return None;
+        return Err(Reject::Fov);
     }
     let path = solver.path(&solution.angles, solution.time);
-    solver
-        .clear(&path, point, tolerance)
-        .then_some((solution, path, fov))
+    if !solver.clear(&path, point, tolerance) {
+        return Err(Reject::Blocked);
+    }
+    Ok((solution, path, fov))
 }
