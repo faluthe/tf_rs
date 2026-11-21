@@ -3,7 +3,7 @@ pub struct GlobalVars {
     pub realtime: f32,
     _framecount: i32,
     _absoluteframetime: f32,
-    _curtime: f32,
+    pub curtime: f32,
     _frametime: f32,
     _maxclients: i32,
     pub tickcount: i32,

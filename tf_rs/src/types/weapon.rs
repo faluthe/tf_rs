@@ -34,6 +34,28 @@ impl Weapon {
         f(self.this)
     }
 
+    pub fn is_melee(&self) -> bool {
+        matches!(
+            self.weapon_class(),
+            WeaponClass::Bat
+                | WeaponClass::BatWood
+                | WeaponClass::Bottle
+                | WeaponClass::Fireaxe
+                | WeaponClass::Club
+                | WeaponClass::Crowbar
+                | WeaponClass::Knife
+                | WeaponClass::Fists
+                | WeaponClass::Shovel
+                | WeaponClass::Wrench
+                | WeaponClass::Bonesaw
+                | WeaponClass::Sword
+                | WeaponClass::BatFish
+                | WeaponClass::BatGiftwrap
+                | WeaponClass::Stickbomb
+                | WeaponClass::HarvesterSaw
+        )
+    }
+
     pub fn is_hitscan(&self) -> bool {
         matches!(
             self.weapon_class(),

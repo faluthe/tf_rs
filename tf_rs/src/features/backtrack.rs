@@ -104,6 +104,8 @@ struct Timing {
     correct: f32,
     // Tick the server will be on when it runs our command
     server_tick: i32,
+    // Time enemies are drawn at, interpolation keeps them this far behind the newest update
+    render_time: f32,
 }
 
 impl Timing {
@@ -112,9 +114,12 @@ impl Timing {
         let outgoing = nci.latency(Flow::Outgoing);
         let incoming = nci.latency(Flow::Incoming);
         let maxunlag = value(cvars().maxunlag, 1.0);
+        let lerp = lerp();
+        let globals = Interfaces::global_vars();
         Some(Timing {
-            correct: (outgoing + incoming + lerp()).clamp(0.0, maxunlag),
-            server_tick: Interfaces::global_vars().tickcount + time_to_ticks(outgoing),
+            correct: (outgoing + incoming + lerp).clamp(0.0, maxunlag),
+            server_tick: globals.tickcount + time_to_ticks(outgoing),
+            render_time: globals.curtime - lerp,
         })
     }
 
@@ -123,8 +128,9 @@ impl Timing {
         self.correct - ticks_to_time(self.server_tick - time_to_ticks(sim_time))
     }
 
-    fn valid(&self, sim_time: f32) -> bool {
-        self.delta(sim_time).abs() < WINDOW
+    /// The server will rewind to the record and it isn't ahead of the drawn model
+    fn usable(&self, sim_time: f32) -> bool {
+        self.delta(sim_time).abs() < WINDOW && sim_time <= self.render_time
     }
 }
 
@@ -193,10 +199,16 @@ pub fn update_records() {
     }
 }
 
-/// When shooting, set the tick to the record closest to where we're aiming
+/// When shooting, set the tick to the record closest to where we're aiming, or with a melee
+/// weapon the one physically closest to us
 pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
     let cmd = unsafe { &mut *cmd };
-    if !config.backtrack.enabled || (cmd.buttons & Buttons::InAttack as i32) == 0 {
+    if !config.backtrack.enabled {
+        return;
+    }
+    let melee = localplayer.active_weapon().is_some_and(|w| w.is_melee());
+    // Melee hits land a few ticks after the swing starts, using whichever command is running then
+    if !melee && (cmd.buttons & Buttons::InAttack as i32) == 0 {
         return;
     }
     let Some(timing) = Timing::now() else {
@@ -204,17 +216,26 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
     };
 
     let shoot_pos = localplayer.eye_pos();
+    let score = |pos: Vec3| {
+        if melee {
+            let (dx, dy, dz) = (
+                pos.x - shoot_pos.x,
+                pos.y - shoot_pos.y,
+                pos.z - shoot_pos.z,
+            );
+            dx * dx + dy * dy + dz * dz
+        } else {
+            let angle = helpers::calculate_angle(&shoot_pos, &pos);
+            cmd.view_angles.fov_to(&angle)
+        }
+    };
+
     let records = records();
     let best = records
         .iter()
         .flatten()
-        .filter(|r| timing.valid(r.sim_time))
-        .flat_map(|r| {
-            [r.head, r.body].map(|pos| {
-                let angle = helpers::calculate_angle(&shoot_pos, &pos);
-                (cmd.view_angles.fov_to(&angle), r.sim_time)
-            })
-        })
+        .filter(|r| timing.usable(r.sim_time))
+        .flat_map(|r| [r.head, r.body].map(|pos| (score(pos), r.sim_time)))
         .min_by(|a, b| a.0.total_cmp(&b.0));
 
     if let Some((_, sim_time)) = best {
@@ -222,7 +243,7 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
     }
 }
 
-/// Bones of each record of player `index` the server would still rewind to, oldest first
+/// Bones of each record of player `index` that can be shot at, oldest first
 pub fn valid_bones(index: i32, mut f: impl FnMut(&[Matrix3x4; MAX_BONES])) {
     let Some(timing) = Timing::now() else {
         return;
@@ -235,7 +256,7 @@ pub fn valid_bones(index: i32, mut f: impl FnMut(&[Matrix3x4; MAX_BONES])) {
         return;
     };
     for record in player_records.iter().rev() {
-        if timing.valid(record.sim_time) {
+        if timing.usable(record.sim_time) {
             f(&record.bones);
         }
     }
