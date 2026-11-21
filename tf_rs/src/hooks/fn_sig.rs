@@ -11,6 +11,7 @@ pub enum FnSig {
     DrawModelExecute(
         extern "C" fn(*mut c_void, *mut c_void, *const ModelRenderInfo, *mut Matrix3x4),
     ),
+    FrameStageNotify(extern "C" fn(*mut c_void, i32)),
     PollEvent(extern "C" fn(*mut c_void) -> i32),
     SwapWindow(extern "C" fn(*mut c_void) -> i32),
     None,
@@ -23,6 +24,7 @@ impl fmt::Pointer for FnSig {
             FnSig::PaintTraverse(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::OverrideView(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::DrawModelExecute(func) => write!(f, "{:p}", *func as *const c_void),
+            FnSig::FrameStageNotify(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::PollEvent(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::SwapWindow(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::None => write!(f, "None"),
@@ -76,6 +78,13 @@ impl FnSig {
         }
     }
 
+    pub fn call_frame_stage_notify(&self, this: *mut c_void, stage: i32) -> Result<()> {
+        match self {
+            FnSig::FrameStageNotify(f) => Ok(f(this, stage)),
+            _ => Err(anyhow!("Invalid FrameStageNotify function signature")),
+        }
+    }
+
     pub fn call_poll_event(&self, a: *mut c_void) -> Result<i32> {
         match self {
             FnSig::PollEvent(f) => Ok(f(a)),
@@ -111,6 +120,9 @@ impl FnSig {
                     extern "C" fn(*mut c_void, *mut c_void, *const ModelRenderInfo, *mut Matrix3x4),
                 >(ptr)
             }),
+            FnSig::FrameStageNotify(_) => FnSig::FrameStageNotify(unsafe {
+                mem::transmute::<*mut c_void, extern "C" fn(*mut c_void, i32)>(ptr)
+            }),
             FnSig::PollEvent(_) => FnSig::PollEvent(unsafe {
                 mem::transmute::<*mut c_void, extern "C" fn(*mut c_void) -> i32>(ptr)
             }),
@@ -127,6 +139,7 @@ impl FnSig {
             FnSig::PaintTraverse(f) => Ok(*f as *mut c_void),
             FnSig::OverrideView(f) => Ok(*f as *mut c_void),
             FnSig::DrawModelExecute(f) => Ok(*f as *mut c_void),
+            FnSig::FrameStageNotify(f) => Ok(*f as *mut c_void),
             FnSig::PollEvent(f) => Ok(*f as *mut c_void),
             FnSig::SwapWindow(f) => Ok(*f as *mut c_void),
             FnSig::None => Err(anyhow!("FnSig is None")),

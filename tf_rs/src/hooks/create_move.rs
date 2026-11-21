@@ -2,7 +2,7 @@ use std::ffi::c_void;
 
 use crate::{
     config::Config,
-    features::{aimbot, chams, movement},
+    features::{aimbot, backtrack, chams, movement},
     globals::Globals,
     helpers,
     hooks::Hooks,
@@ -51,6 +51,7 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
 
     movement::bunnyhop(&localplayer, cmd, &config);
     aimbot::run(&localplayer, cmd, &config);
+    backtrack::run(&localplayer, cmd);
 
     let pressed = Globals::read().thirdperson_pressed;
     unsafe {

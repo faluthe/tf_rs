@@ -31,6 +31,7 @@ struct_with_serialize! {
         pub bunnyhop: bool,
         pub esp: ESPConfig,
         pub aimbot: AimbotConfig,
+        pub backtrack: BacktrackConfig,
         pub thirdperson: KeyConfig,
         pub spectator_list: bool,
         pub no_zoom: bool,
@@ -179,6 +180,7 @@ struct_with_serialize! {
         pub category4: ChamsGroupConfig,
         pub hands: ChamsGroupConfig,
         pub weapon: ChamsGroupConfig,
+        pub backtrack: ChamsGroupConfig,
     }
 }
 
@@ -198,6 +200,17 @@ impl Default for ChamsConfig {
             category4: ChamsGroupConfig::from_color(categories.category4),
             hands: ChamsGroupConfig::new(false, 0x8080ff, 0x8080ff),
             weapon: ChamsGroupConfig::new(false, 0xffffff, 0xffffff),
+            backtrack: ChamsGroupConfig {
+                visible_color: Color {
+                    a: 90,
+                    ..Color::hex(0xffffff)
+                },
+                occluded_color: Color {
+                    a: 50,
+                    ..Color::hex(0xffffff)
+                },
+                ..ChamsGroupConfig::new(false, 0, 0)
+            },
         }
     }
 }
@@ -307,6 +320,13 @@ struct_with_serialize! {
         pub priority_category: u8,
         pub disable_when_spectated: usize,
         pub ignore_invis: bool,
+    }
+}
+
+struct_with_serialize! {
+    #[derive(Default)]
+    pub struct BacktrackConfig {
+        pub enabled: bool,
     }
 }
 

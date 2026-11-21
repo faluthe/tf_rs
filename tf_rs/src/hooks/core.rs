@@ -9,11 +9,13 @@ const OVERRIDE_VIEW_INDEX: usize = 17;
 const CREATE_MOVE_INDEX: usize = 22;
 const PAINT_TRAVERSE_INDEX: usize = 42;
 const DRAW_MODEL_EXECUTE_INDEX: usize = 19;
+const FRAME_STAGE_NOTIFY_INDEX: usize = 35;
 
 pub static H: Lazy<RwLock<Hooks>> = Lazy::new(|| RwLock::new(Hooks::default()));
 
 #[derive(Default)]
 pub struct Hooks {
+    pub client: VmtShadow,
     pub client_mode: VmtShadow,
     pub panel: VmtShadow,
     pub model_render: VmtShadow,
@@ -58,6 +60,16 @@ impl Hooks {
         w.model_render.install().context("ModelRender vtable")?;
         log::debug!("Hooked DrawModelExecute");
 
+        w.client = VmtShadow::new(Interfaces::client()).context("Client vtable")?;
+        w.client
+            .hook(
+                FRAME_STAGE_NOTIFY_INDEX,
+                FnSig::FrameStageNotify(hk_frame_stage_notify),
+            )
+            .context("FrameStageNotify hook")?;
+        w.client.install().context("Client vtable")?;
+        log::debug!("Hooked FrameStageNotify");
+
         w.poll_event
             .hook("SDL_PollEvent\0", FnSig::PollEvent(hk_poll_event))
             .context("SDL_PollEvent hook")?;
@@ -78,6 +90,7 @@ impl Hooks {
             ("ClientMode", w.client_mode.restore()),
             ("PaintTraverse", w.panel.restore()),
             ("DrawModelExecute", w.model_render.restore()),
+            ("FrameStageNotify", w.client.restore()),
             ("SDL_PollEvent", w.poll_event.restore()),
             ("SDL_GL_SwapWindow", w.swap_window.restore()),
         ];
@@ -108,6 +121,10 @@ impl Hooks {
             .unwrap()
             .model_render
             .original(DRAW_MODEL_EXECUTE_INDEX)
+    }
+
+    pub fn frame_stage_notify() -> FnSig {
+        H.read().unwrap().client.original(FRAME_STAGE_NOTIFY_INDEX)
     }
 
     pub fn poll_event() -> SDLHook {

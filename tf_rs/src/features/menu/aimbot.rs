@@ -10,9 +10,17 @@ pub(super) fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
         .row_dynamic(ROW, 1)
         .checkbox("Enabled", &mut aim.master);
 
-    if !aim.master {
-        return;
+    if aim.master {
+        aimbot_settings(nk, config);
     }
+
+    nk.section("Backtrack", false)
+        .row_dynamic(ROW, 1)
+        .checkbox("Enabled", &mut config.backtrack.enabled);
+}
+
+fn aimbot_settings(nk: &Nuklear, config: &mut Config) {
+    let aim = &mut config.aimbot;
 
     nk.row_dynamic(ROW, 1)
         .checkbox("Silent aim", &mut aim.silent_aim)
