@@ -4,7 +4,7 @@ use nuklear_sys::{
     GLEW_OK, SDL_Event, SDL_GL_CreateContext, SDL_GL_GetCurrentContext, SDL_GLContext, SDL_Window,
     glewInit, nk_anti_aliasing_NK_ANTI_ALIASING_ON, nk_begin, nk_bool, nk_button_label,
     nk_buttons_NK_BUTTON_LEFT, nk_checkbox_label, nk_collapse_states_NK_MINIMIZED, nk_color,
-    nk_combo_begin_label, nk_combo_end, nk_context, nk_draw_image, nk_edit_string_zero_terminated,
+    nk_combo_begin_color, nk_combo_begin_label, nk_combo_end, nk_context, nk_draw_image, nk_edit_string_zero_terminated,
     nk_end, nk_fill_rect, nk_fill_rect_multi_color, nk_filter_default, nk_flags, nk_font,
     nk_font_atlas, nk_font_atlas_add_from_memory, nk_group_begin, nk_group_end,
     nk_group_scrolled_begin, nk_hsv_f, nk_hsva_colorfv, nk_image, nk_input_begin, nk_input_end,
@@ -252,6 +252,14 @@ impl Context {
                 label.as_ptr(),
                 nk_vec2(nk_widget_width(self.nk_ctx), 300.0),
             ) != 0
+        }
+    }
+
+    /// Combo whose header is a swatch of `color`, the popup is at least `min_width` wide
+    pub(crate) fn combo_begin_color(&self, color: Color, min_width: f32, height: f32) -> bool {
+        unsafe {
+            let width = nk_widget_width(self.nk_ctx).max(min_width);
+            nk_combo_begin_color(self.nk_ctx, color.into(), nk_vec2(width, height)) != 0
         }
     }
 

@@ -464,6 +464,18 @@ impl Nuklear {
         self.context.tree_pop();
     }
 
+    /// Swatch of `color` that opens a color picker when clicked
+    pub fn color_combo(&self, color: &mut Color) -> &Self {
+        const PICKER_H: f32 = 200.0;
+
+        if self.context.combo_begin_color(*color, 240.0, PICKER_H + 24.0) {
+            self.context.row_dynamic(PICKER_H, 1);
+            self.color_picker(color);
+            self.context.combo_end();
+        }
+        self
+    }
+
     pub fn color_picker(&self, color: &mut Color) -> &Self {
         // Keyed by the address of the color being edited, which lives in the config
         let key = color as *const Color as usize;
