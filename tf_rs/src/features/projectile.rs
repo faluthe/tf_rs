@@ -4,6 +4,9 @@
 //! lands a projectile on them is solved for, and the first tick the projectile gets there in time
 //! is the one aimed at. The solve accounts for the projectile starting off to the side of the eye
 //! and, for rockets and arrows, being angled in towards the crosshair.
+//!
+//! Explosives that can't reach a target directly look for a surface near it to hit instead,
+//! close enough for the blast to reach them with nothing in between.
 
 use std::cmp::Ordering;
 
@@ -14,12 +17,18 @@ use crate::{
     helpers,
     interfaces::Interfaces,
     types::weapon::WeaponClass,
-    types::{Flow, Player, TraceFilter, UserCmd, Vec3, Weapon, user_cmd::Buttons},
+    types::{Flow, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon, user_cmd::Buttons},
 };
 
 const MASK_SOLID: u32 = 0x200400B;
 const MASK_SHOT: u32 = 0x4600400B;
 const MAX_TARGETS: usize = 3;
+/// Surface directions looked along around a target for splash
+const SPLASH_DIRECTIONS: usize = 32;
+/// Closest splash spots tried per tick
+const SPLASH_CANDIDATES: usize = 6;
+/// Ticks per target splash is looked for, from the first one the projectile could make it by
+const SPLASH_TICKS: i32 = 12;
 
 /// How a weapon's projectile leaves it
 #[derive(Clone, Copy)]
@@ -39,6 +48,7 @@ struct ProjectileInfo {
     lifetime: f32,
     /// Explodes, so aim at the feet of players on the ground
     splash: bool,
+    splash_radius: f32,
     headshot: bool,
     charge: bool,
 }
@@ -72,6 +82,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
         hull: 0.0,
         lifetime: f32::MAX,
         splash: false,
+        splash_radius: 0.0,
         headshot: false,
         charge: false,
     };
@@ -82,6 +93,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             info.offset.y = if center { 0.0 } else { 12.0 };
             info.speed = attrib(1100.0, c"mult_projectile_speed");
             info.splash = true;
+            info.splash_radius = attrib(146.0, c"mult_explosion_radius");
         }
         WeaponClass::ParticleCannon | WeaponClass::Raygun | WeaponClass::DrgPomson => {
             let mangler = matches!(weapon.weapon_class(), WeaponClass::ParticleCannon);
@@ -91,6 +103,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             info.speed = if mangler { 1100.0 } else { 1200.0 };
             info.hull = if mangler { 0.0 } else { 1.0 };
             info.splash = mangler;
+            info.splash_radius = if mangler { 146.0 } else { 0.0 };
         }
         WeaponClass::Grenadelauncher | WeaponClass::Cannon => {
             info.offset = Vec3::new(16.0, 8.0, -6.0);
@@ -115,6 +128,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             info.gravity = 800.0;
             info.hull = 6.0;
             info.splash = true;
+            info.splash_radius = attrib(146.0, c"mult_explosion_radius");
             info.charge = true;
         }
         WeaponClass::Flaregun => {
@@ -399,6 +413,56 @@ fn aim_points(target: &Player, info: &ProjectileInfo, on_ground: bool) -> Vec<Ve
     vec![body, head, feet]
 }
 
+/// Directions spread evenly over a sphere
+fn sphere_directions() -> &'static [Vec3] {
+    use once_cell::sync::OnceCell;
+    static DIRS: OnceCell<Vec<Vec3>> = OnceCell::new();
+    DIRS.get_or_init(|| {
+        let golden = std::f32::consts::PI * (3.0 - 5.0f32.sqrt());
+        (0..SPLASH_DIRECTIONS)
+            .map(|i| {
+                let z = 1.0 - (i as f32 + 0.5) / SPLASH_DIRECTIONS as f32 * 2.0;
+                let r = (1.0 - z * z).sqrt();
+                let (sin, cos) = (golden * i as f32).sin_cos();
+                Vec3::new(cos * r, sin * r, z)
+            })
+            .collect()
+    })
+}
+
+/// Spots on surfaces around a player standing at `origin` that a blast would reach them from,
+/// facing `eye` and closest first
+fn splash_points(origin: Vec3, target: &Player, info: &ProjectileInfo, eye: &Vec3) -> Vec<Vec3> {
+    let (mins, maxs) = (target.mins(), target.maxs());
+    let center = origin + Vec3::new(0.0, 0.0, (mins.z + maxs.z) / 2.0);
+    // A little short of the full radius, the blast falls off and positions aren't exact
+    let reach = info.splash_radius * 0.9;
+    // Off the surface by the projectile's size so it doesn't clip it on the way in
+    let lift = info.hull.min(3.0) + 1.0;
+    let filter = TraceFilter::world_only();
+
+    let mut points: Vec<(f32, Vec3)> = sphere_directions()
+        .iter()
+        .filter_map(|dir| {
+            let ray = Ray::init(&center, &(center + *dir * reach));
+            let trace = Interfaces::engine_trace().trace(&ray, MASK_SOLID, &filter);
+            if trace.start_solid || trace.fraction >= 1.0 {
+                return None;
+            }
+            let normal = trace.plane_normal();
+            let point = trace.end_pos + normal * lift;
+            // The side of the surface we can hit
+            (normal.dot(&(*eye - point)) > 0.0).then(|| (trace.fraction, point))
+        })
+        .collect();
+    points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
+    points
+        .into_iter()
+        .take(SPLASH_CANDIDATES)
+        .map(|(_, p)| p)
+        .collect()
+}
+
 struct Found {
     index: i32,
     angles: Vec3,
@@ -511,6 +575,9 @@ fn find_target(
     targets.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
     targets.truncate(MAX_TARGETS);
 
+    let use_splash = aim.splash && info.splash_radius > 0.0;
+    let splash_slack = info.splash_radius / solver.speed;
+
     let mut best: Option<Found> = None;
     for (_, target) in targets {
         let Some(mut sim) = MoveSim::new(&target, None, strafe) else {
@@ -521,44 +588,86 @@ fn find_target(
             sim.run_tick();
         }
 
-        'ticks: for ticks in 1..=max_ticks {
+        let mut splash_ticks = 0;
+        for ticks in 1..=max_ticks {
             sim.run_tick();
             let origin = sim.predicted_origin();
-            let points = aim_points(&target, &info, sim.on_ground());
-            for (n, offset) in points.iter().enumerate() {
-                let point = origin + *offset;
-                let solution = match solver.solve(&point, ticks) {
-                    Solve::Good(s) => s,
-                    Solve::Late => continue,
-                    Solve::Bad => continue,
-                };
-                let fov = cmd.view_angles.fov_to(&solution.angles);
-                if fov > aim.fov as f32 {
-                    continue;
+            let direct_tolerance = info.hull.max(4.0) + 8.0;
+            let mut hit = aim_points(&target, &info, sim.on_ground())
+                .into_iter()
+                .enumerate()
+                .find_map(|(n, offset)| {
+                    let extra = if n == 0 && info.splash { 8.0 } else { 0.0 };
+                    attempt(
+                        &solver,
+                        cmd,
+                        aim.fov as f32,
+                        &(origin + offset),
+                        ticks,
+                        direct_tolerance + extra,
+                    )
+                });
+
+            // Spots near the target are at most the blast radius closer than it, so there's
+            // no point looking before the projectile could nearly make it to the target
+            if hit.is_none() && use_splash && splash_ticks < SPLASH_TICKS {
+                let center = origin + Vec3::new(0.0, 0.0, target.maxs().z / 2.0);
+                let in_window = solver
+                    .trajectory(&eye, &center)
+                    .is_some_and(|(_, time)| time - splash_slack <= ticks as f32 * tick);
+                if in_window {
+                    splash_ticks += 1;
+                    let tolerance = info.hull.max(4.0) + 12.0;
+                    hit = splash_points(origin, &target, &info, &eye)
+                        .iter()
+                        .find_map(|point| {
+                            attempt(&solver, cmd, aim.fov as f32, point, ticks, tolerance)
+                        });
                 }
-                let path = solver.path(&solution.angles, solution.time);
-                let tolerance = info.hull.max(4.0) + if n == 0 && info.splash { 16.0 } else { 8.0 };
-                if !solver.clear(&path, &point, tolerance) {
-                    continue;
-                }
-                if best.as_ref().is_none_or(|b| fov < b.fov) {
-                    let mut player_path = sim.path.clone();
-                    player_path.push(sim.origin());
-                    best = Some(Found {
-                        index: target.index(),
-                        angles: solution.angles,
-                        time: solution.time,
-                        fov,
-                        paths: PredictionPaths {
-                            player: player_path,
-                            projectile: path,
-                            until: 0.0,
-                        },
-                    });
-                }
-                break 'ticks;
             }
+
+            let Some((solution, path, fov)) = hit else {
+                continue;
+            };
+            if best.as_ref().is_none_or(|b| fov < b.fov) {
+                let mut player_path = sim.path.clone();
+                player_path.push(sim.origin());
+                best = Some(Found {
+                    index: target.index(),
+                    angles: solution.angles,
+                    time: solution.time,
+                    fov,
+                    paths: PredictionPaths {
+                        player: player_path,
+                        projectile: path,
+                        until: 0.0,
+                    },
+                });
+            }
+            break;
         }
     }
     best
+}
+
+/// A shot landing on `point` within `ticks` that's inside the FOV and gets there unobstructed
+fn attempt(
+    solver: &Solver,
+    cmd: &UserCmd,
+    max_fov: f32,
+    point: &Vec3,
+    ticks: i32,
+    tolerance: f32,
+) -> Option<(Solution, Vec<Vec3>, f32)> {
+    let Solve::Good(solution) = solver.solve(point, ticks) else {
+        return None;
+    };
+    let fov = cmd.view_angles.fov_to(&solution.angles);
+    if fov > max_fov {
+        return None;
+    }
+    let path = solver.path(&solution.angles, solution.time);
+    solver
+        .clear(&path, point, tolerance)
+        .then_some((solution, path, fov))
 }

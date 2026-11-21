@@ -351,6 +351,8 @@ struct_with_serialize! {
         pub projectile: bool,
         // How far ahead to simulate targets for projectiles, in milliseconds
         pub max_sim_time: i32,
+        // Hit surfaces near targets that explosives can't hit directly
+        pub splash: bool,
         pub draw_prediction: bool,
     }
 }
@@ -388,6 +390,7 @@ impl Default for AimbotConfig {
             strafe_air: true,
             projectile: false,
             max_sim_time: 2000,
+            splash: true,
             draw_prediction: false,
         }
     }

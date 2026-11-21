@@ -88,6 +88,7 @@ fn aimbot_settings(nk: &Nuklear, config: &mut Config) {
             },
         );
         nk.row_dynamic(ROW, 1)
+            .checkbox("Splash", &mut aim.splash)
             .checkbox("Draw prediction", &mut aim.draw_prediction);
     }
 
