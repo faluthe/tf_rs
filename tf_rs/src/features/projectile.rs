@@ -149,6 +149,10 @@ struct ProjectileInfo {
     up_speed: f32,
     /// Units per second squared
     gravity: f32,
+    /// Air drag on physics projectiles, the fraction of their speed lost each second per unit
+    /// per second they're going. Amalgam's measurements, the engine takes off |v . basis| of the
+    /// velocity every second and a spinning pipe averages out to about one basis.
+    drag: f32,
     /// Half size of the projectile's box
     hull: f32,
     /// Seconds before it's gone, the simulation stops there
@@ -186,6 +190,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
         speed: 0.0,
         up_speed: 0.0,
         gravity: 0.0,
+        drag: 0.0,
         hull: 0.0,
         lifetime: f32::MAX,
         splash: false,
@@ -221,6 +226,14 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             );
             info.up_speed = 200.0;
             info.gravity = 800.0;
+            info.drag = if matches!(weapon.weapon_class(), WeaponClass::Cannon) {
+                0.385 / 1454.0
+            } else if attrib(0.0, c"grenade_no_spin") != 0.0 {
+                // Loch-n-Load, a pipe that doesn't spin
+                0.07 / 1504.0
+            } else {
+                0.12 / 1217.0
+            };
             info.hull = 6.0;
             let fuse = attrib(2.0, c"fuse_mult");
             info.lifetime = ((fuse / 0.195).floor() + 1.0) * 0.195;
@@ -233,6 +246,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             info.speed = attrib(speed, c"mult_projectile_range");
             info.up_speed = 200.0;
             info.gravity = 800.0;
+            info.drag = 0.085 / 922.0;
             info.hull = 6.0;
             info.splash = true;
             info.splash_radius = attrib(146.0, c"mult_explosion_radius");
@@ -326,7 +340,99 @@ fn fire_setup(
 /// Launch velocity for a projectile heading along `angles`
 fn launch_velocity(angles: &Vec3, info: &ProjectileInfo) -> Vec3 {
     let (forward, _, up) = angles.angle_vectors();
-    forward * info.speed + up * info.up_speed
+    let v = forward * info.speed + up * info.up_speed;
+    // Physics objects can't go faster than the physics speed limit
+    if info.pipes && v.length() > MAX_PHYSICS_SPEED {
+        return v.normalized() * MAX_PHYSICS_SPEED;
+    }
+    v
+}
+
+const MAX_PHYSICS_SPEED: f32 = 2000.0;
+
+/// One tick of a physics projectile's flight: gravity and drag change its velocity, then it moves
+fn physics_step(pos: &mut Vec3, vel: &mut Vec3, dt: f32, info: &ProjectileInfo) {
+    vel.z -= info.gravity * dt;
+    let slow = (info.drag * vel.length() * dt).min(1.0);
+    *vel = *vel * (1.0 - slow);
+    *pos += *vel * dt;
+}
+
+/// Flights of a physics projectile launched at each whole degree of pitch, as horizontal distance
+/// and height every tick, to solve against since drag leaves no formula for the arc
+struct ArcTable {
+    /// Pitch in degrees, up positive, lowest first
+    pitches: Vec<f32>,
+    arcs: Vec<Vec<(f32, f32)>>,
+}
+
+impl ArcTable {
+    fn new(info: &ProjectileInfo, speed: f32, max_time: f32) -> Self {
+        let tick = Interfaces::global_vars().interval_per_tick;
+        let ticks = (max_time / tick).ceil() as usize;
+        let pitches: Vec<f32> = (-89..=89).map(|p| p as f32).collect();
+        let arcs = pitches
+            .iter()
+            .map(|pitch| {
+                let (sin, cos) = pitch.to_radians().sin_cos();
+                let mut pos = Vec3::default();
+                let mut vel = Vec3::new(cos * speed, 0.0, sin * speed);
+                let mut arc = Vec::with_capacity(ticks + 1);
+                arc.push((0.0, 0.0));
+                for _ in 0..ticks {
+                    physics_step(&mut pos, &mut vel, tick, info);
+                    arc.push((pos.x, pos.z));
+                }
+                arc
+            })
+            .collect();
+        ArcTable { pitches, arcs }
+    }
+
+    /// Height and time an arc is at when it's `distance` out, if it gets that far
+    fn at(arc: &[(f32, f32)], distance: f32, tick: f32) -> Option<(f32, f32)> {
+        if arc.last()?.0 < distance {
+            return None;
+        }
+        let i = arc.partition_point(|(d, _)| *d < distance);
+        if i == 0 {
+            return Some((arc[0].1, 0.0));
+        }
+        let ((d0, z0), (d1, z1)) = (arc[i - 1], arc[i]);
+        let a = if d1 > d0 {
+            (distance - d0) / (d1 - d0)
+        } else {
+            0.0
+        };
+        Some((z0 + (z1 - z0) * a, (i as f32 - 1.0 + a) * tick))
+    }
+
+    /// The low arc's pitch (radians, up positive) and flight time to `distance` out and `height` up
+    fn solve(&self, distance: f32, height: f32) -> Option<(f32, f32)> {
+        let tick = Interfaces::global_vars().interval_per_tick;
+        // Height at the distance rises with pitch up to the furthest reaching arc, the first
+        // pitch that gets high enough is the low arc
+        let mut below: Option<(f32, f32, f32)> = None;
+        for (pitch, arc) in self.pitches.iter().zip(&self.arcs) {
+            let Some((z, t)) = Self::at(arc, distance, tick) else {
+                below = None;
+                continue;
+            };
+            let over = z - height;
+            if over >= 0.0 {
+                let (pitch, t) = match below {
+                    Some((p0, o0, t0)) => {
+                        let a = -o0 / (over - o0);
+                        (p0 + (pitch - p0) * a, t0 + (t - t0) * a)
+                    }
+                    None => (*pitch, t),
+                };
+                return Some((pitch.to_radians(), t));
+            }
+            below = Some((*pitch, over, t));
+        }
+        None
+    }
 }
 
 struct Solver<'a> {
@@ -338,6 +444,8 @@ struct Solver<'a> {
     /// Angle the launch velocity makes with the view
     ang_fix: Vec3,
     offset_time: f32,
+    /// For projectiles with drag
+    arcs: Option<ArcTable>,
 }
 
 #[derive(Clone, Copy)]
@@ -359,6 +467,7 @@ impl Solver<'_> {
         let v = launch_velocity(&Vec3::default(), &info);
         let (pos, _) = fire_setup(localplayer, &eye, &Vec3::default(), &info);
         let speed = v.length();
+        let arcs = (info.drag > 0.0).then(|| ArcTable::new(&info, speed, info.lifetime.min(5.0)));
         Solver {
             localplayer,
             eye,
@@ -366,6 +475,7 @@ impl Solver<'_> {
             speed,
             ang_fix: v.to_angles(),
             offset_time: (pos - eye).length() / speed,
+            arcs,
         }
     }
 
@@ -374,6 +484,9 @@ impl Solver<'_> {
         let (g, v) = (self.info.gravity, self.speed);
         let delta = *to - *from;
         let dist = delta.length_2d();
+        if let Some(arcs) = &self.arcs {
+            return arcs.solve(dist, delta.z);
+        }
         let pitch = if g == 0.0 {
             (-helpers::calculate_angle(from, to).x).to_radians()
         } else {
@@ -469,6 +582,18 @@ impl Solver<'_> {
         let (pos, ang) = fire_setup(self.localplayer, &self.eye, angles, &self.info);
         let v = launch_velocity(&ang, &self.info);
         let mut out = Vec::new();
+        if self.info.drag > 0.0 {
+            let (mut pos, mut vel) = (pos, v);
+            out.push(pos);
+            let mut t = 0.0;
+            while t < time {
+                let dt = tick.min(time - t);
+                physics_step(&mut pos, &mut vel, dt, &self.info);
+                out.push(pos);
+                t += dt;
+            }
+            return out;
+        }
         let mut t = 0.0;
         loop {
             let p = pos + v * t - Vec3::new(0.0, 0.0, 0.5 * self.info.gravity * t * t);
