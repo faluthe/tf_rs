@@ -1,9 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use nuklear::{
-    Color, Nuklear,
-    flags::{LayoutFormat, TextAlignment},
-};
+use nuklear::{Nuklear, Swatch, ToggleColor};
 
 use super::{ROW, field};
 use crate::{
@@ -109,55 +106,53 @@ fn chams_section(nk: &Nuklear, chams: &mut ChamsConfig) {
     }
 }
 
+/// Width of the popup a chams row opens
+const CHAMS_POPUP_W: f32 = 300.0;
+
+/// Row with a combo showing the group's material and its passes, the popup picks the material,
+/// toggles the passes and edits their colors
 fn chams_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig) {
-    group_title(nk, title);
-    material_field(nk, &mut group.material);
-    toggle_color_field(nk, "Visible", &mut group.visible, &mut group.visible_color);
-    toggle_color_field(
-        nk,
-        "Occluded",
-        &mut group.occluded,
-        &mut group.occluded_color,
-    );
+    let swatches = [
+        Swatch::new(group.visible, group.visible_color),
+        Swatch::new(group.occluded, group.occluded_color),
+    ];
+    field(nk, title, |nk| {
+        nk.summary_combo(&[material_label(group)], &swatches, CHAMS_POPUP_W, |nk| {
+            material_grid(nk, &mut group.material);
+            nk.toggle_color_list(&mut [
+                ToggleColor::new("Visible", &mut group.visible, Some(&mut group.visible_color)),
+                ToggleColor::new(
+                    "Occluded",
+                    &mut group.occluded,
+                    Some(&mut group.occluded_color),
+                ),
+            ]);
+        });
+    });
 }
 
 // Viewmodels are never behind anything, so only the visible pass applies
 fn first_person_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig) {
-    group_title(nk, title);
-    material_field(nk, &mut group.material);
-    toggle_color_field(nk, "Enabled", &mut group.visible, &mut group.visible_color);
-}
-
-fn group_title(nk: &Nuklear, title: &str) {
-    nk.row_dynamic(ROW, 1);
-    match nk.palette() {
-        Some(p) => nk.colored_label(
-            title,
-            TextAlignment::LEFT,
-            p.accent.r,
-            p.accent.g,
-            p.accent.b,
-            p.accent.a,
-        ),
-        None => nk.label(title, TextAlignment::LEFT),
-    };
-}
-
-fn material_field(nk: &Nuklear, material: &mut usize) {
-    field(nk, "Material", |nk| {
-        let labels: Vec<&str> = chams::MATERIALS.iter().map(|m| m.label).collect();
-        nk.single_select_combo(&labels, material);
+    let swatches = [Swatch::new(group.visible, group.visible_color)];
+    field(nk, title, |nk| {
+        nk.summary_combo(&[material_label(group)], &swatches, CHAMS_POPUP_W, |nk| {
+            material_grid(nk, &mut group.material);
+            nk.toggle_color_list(&mut [ToggleColor::new(
+                "Enabled",
+                &mut group.visible,
+                Some(&mut group.visible_color),
+            )]);
+        });
     });
 }
 
-/// A `field` row whose widget is a checkbox followed by a color swatch
-fn toggle_color_field(nk: &Nuklear, label: &str, on: &mut bool, color: &mut Color) {
-    nk.layout_row_begin(LayoutFormat::DYNAMIC, ROW, 3)
-        .layout_row_push(0.45)
-        .label(label, TextAlignment::LEFT)
-        .layout_row_push(0.1)
-        .checkbox("", on)
-        .layout_row_push(0.45)
-        .color_combo(color);
-    nk.layout_row_end();
+fn material_label(group: &ChamsGroupConfig) -> &'static str {
+    chams::MATERIALS
+        .get(group.material)
+        .map_or("None", |m| m.label)
+}
+
+fn material_grid(nk: &Nuklear, material: &mut usize) {
+    let labels: Vec<&str> = chams::MATERIALS.iter().map(|m| m.label).collect();
+    nk.select_grid(&labels, material, 3);
 }
