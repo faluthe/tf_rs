@@ -353,6 +353,8 @@ struct_with_serialize! {
         pub max_sim_time: i32,
         // Hit surfaces near targets that explosives can't hit directly
         pub splash: bool,
+        // Hold fire on a target until our explosive already on its way to them lands
+        pub wait_for_shot: bool,
         // Detonate stickies when an enemy will be in a blast
         pub auto_detonate: bool,
         pub draw_prediction: bool,
@@ -395,6 +397,7 @@ impl Default for AimbotConfig {
             projectile: false,
             max_sim_time: 2000,
             splash: true,
+            wait_for_shot: false,
             auto_detonate: false,
             draw_prediction: false,
             log_prediction: false,

@@ -632,7 +632,11 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
     }
 
     let logging = aim.log_prediction;
+    let started = std::time::Instant::now();
     let (found, diagnostics) = find_target(localplayer, cmd, config, info, logging);
+    if logging {
+        shot_log::search_time(started.elapsed().as_secs_f32() * 1000.0);
+    }
     Globals::write().target = found.as_ref().map(|f| Target {
         target_index: f.index,
         should_headshot: info.headshot,
@@ -754,7 +758,7 @@ fn find_target(
         };
         let start_time = target.simulation_time();
         let choke = sim.choke();
-        let wait_for = landing_before(target.index());
+        let wait_for = landing_before(target.index()).filter(|_| aim.wait_for_shot);
         let mut waiting = false;
         let mut count = |r: Result<_, Reject>| match r {
             Ok(v) => Some(v),

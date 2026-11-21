@@ -4,6 +4,7 @@
 //! - shots.csv: each shot fired, with the timeline it assumed against the server time it fires at
 //! - shot_projectile.csv: the projectile that shot made, against the path it was predicted to take
 //! - shot_target.csv: where the target really was when the shot was predicted to land
+//! - perf.csv: each second, commands and frames, and how long the aimbot's search took
 //!
 //! Everything is lined up by server time. The shot fires at our tick base, our projectiles and the
 //! target carry the simulation time the server had them at.
@@ -85,6 +86,18 @@ struct Shot {
     target_logged: bool,
 }
 
+/// Search timing over the current second
+#[derive(Default)]
+struct Perf {
+    start: f32,
+    searches: u32,
+    frames: u32,
+    last_frame: i32,
+    frame_time: f32,
+    total_ms: f32,
+    max_ms: f32,
+}
+
 #[derive(Default)]
 struct State {
     next_id: u32,
@@ -92,7 +105,8 @@ struct State {
     /// Our projectiles already around, so only new ones get matched to shots
     known: HashSet<u32>,
     last_no_shot: f32,
-    files: [String; 4],
+    perf: Perf,
+    files: [String; 5],
     last_flush: f32,
 }
 
@@ -102,7 +116,8 @@ const NO_SHOT: usize = 0;
 const SHOTS: usize = 1;
 const PROJECTILE: usize = 2;
 const TARGET: usize = 3;
-const FILES: [(&str, &str); 4] = [
+const PERF: usize = 4;
+const FILES: [(&str, &str); 5] = [
     (
         "no_shot.csv",
         "time,target,fov,distance,on_ground,no_sim,waiting,late,bad,blocked\n",
@@ -119,7 +134,43 @@ const FILES: [(&str, &str); 4] = [
         "shot_target.csv",
         "id,late_by,err_xy,err_z,on_ground,predicted_on_ground,min_distance\n",
     ),
+    (
+        "perf.csv",
+        "time,searches,frames,searches_per_frame,fps,avg_ms,max_ms\n",
+    ),
 ];
+
+/// One search took `ms`, from CreateMove
+pub fn search_time(ms: f32) {
+    let globals = Interfaces::global_vars();
+    let mut state = STATE.lock().unwrap();
+    let p = &mut state.perf;
+    if p.searches == 0 {
+        p.start = globals.realtime;
+    }
+    p.searches += 1;
+    if globals.framecount != p.last_frame {
+        p.last_frame = globals.framecount;
+        p.frames += 1;
+        p.frame_time += globals.absoluteframetime;
+    }
+    p.total_ms += ms;
+    p.max_ms = p.max_ms.max(ms);
+    if globals.realtime - p.start >= 1.0 {
+        let p = std::mem::take(&mut state.perf);
+        let frames = p.frames.max(1) as f32;
+        state.files[PERF].push_str(&format!(
+            "{:.1},{},{},{:.2},{:.0},{:.2},{:.2}\n",
+            p.start,
+            p.searches,
+            p.frames,
+            p.searches as f32 / frames,
+            frames / p.frame_time.max(0.001),
+            p.total_ms / p.searches as f32,
+            p.max_ms,
+        ));
+    }
+}
 
 fn tick() -> f32 {
     Interfaces::global_vars().interval_per_tick
