@@ -44,7 +44,7 @@ pub extern "C" fn hk_draw_model_execute(
         return call_original();
     };
 
-    let Some(layers) = chams::layers(group.material) else {
+    let Some((layers, materials)) = chams::layers(group.material) else {
         return call_original();
     };
 
@@ -71,12 +71,13 @@ pub extern "C" fn hk_draw_model_execute(
         call_original();
     };
 
-    // Every layer drawn on top of the last, each in its own shade of `color`
+    // Every layer drawn on top of the last, each in its own drifting shade of `color`
+    let time = Interfaces::global_vars().realtime;
     let draw_layers = |color: Color, ignore_z: bool| {
-        for (i, material) in layers.iter().enumerate() {
+        for (layer, material) in layers.iter().zip(materials) {
             model_render.forced_material_override(Some(material));
             material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, ignore_z);
-            set_color(chams::layer_color(color, i));
+            set_color(layer.color(color, time));
             call_original();
         }
     };
@@ -94,7 +95,7 @@ pub extern "C" fn hk_draw_model_execute(
     }
 
     model_render.forced_material_override(None);
-    for material in layers {
+    for material in materials {
         material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, false);
     }
     restore_color();

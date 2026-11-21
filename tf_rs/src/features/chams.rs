@@ -7,6 +7,37 @@ use crate::{
     types::{Color, Material, material::MATERIAL_VAR_NO_DRAW},
 };
 
+pub struct ChamsMaterial {
+    pub label: &'static str,
+    pub layers: &'static [Layer],
+}
+
+/// One draw of a chams material, in a shade of the configured color that drifts over time
+pub struct Layer {
+    pub source: Source,
+    /// Degrees the hue swings either side of the configured color
+    pub hue_swing: f32,
+    /// How fast the hue swings, in radians per second
+    pub speed: f32,
+    /// Where in the swing this layer starts, so layers drift apart
+    pub phase: f32,
+    /// Brightness relative to the configured color
+    pub value: f32,
+}
+
+impl Layer {
+    /// Exactly the configured color
+    const fn plain(source: Source) -> Self {
+        Layer {
+            source,
+            hue_swing: 0.0,
+            speed: 0.0,
+            phase: 0.0,
+            value: 1.0,
+        }
+    }
+}
+
 pub enum Source {
     /// An existing material, by path
     Find(&'static str),
@@ -15,23 +46,30 @@ pub enum Source {
 }
 
 /// Menu label and the layers drawn on top of each other, indexed by ChamsGroupConfig::material
-pub const MATERIALS: &[(&str, &[Source])] = &[
-    ("Debug", &[Source::Find("debug/debugambientcube")]),
-    ("Wireframe", &[Source::Find("debug/debugwireframe")]),
-    (
-        "Glow",
-        &[Source::Create(
+/// Menu label and the layers drawn on top of each other, indexed by ChamsGroupConfig::material
+pub const MATERIALS: &[ChamsMaterial] = &[
+    ChamsMaterial {
+        label: "Debug",
+        layers: &[Layer::plain(Source::Find("debug/debugambientcube"))],
+    },
+    ChamsMaterial {
+        label: "Wireframe",
+        layers: &[Layer::plain(Source::Find("debug/debugwireframe"))],
+    },
+    ChamsMaterial {
+        label: "Glow",
+        layers: &[Layer::plain(Source::Create(
             r#""UnlitGeneric"
 {
     "$basetexture" "vgui/white_additive"
     "$additive" "1"
     "$model" "1"
 }"#,
-        )],
-    ),
-    (
-        "Hologram",
-        &[Source::Create(
+        ))],
+    },
+    ChamsMaterial {
+        label: "Hologram",
+        layers: &[Layer::plain(Source::Create(
             r#""UnlitTwoTexture"
 {
     "$basetexture" "vgui/white_additive"
@@ -48,11 +86,11 @@ pub const MATERIALS: &[(&str, &[Source])] = &[
         }
     }
 }"#,
-        )],
-    ),
-    (
-        "Fire",
-        &[Source::Create(
+        ))],
+    },
+    ChamsMaterial {
+        label: "Fire",
+        layers: &[Layer::plain(Source::Create(
             r#""UnlitGeneric"
 {
     "$basetexture" "effects/tiledfire/firelayeredslowtiled512"
@@ -68,13 +106,27 @@ pub const MATERIALS: &[(&str, &[Source])] = &[
         }
     }
 }"#,
-        )],
-    ),
-    (
-        "Caustic",
-        &[
-            Source::Create(
-                r#""UnlitGeneric"
+        ))],
+    },
+    ChamsMaterial {
+        label: "Caustic",
+        layers: &[
+            // Solid, lit base for the caustics to sit on
+            Layer {
+                source: Source::Create(
+                    r#""VertexLitGeneric"
+{
+    "$basetexture" "vgui/white"
+}"#,
+                ),
+                hue_swing: 25.0,
+                speed: 0.5,
+                phase: 0.0,
+                value: 0.45,
+            },
+            Layer {
+                source: Source::Create(
+                    r#""UnlitGeneric"
 {
     "$basetexture" "effects/animatedcaustic/caustic"
     "$additive" "1"
@@ -96,9 +148,15 @@ pub const MATERIALS: &[(&str, &[Source])] = &[
         }
     }
 }"#,
-            ),
-            Source::Create(
-                r#""UnlitGeneric"
+                ),
+                hue_swing: 60.0,
+                speed: 0.9,
+                phase: 0.0,
+                value: 1.0,
+            },
+            Layer {
+                source: Source::Create(
+                    r#""UnlitGeneric"
 {
     "$basetexture" "effects/animatedcaustic/caustic"
     "$additive" "1"
@@ -120,9 +178,15 @@ pub const MATERIALS: &[(&str, &[Source])] = &[
         }
     }
 }"#,
-            ),
-            Source::Create(
-                r#""UnlitGeneric"
+                ),
+                hue_swing: 60.0,
+                speed: 0.7,
+                phase: 2.1,
+                value: 0.85,
+            },
+            Layer {
+                source: Source::Create(
+                    r#""UnlitGeneric"
 {
     "$basetexture" "effects/animatedcaustic/caustic"
     "$additive" "1"
@@ -144,9 +208,14 @@ pub const MATERIALS: &[(&str, &[Source])] = &[
         }
     }
 }"#,
-            ),
+                ),
+                hue_swing: 60.0,
+                speed: 1.2,
+                phase: 4.2,
+                value: 1.0,
+            },
         ],
-    ),
+    },
 ];
 
 // Each material's layers, empty if any of them failed to load
@@ -159,11 +228,12 @@ pub fn init() {
         MATERIALS
             .iter()
             .enumerate()
-            .map(|(i, (label, layers))| {
-                let loaded: Option<Vec<Material>> = layers
+            .map(|(i, chams_material)| {
+                let loaded: Option<Vec<Material>> = chams_material
+                    .layers
                     .iter()
                     .enumerate()
-                    .map(|(layer, source)| match source {
+                    .map(|(layer, Layer { source, .. })| match source {
                         Source::Find(path) => material_system.find_material(path),
                         Source::Create(vmt) => {
                             let name = CString::new(format!("__chams_{i}_{layer}")).ok()?;
@@ -174,7 +244,7 @@ pub fn init() {
                     .collect();
 
                 let Some(loaded) = loaded else {
-                    warn!("Failed to load chams material {label}");
+                    warn!("Failed to load chams material {}", chams_material.label);
                     return Vec::new();
                 };
 
@@ -187,26 +257,55 @@ pub fn init() {
     });
 }
 
-/// Layers of the material at `index` in MATERIALS, once init has run
-pub fn layers(index: usize) -> Option<&'static [Material]> {
-    let layers = LOADED.get()?.get(index)?;
-    (!layers.is_empty()).then_some(layers.as_slice())
+/// Layers of the material at `index` in MATERIALS and their loaded materials, once init has run
+pub fn layers(index: usize) -> Option<(&'static [Layer], &'static [Material])> {
+    let loaded = LOADED.get()?.get(index)?;
+    (!loaded.is_empty()).then(|| (MATERIALS[index].layers, loaded.as_slice()))
 }
 
-/// Shade of `base` for a layer, the first layer is `base` itself and later ones alternate
-/// between darker and lighter
-pub fn layer_color(base: Color, layer: usize) -> Color {
-    let darken = |c: u8| (c as f32 * 0.6) as u8;
-    let lighten = |c: u8| (c as f32 + (255.0 - c as f32) * 0.4) as u8;
-    let shade: &dyn Fn(u8) -> u8 = match layer {
-        0 => return base,
-        l if l % 2 == 1 => &darken,
-        _ => &lighten,
-    };
-    Color {
-        r: shade(base.r),
-        g: shade(base.g),
-        b: shade(base.b),
-        a: base.a,
+impl Layer {
+    /// This layer's shade of `base` at `time` seconds
+    pub fn color(&self, base: Color, time: f32) -> Color {
+        if self.hue_swing == 0.0 && self.value == 1.0 {
+            return base;
+        }
+
+        let (h, s, v) = rgb_to_hsv(base);
+        let h = h + self.hue_swing * (time * self.speed + self.phase).sin();
+        let (r, g, b) = hsv_to_rgb(h.rem_euclid(360.0), s, (v * self.value).min(1.0));
+        Color { r, g, b, a: base.a }
     }
+}
+
+fn rgb_to_hsv(c: Color) -> (f32, f32, f32) {
+    let (r, g, b) = (c.r as f32 / 255.0, c.g as f32 / 255.0, c.b as f32 / 255.0);
+    let max = r.max(g).max(b);
+    let delta = max - r.min(g).min(b);
+    let h = if delta == 0.0 {
+        0.0
+    } else if max == r {
+        60.0 * ((g - b) / delta).rem_euclid(6.0)
+    } else if max == g {
+        60.0 * ((b - r) / delta + 2.0)
+    } else {
+        60.0 * ((r - g) / delta + 4.0)
+    };
+    let s = if max == 0.0 { 0.0 } else { delta / max };
+    (h, s, max)
+}
+
+fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (u8, u8, u8) {
+    let c = v * s;
+    let x = c * (1.0 - ((h / 60.0).rem_euclid(2.0) - 1.0).abs());
+    let (r, g, b) = match (h / 60.0) as u32 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    let m = v - c;
+    let q = |f: f32| ((f + m) * 255.0).round() as u8;
+    (q(r), q(g), q(b))
 }

@@ -116,7 +116,7 @@ fn chams_section(nk: &Nuklear, chams: &mut ChamsConfig) {
     };
 
     field(nk, "Material", |nk| {
-        let labels: Vec<&str> = chams::MATERIALS.iter().map(|(label, _)| *label).collect();
+        let labels: Vec<&str> = chams::MATERIALS.iter().map(|m| m.label).collect();
         nk.single_select_combo(&labels, &mut group.material);
     });
 

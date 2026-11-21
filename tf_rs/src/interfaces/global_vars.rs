@@ -1,6 +1,6 @@
 #[derive(Clone, Copy)]
 pub struct GlobalVars {
-    _realtime: f32,
+    pub realtime: f32,
     _framecount: i32,
     _absoluteframetime: f32,
     _curtime: f32,
