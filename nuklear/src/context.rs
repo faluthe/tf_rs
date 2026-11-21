@@ -4,21 +4,21 @@ use nuklear_sys::{
     GLEW_OK, SDL_Event, SDL_GL_CreateContext, SDL_GL_GetCurrentContext, SDL_GLContext, SDL_Window,
     glewInit, nk_anti_aliasing_NK_ANTI_ALIASING_ON, nk_begin, nk_bool, nk_button_label,
     nk_buttons_NK_BUTTON_LEFT, nk_checkbox_label, nk_collapse_states_NK_MINIMIZED, nk_color,
-    nk_combo_begin_label, nk_combo_end, nk_context, nk_draw_image, nk_edit_string_zero_terminated,
-    nk_end, nk_fill_rect, nk_fill_rect_multi_color, nk_filter_default, nk_flags, nk_font,
-    nk_font_atlas, nk_font_atlas_add_from_memory, nk_group_begin, nk_group_end,
-    nk_group_scrolled_begin, nk_hsv_f, nk_hsva_colorfv, nk_image, nk_input_begin, nk_input_end,
-    nk_input_has_mouse_click_down_in_rect, nk_input_is_key_released,
+    nk_combo_begin_color, nk_combo_begin_label, nk_combo_end, nk_context, nk_draw_image,
+    nk_edit_string_zero_terminated, nk_end, nk_fill_rect, nk_fill_rect_multi_color,
+    nk_filter_default, nk_flags, nk_font, nk_font_atlas, nk_font_atlas_add_from_memory,
+    nk_group_begin, nk_group_end, nk_group_scrolled_begin, nk_hsv_f, nk_hsva_colorfv, nk_image,
+    nk_input_begin, nk_input_end, nk_input_has_mouse_click_down_in_rect, nk_input_is_key_released,
     nk_input_is_mouse_hovering_rect, nk_label, nk_label_colored, nk_layout_row_begin,
     nk_layout_row_dynamic, nk_layout_row_end, nk_layout_row_push, nk_layout_row_template_begin,
     nk_layout_row_template_end, nk_layout_row_template_push_dynamic,
     nk_layout_row_template_push_static, nk_rect, nk_rule_horizontal, nk_scroll,
     nk_sdl_font_stash_begin, nk_sdl_font_stash_end, nk_sdl_handle_event, nk_sdl_init,
-    nk_sdl_render, nk_selectable_label, nk_slider_int, nk_spacer, nk_stroke_line,
+    nk_sdl_render, nk_selectable_label, nk_slider_int, nk_spacer, nk_stroke_line, nk_stroke_rect,
     nk_style_item_color, nk_style_item_hide, nk_style_pop_font, nk_style_pop_vec2,
-    nk_style_push_font, nk_style_push_vec2, nk_style_set_font, nk_text_alignment_NK_TEXT_LEFT,
-    nk_tree_pop, nk_tree_push_hashed, nk_tree_type_NK_TREE_NODE, nk_vec2, nk_widget,
-    nk_widget_bounds, nk_widget_layout_states_NK_WIDGET_DISABLED,
+    nk_style_push_font, nk_style_push_vec2, nk_style_set_font, nk_text_alignment_NK_TEXT_CENTERED,
+    nk_text_alignment_NK_TEXT_LEFT, nk_tree_pop, nk_tree_push_hashed, nk_tree_type_NK_TREE_NODE,
+    nk_vec2, nk_widget, nk_widget_bounds, nk_widget_layout_states_NK_WIDGET_DISABLED,
     nk_widget_layout_states_NK_WIDGET_INVALID, nk_widget_layout_states_NK_WIDGET_ROM,
     nk_widget_width, nk_window_get_bounds, nk_window_get_canvas, nk_window_get_content_region,
     nk_window_set_bounds,
@@ -30,6 +30,11 @@ use crate::{
 };
 
 static CONTEXT: OnceLock<Context> = OnceLock::new();
+
+/// Side of a swatch in a combo header
+const SWATCH: f32 = 12.0;
+/// Gap before each swatch in a combo header
+const SWATCH_GAP: f32 = 4.0;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Context {
@@ -252,6 +257,130 @@ impl Context {
                 label.as_ptr(),
                 nk_vec2(nk_widget_width(self.nk_ctx), 300.0),
             ) != 0
+        }
+    }
+
+    /// `combo_begin_label` whose popup is at least `min_width` wide and at most `height` tall
+    pub(crate) fn combo_begin_label_sized(
+        &self,
+        label: CString,
+        min_width: f32,
+        height: f32,
+    ) -> bool {
+        unsafe {
+            let width = nk_widget_width(self.nk_ctx).max(min_width);
+            nk_combo_begin_label(self.nk_ctx, label.as_ptr(), nk_vec2(width, height)) != 0
+        }
+    }
+
+    /// Bounds of the next widget slot, without consuming it
+    pub(crate) fn widget_bounds(&self) -> nk_rect {
+        unsafe { nk_widget_bounds(self.nk_ctx) }
+    }
+
+    /// Width taken by `count` swatches drawn by `combo_swatches`, including the gap before them
+    pub(crate) fn combo_swatches_width(&self, count: usize) -> f32 {
+        if count == 0 {
+            return 0.0;
+        }
+        count as f32 * (SWATCH + SWATCH_GAP)
+    }
+
+    /// Draw small swatches, right aligned against the arrow of the combo whose header was at
+    /// `header`. `None` draws an empty outline for an option that is turned off.
+    pub(crate) fn combo_swatches(&self, header: nk_rect, swatches: &[Option<Color>], p: &Palette) {
+        unsafe {
+            let ctx = self.nk_ctx;
+            let c = &(*ctx).style.combo;
+            let button_x = header.x + header.w - header.h - c.button_padding.x;
+            let canvas = nk_window_get_canvas(ctx);
+            let y = (header.y + (header.h - SWATCH) / 2.0).round();
+            let mut x = (button_x - c.spacing.x - self.combo_swatches_width(swatches.len())
+                + SWATCH_GAP)
+                .round();
+            for swatch in swatches {
+                let rect = nk_rect(x, y, SWATCH, SWATCH);
+                match swatch {
+                    Some(color) => {
+                        nk_fill_rect(canvas, rect, 0.0, color.opaque().into());
+                        nk_stroke_rect(canvas, rect, 0.0, 1.0, p.border.into());
+                    }
+                    None => nk_stroke_rect(canvas, rect, 0.0, 1.0, p.text_dim.into()),
+                }
+                x += SWATCH + SWATCH_GAP;
+            }
+        }
+    }
+
+    /// Small chevron in the arrow slot of the combo whose header was at `header`. Palettes turn
+    /// nuklear's own triangle off, so this draws the arrow instead.
+    pub(crate) fn combo_chevron(&self, header: nk_rect, p: &Palette) {
+        const HALF_W: f32 = 4.0;
+        const HALF_H: f32 = 2.0;
+        unsafe {
+            let ctx = self.nk_ctx;
+            let c = &(*ctx).style.combo;
+            let button_w = header.h - 2.0 * c.button_padding.y;
+            let button_x = header.x + header.w - header.h - c.button_padding.x;
+            let cx = (button_x + button_w / 2.0).round();
+            let cy = (header.y + header.h / 2.0).round();
+            let hovered = nk_input_is_mouse_hovering_rect(&(*ctx).input, header) != 0;
+            let color = if hovered { p.accent } else { p.text_dim };
+
+            let canvas = nk_window_get_canvas(ctx);
+            let (left, tip, right) = (
+                (cx - HALF_W, cy - HALF_H),
+                (cx, cy + HALF_H),
+                (cx + HALF_W, cy - HALF_H),
+            );
+            for (a, b) in [(left, tip), (tip, right)] {
+                nk_stroke_line(canvas, a.0, a.1, b.0, b.1, 1.5, color.into());
+            }
+        }
+    }
+
+    /// Button filled with `color`, outlined in the accent color when `active`
+    pub(crate) fn swatch_button(&self, color: Color, active: bool, p: &Palette) -> bool {
+        unsafe {
+            let ctx = self.nk_ctx;
+            let bounds = nk_widget_bounds(ctx);
+
+            let saved = (*ctx).style.button;
+            let b = &mut (*ctx).style.button;
+            b.normal = nk_style_item_hide();
+            b.hover = nk_style_item_hide();
+            b.active = nk_style_item_hide();
+            b.border = 0.0;
+            let empty = CString::default();
+            let clicked = nk_button_label(ctx, empty.as_ptr()) != 0;
+            (*ctx).style.button = saved;
+
+            let hovered = nk_input_is_mouse_hovering_rect(&(*ctx).input, bounds) != 0;
+            let rect = nk_rect(
+                bounds.x + 2.0,
+                bounds.y + 3.0,
+                bounds.w - 4.0,
+                bounds.h - 6.0,
+            );
+            let canvas = nk_window_get_canvas(ctx);
+            nk_fill_rect(canvas, rect, 0.0, color.opaque().into());
+            let (outline, thickness) = if active {
+                (p.accent, 2.0)
+            } else if hovered {
+                (p.text_dim, 1.0)
+            } else {
+                (p.border, 1.0)
+            };
+            nk_stroke_rect(canvas, rect, 0.0, thickness, outline.into());
+            clicked
+        }
+    }
+
+    /// Combo whose header is a swatch of `color`, the popup is at least `min_width` wide
+    pub(crate) fn combo_begin_color(&self, color: Color, min_width: f32, height: f32) -> bool {
+        unsafe {
+            let width = nk_widget_width(self.nk_ctx).max(min_width);
+            nk_combo_begin_color(self.nk_ctx, color.into(), nk_vec2(width, height)) != 0
         }
     }
 
@@ -482,6 +611,39 @@ impl Context {
             let clicked = nk_button_label(ctx, label.as_ptr()) != 0;
             if active {
                 let bar = nk_rect(bounds.x, bounds.y, 3.0, bounds.h);
+                nk_fill_rect(nk_window_get_canvas(ctx), bar, 0.0, p.accent.into());
+            }
+
+            (*ctx).style.button = saved;
+            clicked
+        }
+    }
+
+    /// One tab of a horizontal tab bar, the active tab is underlined in the accent color
+    pub(crate) fn tab_button(&self, label: CString, active: bool, p: &Palette) -> bool {
+        unsafe {
+            let ctx = self.nk_ctx;
+            let saved = (*ctx).style.button;
+            let b = &mut (*ctx).style.button;
+            let (bg, fg) = if active {
+                (p.widget_active, p.accent)
+            } else {
+                (p.panel, p.text_dim)
+            };
+            b.normal = nk_style_item_color(bg.into());
+            b.hover = nk_style_item_color(if active { bg } else { p.widget }.into());
+            b.active = nk_style_item_color(p.widget_active.into());
+            b.border = 0.0;
+            b.rounding = 0.0;
+            b.text_normal = fg.into();
+            b.text_hover = if active { p.accent } else { p.text }.into();
+            b.text_active = p.accent.into();
+            b.text_alignment = nk_text_alignment_NK_TEXT_CENTERED;
+
+            let bounds = nk_widget_bounds(ctx);
+            let clicked = nk_button_label(ctx, label.as_ptr()) != 0;
+            if active {
+                let bar = nk_rect(bounds.x, bounds.y + bounds.h - 2.0, bounds.w, 2.0);
                 nk_fill_rect(nk_window_get_canvas(ctx), bar, 0.0, p.accent.into());
             }
 

@@ -160,6 +160,97 @@ struct_with_serialize! {
         pub aimbot_target: bool,
         pub conds: CondsDisplayConfig,
         pub ignore_invis: bool,
+        pub chams: ChamsConfig,
+    }
+}
+
+struct_with_serialize! {
+    #[derive(Clone)]
+    pub struct ChamsConfig {
+        pub enabled: bool,
+        pub enemy: ChamsGroupConfig,
+        pub friendly: ChamsGroupConfig,
+        pub local: ChamsGroupConfig,
+        pub building_enemy: ChamsGroupConfig,
+        pub building_friendly: ChamsGroupConfig,
+        pub category1: ChamsGroupConfig,
+        pub category2: ChamsGroupConfig,
+        pub category3: ChamsGroupConfig,
+        pub category4: ChamsGroupConfig,
+        pub hands: ChamsGroupConfig,
+        pub weapon: ChamsGroupConfig,
+    }
+}
+
+impl Default for ChamsConfig {
+    fn default() -> Self {
+        let categories = PlayerCategoryColors::default();
+        ChamsConfig {
+            enabled: false,
+            enemy: ChamsGroupConfig::new(true, 0xff4040, 0x9a0000),
+            friendly: ChamsGroupConfig::new(false, 0x40ff40, 0x008a00),
+            local: ChamsGroupConfig::new(false, 0xffffff, 0x808080),
+            building_enemy: ChamsGroupConfig::new(false, 0xffa500, 0x9a5a00),
+            building_friendly: ChamsGroupConfig::new(false, 0x40c0ff, 0x005f8a),
+            category1: ChamsGroupConfig::from_color(categories.category1),
+            category2: ChamsGroupConfig::from_color(categories.category2),
+            category3: ChamsGroupConfig::from_color(categories.category3),
+            category4: ChamsGroupConfig::from_color(categories.category4),
+            hands: ChamsGroupConfig::new(false, 0x8080ff, 0x8080ff),
+            weapon: ChamsGroupConfig::new(false, 0xffffff, 0xffffff),
+        }
+    }
+}
+
+struct_with_serialize! {
+    #[derive(Clone, Copy)]
+    pub struct ChamsGroupConfig {
+        // Index into chams::MATERIALS
+        pub material: usize,
+        // Draw chams where the entity can be seen, otherwise draw the normal model there
+        pub visible: bool,
+        // Draw chams through walls
+        pub occluded: bool,
+        pub visible_color: Color,
+        pub occluded_color: Color,
+    }
+}
+
+impl ChamsGroupConfig {
+    fn new(enabled: bool, visible: u32, occluded: u32) -> Self {
+        ChamsGroupConfig {
+            material: 0,
+            visible: enabled,
+            occluded: enabled,
+            visible_color: Color::hex(visible),
+            occluded_color: Color::hex(occluded),
+        }
+    }
+
+    fn from_color(color: Color) -> Self {
+        let dim = |c: u8| (c as u16 * 3 / 5) as u8;
+        ChamsGroupConfig {
+            material: 0,
+            visible: false,
+            occluded: false,
+            visible_color: color,
+            occluded_color: Color {
+                r: dim(color.r),
+                g: dim(color.g),
+                b: dim(color.b),
+                a: color.a,
+            },
+        }
+    }
+
+    pub fn active(&self) -> bool {
+        self.visible || self.occluded
+    }
+}
+
+impl Default for ChamsGroupConfig {
+    fn default() -> Self {
+        ChamsGroupConfig::new(false, 0xffffff, 0xffffff)
     }
 }
 

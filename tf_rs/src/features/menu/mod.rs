@@ -1,5 +1,4 @@
 mod aimbot;
-mod colors;
 mod config;
 mod esp;
 mod logging;
@@ -30,7 +29,6 @@ static MENU_BOUNDS: Mutex<Rect> = Mutex::new(Rect {
 enum MenuTab {
     Aimbot,
     ESP,
-    Colors,
     Misc,
     Config,
     Players,
@@ -41,10 +39,9 @@ enum MenuTab {
 const ROW: f32 = 26.0;
 /// Width of the navigation sidebar
 const NAV_W: f32 = 128.0;
-const TABS: [(&str, MenuTab); 7] = [
+const TABS: [(&str, MenuTab); 6] = [
     ("Aimbot", MenuTab::Aimbot),
     ("ESP", MenuTab::ESP),
-    ("Colors", MenuTab::Colors),
     ("Players", MenuTab::Players),
     ("Misc", MenuTab::Misc),
     ("Config", MenuTab::Config),
@@ -87,10 +84,9 @@ pub fn draw(nk: &Nuklear) {
             match unsafe { TAB } {
                 MenuTab::Aimbot => aimbot::aimbot_tab(nk, &mut config),
                 MenuTab::ESP => esp::esp_tab(nk, &mut config),
-                MenuTab::Colors => colors::colors_tab(nk, &mut config),
                 MenuTab::Misc => misc::misc_tab(nk, &mut config),
                 MenuTab::Config => config::config_tab(nk, &mut config),
-                MenuTab::Players => players::players_tab(nk),
+                MenuTab::Players => players::players_tab(nk, &mut config),
                 MenuTab::Logging => logging::logging_tab(nk),
             }
             nk.group_end();

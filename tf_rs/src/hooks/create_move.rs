@@ -2,7 +2,7 @@ use std::ffi::c_void;
 
 use crate::{
     config::Config,
-    features::{aimbot, movement},
+    features::{aimbot, chams, movement},
     globals::Globals,
     helpers,
     hooks::Hooks,
@@ -22,6 +22,8 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
     if !Interfaces::engine_client().is_in_game() {
         return rc;
     }
+
+    chams::init();
 
     let localplayer = helpers::get_localplayer().expect("Failed to get localplayer");
 

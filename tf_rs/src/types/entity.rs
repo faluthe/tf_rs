@@ -63,6 +63,21 @@ impl Entity {
         unsafe { *(f(collideable)) }
     }
 
+    /// Network name of the entity's client class, e.g. "CTFViewModel"
+    pub fn class_name(&self) -> &str {
+        let client_class = self.client_class();
+        if client_class.is_null() {
+            return "";
+        }
+        unsafe {
+            let name = *((client_class as usize + 0x10) as *const *const std::ffi::c_char);
+            if name.is_null() {
+                return "";
+            }
+            std::ffi::CStr::from_ptr(name).to_str().unwrap_or("")
+        }
+    }
+
     pub fn class_id(&self) -> Option<ClassId> {
         let client_class = self.client_class();
         let i = unsafe { *((client_class as usize + 0x28) as *const i32) };

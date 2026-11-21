@@ -17,7 +17,8 @@ use nuklear_sys::{
     nk_style_colors_NK_COLOR_SLIDER_CURSOR_HOVER, nk_style_colors_NK_COLOR_TAB_HEADER,
     nk_style_colors_NK_COLOR_TEXT, nk_style_colors_NK_COLOR_TOGGLE,
     nk_style_colors_NK_COLOR_TOGGLE_CURSOR, nk_style_colors_NK_COLOR_TOGGLE_HOVER,
-    nk_style_colors_NK_COLOR_WINDOW, nk_style_from_table, nk_style_item_color, nk_vec2,
+    nk_style_colors_NK_COLOR_WINDOW, nk_style_from_table, nk_style_item_color,
+    nk_symbol_type_NK_SYMBOL_NONE, nk_vec2,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -29,6 +30,11 @@ pub struct Color {
 }
 
 impl Color {
+    /// Same color with full alpha, for previews
+    pub const fn opaque(self) -> Color {
+        Color { a: 255, ..self }
+    }
+
     pub const WHITE: Color = Color::hex(0xffffff);
 
     pub const fn hex(rgb: u32) -> Self {
@@ -293,6 +299,10 @@ impl Palette {
             c.button.text_normal = self.text_dim.into();
             c.button.text_hover = accent;
             c.button.text_active = accent;
+            // Drawn as a thin chevron by Context::combo_chevron instead
+            c.sym_normal = nk_symbol_type_NK_SYMBOL_NONE;
+            c.sym_hover = nk_symbol_type_NK_SYMBOL_NONE;
+            c.sym_active = nk_symbol_type_NK_SYMBOL_NONE;
 
             let e = &mut s.edit;
             e.rounding = 0.0;

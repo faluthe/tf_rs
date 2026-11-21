@@ -1,6 +1,6 @@
 use std::{ffi::c_void, ptr, sync::RwLock};
 
-use log::info;
+use log::{info, warn};
 use once_cell::sync::Lazy;
 
 use crate::interfaces::*;
@@ -18,6 +18,10 @@ pub struct Interfaces {
     pub global_vars: *mut GlobalVars,
     pub engine_trace: EngineTrace,
     pub model_render: ModelRender,
+    pub material_system: MaterialSystem,
+    pub render_view: RenderView,
+    pub key_values: KeyValues,
+    pub model_info: ModelInfo,
 }
 
 unsafe impl Send for Interfaces {}
@@ -36,6 +40,10 @@ impl Default for Interfaces {
             global_vars: ptr::null_mut(),
             engine_trace: EngineTrace::default(),
             model_render: ModelRender::default(),
+            material_system: MaterialSystem::default(),
+            render_view: RenderView::default(),
+            key_values: KeyValues::default(),
+            model_info: ModelInfo::default(),
         }
     }
 }
@@ -46,6 +54,7 @@ impl Interfaces {
         let engine_factory = Factory::new(BIN_PATH, "engine.so")?;
         let vgui_factory = Factory::new(BIN_PATH, "vgui2.so")?;
         let surface_factory = Factory::new(BIN_PATH, "vguimatsurface.so")?;
+        let material_factory = Factory::new(BIN_PATH, "materialsystem.so")?;
 
         let mut w = I.write().unwrap();
         w.client = client_factory.get("VClient017")?;
@@ -56,6 +65,13 @@ impl Interfaces {
         w.debug_overlay = DebugOverlay::new(engine_factory.get("VDebugOverlay003")?);
         w.engine_trace = EngineTrace::new(engine_factory.get("EngineTraceClient003")?);
         w.model_render = ModelRender::new(engine_factory.get("VEngineModel016")?);
+        w.render_view = RenderView::new(engine_factory.get("VEngineRenderView014")?);
+        w.model_info = ModelInfo::new(engine_factory.get("VModelInfoClient006")?);
+        w.key_values = KeyValues::new().unwrap_or_else(|e| {
+            warn!("Custom materials unavailable: {e:#}");
+            KeyValues::default()
+        });
+        w.material_system = MaterialSystem::new(material_factory.get("VMaterialSystem082")?);
 
         /*
          * https://github.com/OthmanAba/TeamFortress2/blob/1b81dded673d49adebf4d0958e52236ecc28a956/tf2_src/game/client/cdll_client_int.cpp#L1255
@@ -126,5 +142,21 @@ impl Interfaces {
 
     pub fn model_render() -> ModelRender {
         I.read().unwrap().model_render.clone()
+    }
+
+    pub fn material_system() -> MaterialSystem {
+        I.read().unwrap().material_system.clone()
+    }
+
+    pub fn render_view() -> RenderView {
+        I.read().unwrap().render_view.clone()
+    }
+
+    pub fn key_values() -> KeyValues {
+        I.read().unwrap().key_values.clone()
+    }
+
+    pub fn model_info() -> ModelInfo {
+        I.read().unwrap().model_info.clone()
     }
 }

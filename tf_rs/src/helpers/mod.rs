@@ -9,6 +9,7 @@ use crate::{
 };
 
 pub mod macros;
+pub mod module;
 
 /// Path this library was loaded from, as passed to dlopen.
 pub fn lib_path() -> Option<CString> {
