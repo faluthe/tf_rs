@@ -33,6 +33,31 @@ const SPLASH_CANDIDATES: usize = 6;
 /// Ticks per target splash is looked for, from the first one the projectile could make it by
 const SPLASH_TICKS: i32 = 12;
 
+/// An explosive we fired that's still on its way to a target
+struct InFlight {
+    target: i32,
+    /// Server time it lands, on the same timeline targets are simulated on
+    land_time: f32,
+    /// Realtime after which it's surely landed
+    expires: f32,
+}
+
+/// Our explosives in the air. A blast throws its target, so a shot that lands after one of these
+/// is aimed at where the target would have been without it.
+static IN_FLIGHT: std::sync::Mutex<Vec<InFlight>> = std::sync::Mutex::new(Vec::new());
+
+/// When the first of our explosives in the air at `target` lands
+fn landing_before(target: i32) -> Option<f32> {
+    let now = Interfaces::global_vars().realtime;
+    let mut in_flight = IN_FLIGHT.lock().unwrap();
+    in_flight.retain(|f| f.expires > now);
+    in_flight
+        .iter()
+        .filter(|f| f.target == target)
+        .map(|f| f.land_time)
+        .min_by(f32::total_cmp)
+}
+
 /// How a weapon's projectile leaves it
 #[derive(Clone, Copy)]
 struct ProjectileInfo {
@@ -535,6 +560,10 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
         if logging {
             shot_log::no_shot(&diagnostics);
         }
+        // Hold fire until our last shot lands rather than waste one
+        if !info.charge && diagnostics.iter().any(|d| d.waiting) {
+            cmd.buttons &= !ATTACK;
+        }
         return;
     };
 
@@ -551,6 +580,17 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
     } else {
         can_attack && (cmd.buttons & ATTACK) != 0
     };
+    // Out of ammo the attack does nothing
+    let fires = fires && weapon.clip() != 0;
+    let tick = Interfaces::global_vars().interval_per_tick;
+    let s = &found.shot;
+    if fires && info.splash && !info.charge {
+        IN_FLIGHT.lock().unwrap().push(InFlight {
+            target: found.index,
+            land_time: s.start_time + (s.choke + s.latency_ticks + s.ticks) as f32 * tick,
+            expires: Interfaces::global_vars().realtime + found.time + latency() + 0.2,
+        });
+    }
     if logging && fires {
         shot_log::shot(
             localplayer,
@@ -630,6 +670,8 @@ fn find_target(
         };
         let start_time = target.simulation_time();
         let choke = sim.choke();
+        let wait_for = landing_before(target.index());
+        let mut waiting = false;
         let mut count = |r: Result<_, Reject>| match r {
             Ok(v) => Some(v),
             Err(reject) => {
@@ -646,6 +688,11 @@ fn find_target(
 
         let mut splash_ticks = 0;
         for ticks in 1..=max_ticks {
+            let land_time = start_time + (choke + latency_ticks + ticks) as f32 * tick;
+            if wait_for.is_some_and(|w| land_time >= w) {
+                waiting = true;
+                break;
+            }
             sim.run_tick();
             let origin = sim.predicted_origin();
             let direct_tolerance = info.hull.max(4.0) + 8.0;
@@ -724,6 +771,7 @@ fn find_target(
             break;
         }
         drop(count);
+        diag.waiting = waiting;
         diagnostics.push(diag);
     }
     (best, diagnostics)

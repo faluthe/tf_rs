@@ -37,6 +37,8 @@ impl FromRaw for Weapon {
 
 impl Weapon {
     offset_get!(pub fn next_attack: f32, 0xE94);
+    // -1 for weapons without a clip
+    offset_get!(pub fn clip: i32, 0xEE0);
     offset_get!(fn weapon_mode: i32, 0xF70);
     // CTFWeaponBaseMelee: when the current swing lands, negative when not swinging
     offset_get!(pub fn smack_time: f32, 0x10A0);

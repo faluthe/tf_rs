@@ -26,6 +26,8 @@ const THROWER: usize = 0xC30;
 const OFFSETS: i32 = 4;
 /// Seconds a shot waits for its projectile to show up
 const SPAWN_WINDOW: f32 = 1.0;
+/// How far off its shot's path a new projectile can be and still be matched to it
+const MATCH_DISTANCE: f32 = 150.0;
 
 /// What a shot was worked out from
 #[derive(Clone, Copy, Default)]
@@ -53,6 +55,8 @@ pub struct TargetDiagnostics {
     pub distance: f32,
     pub on_ground: bool,
     pub no_sim: bool,
+    /// Every shot would land after one of ours already on its way
+    pub waiting: bool,
     pub late: u32,
     pub bad: u32,
     pub out_of_fov: u32,
@@ -72,7 +76,7 @@ impl TargetDiagnostics {
 
 struct Shot {
     id: u32,
-    /// Server time it fires at
+    /// Server time the projectile leaves, as the aimbot worked it out
     time: f32,
     prediction: Prediction,
     /// Server time it was predicted to land at
@@ -105,7 +109,7 @@ const TARGET: usize = 3;
 const FILES: [(&str, &str); 4] = [
     (
         "no_shot.csv",
-        "time,target,fov,distance,on_ground,no_sim,late,bad,out_of_fov,blocked\n",
+        "time,target,fov,distance,on_ground,no_sim,waiting,late,bad,out_of_fov,blocked\n",
     ),
     (
         "shots.csv",
@@ -136,13 +140,14 @@ pub fn no_shot(diagnostics: &[TargetDiagnostics]) {
     state.last_no_shot = now;
     for d in diagnostics {
         state.files[NO_SHOT].push_str(&format!(
-            "{:.2},{},{:.1},{:.0},{},{},{},{},{},{}\n",
+            "{:.2},{},{:.1},{:.0},{},{},{},{},{},{},{}\n",
             now,
             d.index,
             d.fov,
             d.distance,
             d.on_ground as i32,
             d.no_sim as i32,
+            d.waiting as i32,
             d.late,
             d.bad,
             d.out_of_fov,
@@ -187,7 +192,7 @@ pub fn shot(localplayer: &Player, p: &Prediction, path: &[Vec3], flight_time: f3
     ));
     state.shots.push(Shot {
         id,
-        time,
+        time: assumed,
         prediction: *p,
         land_time: assumed + p.ticks as f32 * tick,
         path: path.to_vec(),
@@ -255,16 +260,24 @@ pub fn observe() {
     let mut state = STATE.lock().unwrap();
     let mut rows = [String::new(), String::new()];
 
-    // New ones belong to the oldest shot still waiting for its projectile
-    for (handle, _) in &ours {
+    // A new one belongs to the waiting shot whose predicted path it's on
+    for (handle, ent) in &ours {
         if state.known.contains(handle) {
             continue;
         }
-        if let Some(shot) = state
+        let (sim_time, actual) = (ent.simulation_time(), ent.network_origin());
+        let closest = state
             .shots
             .iter_mut()
-            .find(|s| s.projectile.is_none() && now - s.created < SPAWN_WINDOW)
-        {
+            .filter(|s| s.projectile.is_none() && now - s.created < SPAWN_WINDOW)
+            .map(|s| {
+                let k = ((sim_time - s.time) / tick).round() as i32;
+                let j = k.clamp(0, s.path.len() as i32 - 1) as usize;
+                (actual.distance_to(&s.path[j]), s)
+            })
+            .filter(|(d, _)| *d < MATCH_DISTANCE)
+            .min_by(|a, b| a.0.total_cmp(&b.0));
+        if let Some((_, shot)) = closest {
             shot.projectile = Some(*handle);
         }
     }
@@ -281,7 +294,7 @@ pub fn observe() {
             if sim_time > shot.last_projectile_time {
                 shot.last_projectile_time = sim_time;
                 let k = ((sim_time - shot.time) / tick).round() as i32;
-                let actual = ent.origin();
+                let actual = ent.network_origin();
                 let at = |j: i32| shot.path[j.clamp(0, shot.path.len() as i32 - 1) as usize];
                 let err = actual.distance_to(&at(k));
                 let (best_offset, best_err) = (-OFFSETS..=OFFSETS)
