@@ -23,6 +23,9 @@ pub struct Interfaces {
     pub key_values: KeyValues,
     pub model_info: ModelInfo,
     pub cvar: Cvar,
+    pub game_movement: GameMovement,
+    pub prediction: Prediction,
+    pub move_helper: MoveHelper,
 }
 
 unsafe impl Send for Interfaces {}
@@ -46,6 +49,9 @@ impl Default for Interfaces {
             key_values: KeyValues::default(),
             model_info: ModelInfo::default(),
             cvar: Cvar::default(),
+            game_movement: GameMovement::default(),
+            prediction: Prediction::default(),
+            move_helper: MoveHelper::default(),
         }
     }
 }
@@ -76,6 +82,13 @@ impl Interfaces {
         });
         w.material_system = MaterialSystem::new(material_factory.get("VMaterialSystem082")?);
         w.cvar = Cvar::new(vstdlib_factory.get("VEngineCvar004")?);
+        w.game_movement = GameMovement::new(client_factory.get("GameMovement001")?);
+        w.prediction = Prediction::new(client_factory.get("VClientPrediction001")?);
+        // Only movement simulation needs it, carry on without
+        w.move_helper = MoveHelper::find().unwrap_or_else(|e| {
+            warn!("Movement simulation unavailable: {e:#}");
+            MoveHelper::default()
+        });
 
         /*
          * https://github.com/OthmanAba/TeamFortress2/blob/1b81dded673d49adebf4d0958e52236ecc28a956/tf2_src/game/client/cdll_client_int.cpp#L1255
@@ -170,5 +183,22 @@ impl Interfaces {
 
     pub fn cvar() -> Cvar {
         I.read().unwrap().cvar.clone()
+    }
+
+    pub fn game_movement() -> GameMovement {
+        I.read().unwrap().game_movement.clone()
+    }
+
+    pub fn prediction() -> Prediction {
+        I.read().unwrap().prediction.clone()
+    }
+
+    pub fn move_helper() -> MoveHelper {
+        I.read().unwrap().move_helper.clone()
+    }
+
+    /// For the few values that are set around calls into the game, like frametime
+    pub fn global_vars_mut() -> *mut GlobalVars {
+        I.read().unwrap().global_vars
     }
 }

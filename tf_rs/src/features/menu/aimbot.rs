@@ -76,6 +76,11 @@ fn aimbot_settings(nk: &Nuklear, config: &mut Config) {
             .checkbox("Auto backstab", &mut aim.auto_backstab);
     }
 
+    nk.section("Movement prediction", false)
+        .row_dynamic(ROW, 1)
+        .checkbox("Ground strafing", &mut aim.strafe_ground)
+        .checkbox("Air strafing", &mut aim.strafe_air);
+
     nk.section("Player categories", false);
     let cat_names = player_db::get_names();
     let items = [

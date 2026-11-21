@@ -190,13 +190,9 @@ pub fn disable_interpolation() {
 pub fn update_records() {
     let mut records = records();
 
-    let (config, melee_aimbot) = {
-        let c = Config::read();
-        (c.backtrack.clone(), c.aimbot.master && c.aimbot.melee)
-    };
+    let config = Config::read().backtrack.clone();
     let localplayer = helpers::get_localplayer().filter(|p| !p.is_dead());
-    // The melee aimbot uses records to tell how enemies are moving
-    let (Some(localplayer), true) = (localplayer, config.enabled || melee_aimbot) else {
+    let (Some(localplayer), true) = (localplayer, config.enabled) else {
         records.iter_mut().for_each(VecDeque::clear);
         return;
     };
@@ -274,7 +270,7 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config, choice: Cho
         None
     } else {
         match choice {
-            Choice::Auto => select(localplayer, cmd, &config.backtrack),
+            Choice::Auto => select(localplayer, cmd, config),
             Choice::Keep => None,
             Choice::Record(index, sim_time) => Some((index, sim_time, true)),
         }
@@ -291,12 +287,8 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config, choice: Cho
 }
 
 /// Entity index and simulation time of the best record, and whether it was picked for melee
-fn select(
-    localplayer: &Player,
-    cmd: &UserCmd,
-    config: &BacktrackConfig,
-) -> Option<(i32, f32, bool)> {
-    let timing = Timing::now(config)?;
+fn select(localplayer: &Player, cmd: &UserCmd, config: &Config) -> Option<(i32, f32, bool)> {
+    let timing = Timing::now(&config.backtrack)?;
     let records = records();
     let usable = records
         .iter()
@@ -305,8 +297,8 @@ fn select(
         .filter(|(_, r)| timing.usable(r.sim_time));
 
     if let Some(weapon) = localplayer.active_weapon().filter(|w| w.is_melee()) {
-        let eye = melee::eye_at(localplayer, 0.0);
-        let swing = Swing::new(localplayer, &weapon, &cmd.view_angles, 0.0)?;
+        let eye = melee::eye_at(localplayer, cmd, 0.0, config);
+        let swing = Swing::new(&weapon, eye, &cmd.view_angles)?;
         let knife = weapon.is_knife();
         let backstabs = |i: i32, r: &Record| {
             knife
@@ -354,24 +346,6 @@ pub fn candidates(index: i32, lead: f32, config: &Config) -> Vec<(Hull, f32)> {
         .filter(|r| timing.usable_in(r.sim_time, lead))
         .map(|r| (r.hull, r.sim_time))
         .collect()
-}
-
-/// How player `index` has been moving between their two newest updates
-pub fn velocity(index: i32) -> Option<Vec3> {
-    let records = records();
-    let mut player_records = records.get(index as usize)?.iter();
-    let (new, old) = (player_records.next()?, player_records.next()?);
-    let dt = new.sim_time - old.sim_time;
-    // Too far apart and it's not one movement anymore
-    if dt <= 0.0 || dt > 0.25 {
-        return None;
-    }
-    let (a, b) = (new.hull.origin, old.hull.origin);
-    Some(Vec3::new(
-        (a.x - b.x) / dt,
-        (a.y - b.y) / dt,
-        (a.z - b.z) / dt,
-    ))
 }
 
 /// Bones of each record of player `index` that can be shot at, oldest first with the record

@@ -1,6 +1,6 @@
 use std::ffi::{CStr, c_int, c_void};
 
-use libc::{PF_X, PT_LOAD, dl_iterate_phdr, dl_phdr_info, size_t};
+use libc::{PF_W, PF_X, PT_LOAD, dl_iterate_phdr, dl_phdr_info, size_t};
 
 /// A loaded segment of a shared library
 #[derive(Clone, Copy)]
@@ -8,6 +8,7 @@ pub struct Segment {
     pub start: usize,
     pub len: usize,
     pub exec: bool,
+    pub write: bool,
 }
 
 impl Segment {
@@ -43,6 +44,7 @@ pub fn segments(lib: &str) -> Vec<Segment> {
                         start: info.dlpi_addr as usize + phdr.p_vaddr as usize,
                         len: phdr.p_memsz as usize,
                         exec: phdr.p_flags & PF_X != 0,
+                        write: phdr.p_flags & PF_W != 0,
                     });
                 }
             }
@@ -117,4 +119,60 @@ pub fn call_target(addr: usize) -> Option<usize> {
     }
     let rel = i32::from_le_bytes(bytes[1..5].try_into().unwrap());
     Some((addr + 5).wrapping_add_signed(rel as isize))
+}
+
+/// Addresses of every 8 byte aligned pointer sized `value` in the segments
+pub fn find_pointers(segments: &[Segment], value: usize, writable: bool) -> Vec<usize> {
+    let needle = value.to_ne_bytes();
+    segments
+        .iter()
+        .filter(|seg| !seg.exec && (!writable || seg.write))
+        .flat_map(|seg| {
+            let start = (seg.start + 7) & !7;
+            let len = seg.len.saturating_sub(start - seg.start);
+            let bytes = unsafe { std::slice::from_raw_parts(start as *const u8, len) };
+            bytes
+                .chunks_exact(8)
+                .enumerate()
+                .filter(move |(_, c)| *c == needle)
+                .map(move |(i, _)| start + i * 8)
+        })
+        .collect()
+}
+
+/// Address of the first occurrence of `needle` in the writable segments
+pub fn find_bytes_writable(segments: &[Segment], needle: &[u8]) -> Option<usize> {
+    segments.iter().filter(|seg| seg.write).find_map(|seg| {
+        seg.bytes()
+            .windows(needle.len())
+            .position(|w| w == needle)
+            .map(|i| seg.start + i)
+    })
+}
+
+/// The vtable (address of its first function) of the class with the mangled RTTI name `name`,
+/// e.g. "17CMoveHelperClient"
+pub fn vtable_of(segments: &[Segment], name: &CStr) -> Option<usize> {
+    // The name string, standing on its own rather than the end of a longer one
+    let needle = name.to_bytes_with_nul();
+    let name_addr = segments.iter().filter(|seg| !seg.exec).find_map(|seg| {
+        let bytes = seg.bytes();
+        bytes
+            .windows(needle.len())
+            .enumerate()
+            .find(|(i, w)| *w == needle && (*i == 0 || bytes[i - 1] == 0))
+            .map(|(i, _)| seg.start + i)
+    })?;
+    // type_info is { vtable, name }, and a vtable is { offset to top, type_info, functions... }
+    find_pointers(segments, name_addr, false)
+        .into_iter()
+        .map(|p| p - 8)
+        .flat_map(|type_info| find_pointers(segments, type_info, false))
+        .find(|&slot| unsafe { *((slot - 8) as *const isize) } == 0)
+        .map(|slot| slot + 8)
+}
+
+/// A static object of the class whose vtable is `vtable`
+pub fn find_object(segments: &[Segment], vtable: usize) -> Option<usize> {
+    find_pointers(segments, vtable, true).into_iter().next()
 }

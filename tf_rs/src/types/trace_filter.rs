@@ -6,6 +6,7 @@ use crate::types::Player;
 pub struct TraceFilter {
     vtable: *const *const c_void,
     skip: *const c_void,
+    trace_type: i32,
 }
 
 impl TraceFilter {
@@ -16,6 +17,15 @@ impl TraceFilter {
                 Some(player) => player.this as _,
                 None => ptr::null(),
             },
+            trace_type: 0, // TRACE_EVERYTHING
+        }
+    }
+
+    /// Only the world and static props, no entities
+    pub fn world_only() -> Self {
+        TraceFilter {
+            trace_type: 1, // TRACE_WORLD_ONLY
+            ..TraceFilter::init(None)
         }
     }
 
@@ -27,8 +37,8 @@ impl TraceFilter {
         entity != unsafe { (*filter).skip }
     }
 
-    extern "C" fn get_trace_type(_filter: *const Self) -> i32 {
-        0 // TRACE_EVERYTHING
+    extern "C" fn get_trace_type(filter: *const Self) -> i32 {
+        unsafe { (*filter).trace_type }
     }
 }
 

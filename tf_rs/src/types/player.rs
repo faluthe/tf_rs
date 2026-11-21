@@ -9,6 +9,8 @@ use crate::{
 };
 
 pub const MAX_BONES: usize = 128;
+pub const FL_ONGROUND: i32 = 1 << 0;
+pub const FL_DUCKING: i32 = 1 << 1;
 pub const BONE_USED_BY_HITBOX: i32 = 0x100;
 pub const BONE_USED_BY_ANYTHING: i32 = 0x7FF00;
 
@@ -40,7 +42,7 @@ impl Player {
     offset_get!(pub fn fov: i32, 0x15E4);
     offset_get!(fn lifestate: i8, 0x746);
     offset_get!(fn active_weapon_: i32, 0x11D0);
-    offset_get!(fn tick_base: i32, 0x1718);
+    offset_get!(pub fn tick_base: i32, 0x1718);
     offset_get!(fn eye_z_diff: f32, 0x14C);
     offset_get!(fn player_class: PlayerClass, 0x1BA0);
     offset_get!(fn conds_0: u32, 0x1F64);
@@ -51,9 +53,63 @@ impl Player {
     offset_get!(fn invisibility: f32, 0x1FE8);
     offset_get!(fn observer_target_: i32, 0x1648);
     offset_get!(pub fn eye_yaw: f32, 0x23F0);
+    offset_get!(pub fn eye_pitch: f32, 0x23EC);
+    offset_get!(pub fn view_offset: Vec3, 0x144);
+    offset_get!(pub fn max_speed: f32, 0x1680);
+    offset_get!(pub fn model_scale: f32, 0x914);
+    offset_get!(pub fn water_level: u8, 0x218);
+    offset_get!(pub fn ducked: bool, 0x1288);
+    offset_get!(pub fn constraint_entity: u32, 0x1628);
+    offset_get!(pub fn constraint_center: Vec3, 0x162C);
+    offset_get!(pub fn constraint_radius: f32, 0x1638);
+    offset_get!(pub fn constraint_width: f32, 0x163C);
+    offset_get!(pub fn constraint_speed_factor: f32, 0x1640);
 
     pub fn is_on_ground(&self) -> bool {
-        (self.flags() & 1) != 0
+        (self.flags() & FL_ONGROUND) != 0
+    }
+
+    pub fn is_ducking(&self) -> bool {
+        (self.flags() & FL_DUCKING) != 0
+    }
+
+    pub fn is_swimming(&self) -> bool {
+        self.water_level() >= 2
+    }
+
+    pub fn set_flags(&self, flags: i32) {
+        unsafe { *self.field::<i32>(0x460) = flags }
+    }
+
+    pub fn set_velocity(&self, velocity: Vec3) {
+        unsafe { *self.field::<Vec3>(0x168) = velocity }
+    }
+
+    pub fn set_base_velocity(&self, velocity: Vec3) {
+        unsafe { *self.field::<Vec3>(0x1F0) = velocity }
+    }
+
+    pub fn clear_ground_entity(&self) {
+        unsafe { *self.field::<u32>(0x31C) = u32::MAX }
+    }
+
+    pub fn set_ducked(&self, ducked: bool) {
+        unsafe { *self.field::<bool>(0x1288) = ducked }
+    }
+
+    /// Clear m_bDucking, m_bInDuckJump, m_flDucktime and m_flDuckJumpTime
+    pub fn reset_duck_transition(&self) {
+        unsafe {
+            *self.field::<bool>(0x1289) = false;
+            *self.field::<bool>(0x128A) = false;
+            *self.field::<f32>(0x128C) = 0.0;
+            *self.field::<f32>(0x1290) = 0.0;
+        }
+    }
+
+    /// m_pCurrentCommand, what game movement reads the command being run from
+    pub fn set_current_command(&self, cmd: *mut c_void) {
+        unsafe { *self.field::<*mut c_void>(0x1620) = cmd }
     }
 
     pub fn is_dead(&self) -> bool {
@@ -210,6 +266,7 @@ pub enum Cond {
     Zoomed = 1,
     Disguised = 3,
     Taunting = 7,
+    ShieldCharge = 17,
     Burning = 22,
     Urine = 24,
     MadMilk = 27,

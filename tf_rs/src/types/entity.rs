@@ -26,6 +26,35 @@ impl Entity {
     offset_get!(pub fn simulation_time: f32, 0x98);
     offset_get!(pub fn velocity: Vec3, 0x168);
 
+    pub fn index(&self) -> i32 {
+        let networkable = self.get_networkable();
+        let vtable = unsafe { *(networkable as *mut *mut *mut c_void) };
+        let f = vfunc!(vtable, 9, extern "C" fn(*mut c_void) -> i32);
+        f(networkable)
+    }
+
+    /// m_vecOrigin as last networked, without interpolation
+    pub fn network_origin(&self) -> Vec3 {
+        unsafe { *self.field::<Vec3>(0x448) }
+    }
+
+    /// Pointer to the member at `offset`, for fields that get written
+    pub fn field<T>(&self, offset: usize) -> *mut T {
+        (self.this as usize + offset) as *mut T
+    }
+
+    /// Prediction datamap, the fields prediction saves and restores
+    pub fn pred_desc_map(&self) -> *const c_void {
+        let f = vfunc!(self.vtable, 18, extern "C" fn(*mut c_void) -> *const c_void);
+        f(self.this)
+    }
+
+    /// The entity's own handle
+    pub fn ref_handle(&self) -> u32 {
+        let f = vfunc!(self.vtable, 3, extern "C" fn(*mut c_void) -> *const u32);
+        unsafe { *f(self.this) }
+    }
+
     fn get_networkable(&self) -> *mut c_void {
         (self.this as usize + 0x10) as *mut c_void
     }

@@ -24,8 +24,23 @@ impl EngineTrace {
         mask: u32,
         ignore: Option<&Player>,
     ) -> TraceResult {
-        let ray = Ray::init(from, to);
-        let filter = TraceFilter::init(ignore);
+        self.trace(&Ray::init(from, to), mask, &TraceFilter::init(ignore))
+    }
+
+    /// Sweep a box with bounds `mins`..`maxs` from `from` to `to`
+    pub fn trace_hull(
+        &self,
+        from: &Vec3,
+        to: &Vec3,
+        mins: &Vec3,
+        maxs: &Vec3,
+        mask: u32,
+        filter: &TraceFilter,
+    ) -> TraceResult {
+        self.trace(&Ray::hull(from, to, mins, maxs), mask, filter)
+    }
+
+    pub fn trace(&self, ray: &Ray, mask: u32, filter: &TraceFilter) -> TraceResult {
         let mut result = TraceResult::default();
 
         let f = vfunc!(
@@ -36,9 +51,9 @@ impl EngineTrace {
 
         f(
             self.this,
-            &ray as *const _ as *mut c_void,
+            ray as *const _ as *mut c_void,
             mask,
-            &filter as *const _ as *mut c_void,
+            filter as *const _ as *mut c_void,
             &mut result,
         );
         result

@@ -12,13 +12,23 @@ pub struct TraceResult {
     _contents: i32,
     _disp_flags: u16,
     _all_solid: bool,
-    _start_solid: bool,
+    pub start_solid: bool,
     _fraction_left_solid: f32,
     _surface: CSurface,
     _hit_group: i32,
     _physics_bone: i16,
     pub entity: *mut c_void,
     _hitbox: i32,
+}
+
+impl TraceResult {
+    pub fn did_hit(&self) -> bool {
+        self.fraction < 1.0 || self.start_solid
+    }
+
+    pub fn plane_normal(&self) -> Vec3 {
+        self._plane._normal
+    }
 }
 
 #[repr(C)]

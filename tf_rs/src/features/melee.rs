@@ -10,7 +10,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
     config::Config,
-    features::backtrack::{self, Choice},
+    features::{
+        backtrack::{self, Choice},
+        movesim::{MoveSim, Strafe},
+    },
     globals::{Globals, Target},
     helpers,
     interfaces::Interfaces,
@@ -39,13 +42,6 @@ impl Hull {
         let z = (eye.z - self.origin.z).clamp(self.mins.z, self.maxs.z);
         Vec3::new(self.origin.x, self.origin.y, self.origin.z + z)
     }
-
-    fn moved(&self, velocity: &Vec3, time: f32) -> Self {
-        Hull {
-            origin: add_scaled(&self.origin, velocity, time),
-            ..*self
-        }
-    }
 }
 
 /// A melee swing as the server traces it
@@ -58,17 +54,19 @@ pub struct Swing {
 impl Swing {
     const HULL: f32 = 18.0;
 
-    /// The swing `weapon` would trace along `angles` if it landed `lead` seconds from now,
-    /// with us moving at our current velocity until then
-    pub fn new(localplayer: &Player, weapon: &Weapon, angles: &Vec3, lead: f32) -> Option<Self> {
+    /// The swing `weapon` would trace from `eye` along `angles`
+    pub fn new(weapon: &Weapon, eye: Vec3, angles: &Vec3) -> Option<Self> {
         if !weapon.is_melee() {
             return None;
         }
         let range = weapon.attrib_float(weapon.swing_range(), c"melee_range_multiplier");
         let hull = weapon.attrib_float(Self::HULL, c"melee_bounds_multiplier");
-        let start = eye_at(localplayer, lead);
-        let end = add_scaled(&start, &forward(angles), range);
-        Some(Swing { start, end, hull })
+        let end = add_scaled(&eye, &forward(angles), range);
+        Some(Swing {
+            start: eye,
+            end,
+            hull,
+        })
     }
 
     pub fn hits(&self, target: &Hull) -> bool {
@@ -90,11 +88,39 @@ impl Swing {
     }
 }
 
-/// Where our eye will be `lead` seconds from now, plus the command's own tick of movement that
-/// the server applies before the weapon runs
-pub fn eye_at(localplayer: &Player, lead: f32) -> Vec3 {
+fn ticks(time: f32) -> i32 {
+    (time / Interfaces::global_vars().interval_per_tick).round() as i32
+}
+
+/// Where our eye will be `lead` seconds after this command, which the server moves us by before
+/// the weapon runs, keeping the command's movement
+pub fn eye_at(localplayer: &Player, cmd: &UserCmd, lead: f32, config: &Config) -> Vec3 {
+    let no_strafe = Strafe {
+        ground: false,
+        air: false,
+    };
+    if let Some(mut sim) = MoveSim::new(localplayer, Some((cmd, config.bunnyhop)), no_strafe) {
+        for _ in 0..1 + ticks(lead) {
+            sim.run_tick();
+        }
+        // Read before the sim restores it, ducking moves the view
+        return sim.origin() + localplayer.view_offset();
+    }
     let tick = Interfaces::global_vars().interval_per_tick;
     add_scaled(&localplayer.eye_pos(), &localplayer.velocity(), lead + tick)
+}
+
+/// Where the server will have `player` when a swing lands `lead` seconds from now
+fn predicted_hull(player: &Player, lead: f32, strafe: Strafe) -> Option<Hull> {
+    let mut sim = MoveSim::new(player, None, strafe)?;
+    for _ in 0..ticks(lead) {
+        sim.run_tick();
+    }
+    Some(Hull {
+        origin: sim.predicted_origin(),
+        mins: player.mins(),
+        maxs: player.maxs(),
+    })
 }
 
 /// CTFKnife::IsBehindAndFacingTarget from `eye` looking along `angles`, at a target standing at
@@ -133,9 +159,7 @@ fn backstab_slack(eye: &Vec3, angles: &Vec3, target: &Vec3, target_yaw: f32) -> 
 /// Angles to swing at `hull` with that backstab, turned from aiming at its axis (`angles`) to
 /// wherever the swing still connects with the most room on both of the knife's angle checks
 fn backstab_angles(
-    localplayer: &Player,
     weapon: &Weapon,
-    lead: f32,
     eye: &Vec3,
     angles: &Vec3,
     hull: &Hull,
@@ -148,7 +172,7 @@ fn backstab_angles(
     let slack: Vec<Option<f32>> = (-SPREAD - 1..=SPREAD + 1)
         .map(|offset| {
             let angles = at(offset);
-            let swing = Swing::new(localplayer, weapon, &angles, lead)?;
+            let swing = Swing::new(weapon, *eye, &angles)?;
             if !swing.hits(hull) {
                 return None;
             }
@@ -254,7 +278,11 @@ fn find_target(
     backstab_only: bool,
 ) -> Option<Found> {
     let aim = &config.aimbot;
-    let eye = eye_at(localplayer, lead);
+    let eye = eye_at(localplayer, cmd, lead, config);
+    let strafe = Strafe {
+        ground: aim.strafe_ground,
+        air: aim.strafe_air,
+    };
     let mut best: Option<Found> = None;
 
     for i in 1..=Interfaces::engine_client().get_max_clients() {
@@ -269,16 +297,20 @@ fn find_target(
         {
             continue;
         }
+        // Out of reach even running at each other
+        if player.origin().distance_to(&eye) > 600.0 {
+            continue;
+        }
 
         // Where the server will check: backtrack records still usable when the swing lands,
-        // otherwise where the player is, moved along with how they've been moving
+        // otherwise where they'll have moved to by then
         let mut candidates: Vec<(Hull, Option<f32>)> = backtrack::candidates(i, lead, config)
             .into_iter()
             .map(|(hull, sim_time)| (hull, Some(sim_time)))
             .collect();
         if candidates.is_empty() {
-            let velocity = backtrack::velocity(i).unwrap_or_default();
-            candidates.push((Hull::of(&player).moved(&velocity, lead), None));
+            let hull = predicted_hull(&player, lead, strafe).unwrap_or_else(|| Hull::of(&player));
+            candidates.push((hull, None));
         }
 
         let target_yaw = player.eye_yaw();
@@ -289,13 +321,13 @@ fn find_target(
                 continue;
             }
             let stab = knife
-                .then(|| backstab_angles(localplayer, weapon, lead, &eye, &angles, &hull, target_yaw))
+                .then(|| backstab_angles(weapon, &eye, &angles, &hull, target_yaw))
                 .flatten();
             let (angles, backstab) = match stab {
                 Some(stab) => (stab, true),
                 None if backstab_only => continue,
                 None => {
-                    let swing = Swing::new(localplayer, weapon, &angles, lead)?;
+                    let swing = Swing::new(weapon, eye, &angles)?;
                     if !swing.hits(&hull) {
                         continue;
                     }

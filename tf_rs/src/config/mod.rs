@@ -326,7 +326,7 @@ struct_with_serialize! {
 }
 
 struct_with_serialize! {
-    #[derive(Default, Clone)]
+    #[derive(Clone)]
     pub struct AimbotConfig {
         pub master: bool,
         pub silent_aim: bool,
@@ -345,6 +345,13 @@ struct_with_serialize! {
         pub swing_prediction: bool,
         // With a knife, only go for backstabs and stab on its own when one is possible
         pub auto_backstab: bool,
+        // Predict players turning as they move, on the ground and in the air
+        pub strafe_ground: bool,
+        pub strafe_air: bool,
+        pub projectile: bool,
+        // How far ahead to simulate targets for projectiles, in milliseconds
+        pub max_sim_time: i32,
+        pub draw_prediction: bool,
     }
 }
 
@@ -357,6 +364,32 @@ struct_with_serialize! {
         // Milliseconds of latency added on top of the real one
         pub fake_ping: i32,
         pub disable_interpolation: bool,
+    }
+}
+
+impl Default for AimbotConfig {
+    fn default() -> Self {
+        AimbotConfig {
+            master: false,
+            silent_aim: false,
+            building_aim: false,
+            key: KeyConfig::default(),
+            fov: 0,
+            draw_fov: false,
+            ignore_category: 0,
+            priority_category: 0,
+            disable_when_spectated: 0,
+            ignore_invis: false,
+            melee: false,
+            auto_swing: false,
+            swing_prediction: false,
+            auto_backstab: false,
+            strafe_ground: true,
+            strafe_air: true,
+            projectile: false,
+            max_sim_time: 2000,
+            draw_prediction: false,
+        }
     }
 }
 

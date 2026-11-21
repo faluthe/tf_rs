@@ -6,5 +6,6 @@ pub mod fake_ping;
 pub mod melee;
 pub mod menu;
 pub mod movement;
+pub mod movesim;
 pub mod spectator_list;
 pub mod theme;
