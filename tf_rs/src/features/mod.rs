@@ -9,4 +9,5 @@ pub mod movement;
 pub mod movesim;
 pub mod projectile;
 pub mod spectator_list;
+pub mod sticky;
 pub mod theme;

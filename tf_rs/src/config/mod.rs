@@ -353,6 +353,8 @@ struct_with_serialize! {
         pub max_sim_time: i32,
         // Hit surfaces near targets that explosives can't hit directly
         pub splash: bool,
+        // Detonate stickies when an enemy will be in a blast
+        pub auto_detonate: bool,
         pub draw_prediction: bool,
     }
 }
@@ -391,6 +393,7 @@ impl Default for AimbotConfig {
             projectile: false,
             max_sim_time: 2000,
             splash: true,
+            auto_detonate: false,
             draw_prediction: false,
         }
     }
