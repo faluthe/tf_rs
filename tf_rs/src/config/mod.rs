@@ -26,7 +26,7 @@ static L: Lazy<RwLock<Vec<String>>> = Lazy::new(|| {
 });
 
 struct_with_serialize! {
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct Config {
         pub bunnyhop: bool,
         pub esp: ESPConfig,
@@ -43,7 +43,7 @@ struct_with_serialize! {
 
 // theme indexes `features::theme::THEMES`, font indexes `nuklear::Font::ALL`
 struct_with_serialize! {
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct MenuConfig {
         pub theme: usize,
         pub font: usize,
@@ -51,6 +51,7 @@ struct_with_serialize! {
 }
 
 struct_with_serialize! {
+    #[derive(Clone)]
     pub struct EspColorConfig {
         pub use_team_colors: bool,
         pub enemy: Color,
@@ -71,6 +72,7 @@ impl Default for EspColorConfig {
 }
 
 struct_with_serialize! {
+    #[derive(Clone)]
     pub struct BuildingColorConfig {
         pub enemy: Color,
         pub friendly: Color,
@@ -87,6 +89,7 @@ impl Default for BuildingColorConfig {
 }
 
 struct_with_serialize! {
+    #[derive(Clone)]
     pub struct BuildingsColorsConfig {
         pub use_team_colors: bool,
         pub sentry: BuildingColorConfig,
@@ -107,6 +110,7 @@ impl Default for BuildingsColorsConfig {
 }
 
 struct_with_serialize! {
+    #[derive(Clone)]
     pub struct PlayerCategoryColors {
         pub category1: Color,
         pub category2: Color,
@@ -131,6 +135,7 @@ impl Default for PlayerCategoryColors {
 }
 
 struct_with_serialize! {
+    #[derive(Clone)]
     pub struct ColorsConfig {
         pub boxes: EspColorConfig,
         pub names: EspColorConfig,
@@ -151,7 +156,7 @@ impl Default for ColorsConfig {
 }
 
 struct_with_serialize! {
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct ESPConfig {
         pub master: bool,
         pub player_enemy: EntityESPConfig,
@@ -268,6 +273,7 @@ impl Default for ChamsGroupConfig {
 }
 
 struct_with_serialize! {
+    #[derive(Clone)]
     pub struct CondDisplayConfig {
         pub enabled: bool,
         pub color: Color,
@@ -284,7 +290,7 @@ impl Default for CondDisplayConfig {
 }
 
 struct_with_serialize! {
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct CondsDisplayConfig {
         pub disguised: CondDisplayConfig,
         pub taunting: CondDisplayConfig,
@@ -298,7 +304,7 @@ struct_with_serialize! {
 }
 
 struct_with_serialize! {
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct EntityESPConfig {
         pub boxes: bool,
         pub names: bool,
@@ -308,7 +314,7 @@ struct_with_serialize! {
 }
 
 struct_with_serialize! {
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct AimbotConfig {
         pub master: bool,
         pub silent_aim: bool,
@@ -324,14 +330,14 @@ struct_with_serialize! {
 }
 
 struct_with_serialize! {
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct BacktrackConfig {
         pub enabled: bool,
     }
 }
 
 struct_with_serialize! {
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct KeyConfig {
         pub use_key: bool,
         pub is_mouse_button: bool,

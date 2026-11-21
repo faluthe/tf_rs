@@ -47,7 +47,8 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
         return rc;
     }
 
-    let config = Config::read();
+    // A copy, so no lock is held while calling into the game
+    let config = Config::read().clone();
 
     movement::bunnyhop(&localplayer, cmd, &config);
     aimbot::run(&localplayer, cmd, &config);
