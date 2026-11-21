@@ -24,12 +24,12 @@ pub extern "C" fn hk_draw_model_execute(
             .expect("Invalid DrawModelExecute function signature");
     };
 
-    let chams_config = {
+    let (chams_config, backtrack_enabled) = {
         let config = Config::read();
         if !config.esp.master || !config.esp.chams.enabled {
             return call_original();
         }
-        config.esp.chams.clone()
+        (config.esp.chams.clone(), config.backtrack.enabled)
     };
 
     if !Interfaces::engine_client().is_in_game() {
@@ -40,11 +40,13 @@ pub extern "C" fn hk_draw_model_execute(
         return call_original();
     };
 
-    draw_backtrack(info_ref, &chams_config, |bones| {
-        Hooks::draw_model_execute()
-            .call_draw_model_execute(this, state, info, bones)
-            .expect("Invalid DrawModelExecute function signature");
-    });
+    if backtrack_enabled {
+        draw_backtrack(info_ref, &chams_config, |bones| {
+            Hooks::draw_model_execute()
+                .call_draw_model_execute(this, state, info, bones)
+                .expect("Invalid DrawModelExecute function signature");
+        });
+    }
 
     let Some(group) = chams_group(info_ref, &chams_config).filter(|g| g.active()) else {
         return call_original();

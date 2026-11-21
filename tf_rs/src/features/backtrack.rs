@@ -128,16 +128,13 @@ impl Timing {
     }
 }
 
-fn enabled() -> bool {
-    Config::read().backtrack.enabled
-}
-
 /// Record every enemy that got a new update, run once the frame's packets are processed
 pub fn update_records() {
     let mut records = records();
 
+    let enabled = Config::read().backtrack.enabled;
     let localplayer = helpers::get_localplayer().filter(|p| !p.is_dead());
-    let (Some(localplayer), true) = (localplayer, enabled()) else {
+    let (Some(localplayer), true) = (localplayer, enabled) else {
         records.iter_mut().for_each(VecDeque::clear);
         return;
     };
@@ -197,9 +194,9 @@ pub fn update_records() {
 }
 
 /// When shooting, set the tick to the record closest to where we're aiming
-pub fn run(localplayer: &Player, cmd: *mut UserCmd) {
+pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
     let cmd = unsafe { &mut *cmd };
-    if !enabled() || (cmd.buttons & Buttons::InAttack as i32) == 0 {
+    if !config.backtrack.enabled || (cmd.buttons & Buttons::InAttack as i32) == 0 {
         return;
     }
     let Some(timing) = Timing::now() else {
@@ -227,9 +224,6 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd) {
 
 /// Bones of each record of player `index` the server would still rewind to, oldest first
 pub fn valid_bones(index: i32, mut f: impl FnMut(&[Matrix3x4; MAX_BONES])) {
-    if !enabled() {
-        return;
-    }
     let Some(timing) = Timing::now() else {
         return;
     };
