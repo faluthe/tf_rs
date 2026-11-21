@@ -1,4 +1,5 @@
 mod core;
+mod cvar;
 mod debug_overlay;
 mod engine_client;
 mod engine_trace;
@@ -14,6 +15,7 @@ mod render_view;
 pub mod surface;
 
 pub use core::*;
+use cvar::*;
 use debug_overlay::*;
 use engine_client::*;
 use engine_trace::*;

@@ -1,6 +1,9 @@
 use std::ffi::c_void;
 
-use crate::{types::PlayerInfo, vfunc};
+use crate::{
+    types::{NetChannelInfo, PlayerInfo},
+    vfunc,
+};
 
 #[derive(Default, Clone)]
 pub struct EngineClient {
@@ -49,5 +52,10 @@ impl EngineClient {
     pub fn get_max_clients(&self) -> i32 {
         let f = vfunc!(self.vtable, 21, extern "C" fn(*mut c_void) -> i32);
         f(self.this)
+    }
+
+    pub fn get_net_channel_info(&self) -> Option<NetChannelInfo> {
+        let f = vfunc!(self.vtable, 72, extern "C" fn(*mut c_void) -> *mut c_void);
+        NetChannelInfo::new(f(self.this))
     }
 }

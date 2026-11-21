@@ -1,8 +1,10 @@
 pub mod bbox;
+pub mod convar;
 pub mod entity;
 pub mod material;
 pub mod matrix3x4;
 pub mod model_render_info;
+pub mod net_channel_info;
 pub mod player;
 pub mod player_info;
 pub mod ray;
@@ -17,11 +19,13 @@ pub mod view_setup;
 pub mod weapon;
 
 pub use bbox::BBox;
+pub use convar::ConVar;
 pub use entity::ClassId;
 pub use entity::Entity;
 pub use material::Material;
 pub use matrix3x4::Matrix3x4;
 pub use model_render_info::ModelRenderInfo;
+pub use net_channel_info::{Flow, NetChannelInfo};
 pub use player::Cond;
 pub use player::Player;
 pub use player_info::PlayerInfo;

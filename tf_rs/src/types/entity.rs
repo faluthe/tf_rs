@@ -23,6 +23,7 @@ impl FromRaw for Entity {
 impl Entity {
     offset_get!(pub fn team: Team, 0xDC);
     offset_get!(pub fn origin: Vec3, 0x328);
+    offset_get!(pub fn simulation_time: f32, 0x98);
 
     fn get_networkable(&self) -> *mut c_void {
         (self.this as usize + 0x10) as *mut c_void

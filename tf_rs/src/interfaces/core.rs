@@ -22,6 +22,7 @@ pub struct Interfaces {
     pub render_view: RenderView,
     pub key_values: KeyValues,
     pub model_info: ModelInfo,
+    pub cvar: Cvar,
 }
 
 unsafe impl Send for Interfaces {}
@@ -44,6 +45,7 @@ impl Default for Interfaces {
             render_view: RenderView::default(),
             key_values: KeyValues::default(),
             model_info: ModelInfo::default(),
+            cvar: Cvar::default(),
         }
     }
 }
@@ -55,6 +57,7 @@ impl Interfaces {
         let vgui_factory = Factory::new(BIN_PATH, "vgui2.so")?;
         let surface_factory = Factory::new(BIN_PATH, "vguimatsurface.so")?;
         let material_factory = Factory::new(BIN_PATH, "materialsystem.so")?;
+        let vstdlib_factory = Factory::new(BIN_PATH, "libvstdlib.so")?;
 
         let mut w = I.write().unwrap();
         w.client = client_factory.get("VClient017")?;
@@ -72,6 +75,7 @@ impl Interfaces {
             KeyValues::default()
         });
         w.material_system = MaterialSystem::new(material_factory.get("VMaterialSystem082")?);
+        w.cvar = Cvar::new(vstdlib_factory.get("VEngineCvar004")?);
 
         /*
          * https://github.com/OthmanAba/TeamFortress2/blob/1b81dded673d49adebf4d0958e52236ecc28a956/tf2_src/game/client/cdll_client_int.cpp#L1255
@@ -158,5 +162,13 @@ impl Interfaces {
 
     pub fn model_info() -> ModelInfo {
         I.read().unwrap().model_info.clone()
+    }
+
+    pub fn client() -> *mut c_void {
+        I.read().unwrap().client
+    }
+
+    pub fn cvar() -> Cvar {
+        I.read().unwrap().cvar.clone()
     }
 }

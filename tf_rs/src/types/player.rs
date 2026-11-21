@@ -4,9 +4,13 @@ use crate::{
     interfaces::Interfaces,
     offset_get,
     traits::FromRaw,
-    types::{Entity, Vec3, Weapon},
+    types::{Entity, Matrix3x4, Vec3, Weapon},
     vfunc,
 };
+
+pub const MAX_BONES: usize = 128;
+pub const BONE_USED_BY_HITBOX: i32 = 0x100;
+pub const BONE_USED_BY_ANYTHING: i32 = 0x7FF00;
 
 #[derive(PartialEq, Eq)]
 pub struct Player {
@@ -83,21 +87,33 @@ impl Player {
         true
     }
 
-    pub fn get_bone_position(&self, bone_id: usize) -> Option<Vec3> {
-        let mut bone_to_world_out: [[[f32; 4]; 3]; 128] = [[[0.0; 4]; 3]; 128];
+    /// Fill `out` with the bone to world matrices of every bone in `mask`
+    pub fn setup_bones(&self, out: &mut [Matrix3x4; MAX_BONES], mask: i32, time: f32) -> bool {
         let f = vfunc!(
             self.vtable,
             96,
-            extern "C" fn(*mut c_void, *mut [[[f32; 4]; 3]; 128], i32, i32, f32) -> i32
+            extern "C" fn(*mut c_void, *mut Matrix3x4, i32, i32, f32) -> i32
         );
-        if f(self.this, &mut bone_to_world_out, 128, 0x100, 0.0) == 0 {
+        f(self.this, out.as_mut_ptr(), MAX_BONES as i32, mask, time) != 0
+    }
+
+    /// Make the next setup_bones rebuild the bones instead of returning the ones cached this frame
+    pub fn invalidate_bone_cache(&self) {
+        unsafe {
+            // m_iMostRecentModelBoneCounter, anything but the current g_iModelBoneCounter
+            let counter = (self.this as *mut u8).add(0x820) as *mut u64;
+            *counter = (*counter).wrapping_sub(1);
+            // m_flLastBoneSetupTime
+            *((self.this as *mut u8).add(0xBA0) as *mut f32) = -f32::MAX;
+        }
+    }
+
+    pub fn get_bone_position(&self, bone_id: usize) -> Option<Vec3> {
+        let mut bones = [Matrix3x4::default(); MAX_BONES];
+        if !self.setup_bones(&mut bones, BONE_USED_BY_HITBOX, 0.0) {
             return None;
         }
-        Some(Vec3 {
-            x: bone_to_world_out[bone_id][0][3],
-            y: bone_to_world_out[bone_id][1][3],
-            z: bone_to_world_out[bone_id][2][3],
-        })
+        Some(bones[bone_id].position())
     }
 
     pub fn head_bone_id(&self) -> usize {
