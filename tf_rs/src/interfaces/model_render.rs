@@ -1,4 +1,6 @@
-use std::ffi::c_void;
+use std::{ffi::c_void, ptr};
+
+use crate::{types::Material, vfunc};
 
 #[derive(Default, Clone)]
 pub struct ModelRender {
@@ -14,5 +16,10 @@ impl ModelRender {
 
     pub fn ptr(&self) -> *mut c_void {
         self.this
+    }
+
+    pub fn forced_material_override(&self, material: Option<&Material>) {
+        let f = vfunc!(self.vtable, 1, (*mut c_void, *mut c_void, i32) -> ());
+        f(self.this, material.map_or(ptr::null_mut(), |m| m.this), 0);
     }
 }
