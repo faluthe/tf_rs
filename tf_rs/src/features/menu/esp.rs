@@ -253,6 +253,7 @@ fn chams_section(nk: &Nuklear, chams: &mut ChamsConfig) {
             chams_group(nk, "Teammates", &mut chams.friendly);
             chams_group(nk, "Local player", &mut chams.local);
             chams_group(nk, "Backtrack", &mut chams.backtrack);
+            chams_group(nk, "Backtrack target", &mut chams.backtrack_target);
         }
     }
 }

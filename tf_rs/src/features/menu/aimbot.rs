@@ -1,7 +1,7 @@
 use nuklear::Nuklear;
 
 use super::{ROW, field, key_button};
-use crate::{config::Config, globals::Globals, player_db};
+use crate::{config::Config, features::fake_ping, globals::Globals, player_db};
 
 pub(super) fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
     let aim = &mut config.aimbot;
@@ -14,9 +14,21 @@ pub(super) fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
         aimbot_settings(nk, config);
     }
 
+    let bt = &mut config.backtrack;
     nk.section("Backtrack", false)
         .row_dynamic(ROW, 1)
-        .checkbox("Enabled", &mut config.backtrack.enabled);
+        .checkbox("Enabled", &mut bt.enabled);
+    if !bt.enabled {
+        return;
+    }
+    nk.row_dynamic(ROW, 1)
+        .checkbox("Disable interpolation", &mut bt.disable_interpolation);
+    field(nk, &format!("Length ({} ms)", bt.length), |nk| {
+        nk.slider_int(0, &mut bt.length, 400, 5);
+    });
+    field(nk, &format!("Fake ping ({} ms)", bt.fake_ping), |nk| {
+        nk.slider_int(0, &mut bt.fake_ping, fake_ping::MAX_MS, 10);
+    });
 }
 
 fn aimbot_settings(nk: &Nuklear, config: &mut Config) {

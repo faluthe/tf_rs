@@ -2,7 +2,7 @@ use std::ffi::c_void;
 
 use crate::{
     config::Config,
-    features::{aimbot, backtrack, chams, movement},
+    features::{aimbot, backtrack, chams, fake_ping, movement},
     globals::Globals,
     helpers,
     hooks::Hooks,
@@ -40,6 +40,8 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
     }
 
     chams::init();
+    let backtrack_config = Config::read().backtrack.clone();
+    fake_ping::update(&backtrack_config);
 
     let localplayer = helpers::get_localplayer().expect("Failed to get localplayer");
 

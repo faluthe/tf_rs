@@ -108,6 +108,21 @@ impl Player {
         }
     }
 
+    /// Leave the values the last update set instead of interpolating towards them
+    pub fn disable_interpolation(&self) {
+        unsafe {
+            // m_VarMap: entries of { u16 type, u16 m_bNeedsToInterpolate, data, watcher }
+            let entries = *((self.this as usize + 0x28) as *const *mut u8);
+            let interpolated = *((self.this as usize + 0x48) as *const i32);
+            if entries.is_null() {
+                return;
+            }
+            for i in 0..interpolated.max(0) as usize {
+                *(entries.add(i * 0x18 + 2) as *mut u16) = 0;
+            }
+        }
+    }
+
     pub fn get_bone_position(&self, bone_id: usize) -> Option<Vec3> {
         let mut bones = [Matrix3x4::default(); MAX_BONES];
         if !self.setup_bones(&mut bones, BONE_USED_BY_HITBOX, 0.0) {

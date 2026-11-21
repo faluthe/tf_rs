@@ -12,6 +12,7 @@ pub enum FnSig {
         extern "C" fn(*mut c_void, *mut c_void, *const ModelRenderInfo, *mut Matrix3x4),
     ),
     FrameStageNotify(extern "C" fn(*mut c_void, i32)),
+    SendDatagram(extern "C" fn(*mut c_void, *mut c_void) -> i32),
     PollEvent(extern "C" fn(*mut c_void) -> i32),
     SwapWindow(extern "C" fn(*mut c_void) -> i32),
     None,
@@ -25,6 +26,7 @@ impl fmt::Pointer for FnSig {
             FnSig::OverrideView(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::DrawModelExecute(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::FrameStageNotify(func) => write!(f, "{:p}", *func as *const c_void),
+            FnSig::SendDatagram(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::PollEvent(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::SwapWindow(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::None => write!(f, "None"),
@@ -85,6 +87,13 @@ impl FnSig {
         }
     }
 
+    pub fn call_send_datagram(&self, this: *mut c_void, datagram: *mut c_void) -> Result<i32> {
+        match self {
+            FnSig::SendDatagram(f) => Ok(f(this, datagram)),
+            _ => Err(anyhow!("Invalid SendDatagram function signature")),
+        }
+    }
+
     pub fn call_poll_event(&self, a: *mut c_void) -> Result<i32> {
         match self {
             FnSig::PollEvent(f) => Ok(f(a)),
@@ -123,6 +132,9 @@ impl FnSig {
             FnSig::FrameStageNotify(_) => FnSig::FrameStageNotify(unsafe {
                 mem::transmute::<*mut c_void, extern "C" fn(*mut c_void, i32)>(ptr)
             }),
+            FnSig::SendDatagram(_) => FnSig::SendDatagram(unsafe {
+                mem::transmute::<*mut c_void, extern "C" fn(*mut c_void, *mut c_void) -> i32>(ptr)
+            }),
             FnSig::PollEvent(_) => FnSig::PollEvent(unsafe {
                 mem::transmute::<*mut c_void, extern "C" fn(*mut c_void) -> i32>(ptr)
             }),
@@ -140,6 +152,7 @@ impl FnSig {
             FnSig::OverrideView(f) => Ok(*f as *mut c_void),
             FnSig::DrawModelExecute(f) => Ok(*f as *mut c_void),
             FnSig::FrameStageNotify(f) => Ok(*f as *mut c_void),
+            FnSig::SendDatagram(f) => Ok(*f as *mut c_void),
             FnSig::PollEvent(f) => Ok(*f as *mut c_void),
             FnSig::SwapWindow(f) => Ok(*f as *mut c_void),
             FnSig::None => Err(anyhow!("FnSig is None")),

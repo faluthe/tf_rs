@@ -186,6 +186,7 @@ struct_with_serialize! {
         pub hands: ChamsGroupConfig,
         pub weapon: ChamsGroupConfig,
         pub backtrack: ChamsGroupConfig,
+        pub backtrack_target: ChamsGroupConfig,
     }
 }
 
@@ -213,6 +214,17 @@ impl Default for ChamsConfig {
                 occluded_color: Color {
                     a: 50,
                     ..Color::hex(0xffffff)
+                },
+                ..ChamsGroupConfig::new(false, 0, 0)
+            },
+            backtrack_target: ChamsGroupConfig {
+                visible_color: Color {
+                    a: 140,
+                    ..Color::hex(0xffd000)
+                },
+                occluded_color: Color {
+                    a: 90,
+                    ..Color::hex(0xffd000)
                 },
                 ..ChamsGroupConfig::new(false, 0, 0)
             },
@@ -330,9 +342,25 @@ struct_with_serialize! {
 }
 
 struct_with_serialize! {
-    #[derive(Default, Clone)]
+    #[derive(Clone)]
     pub struct BacktrackConfig {
         pub enabled: bool,
+        // Milliseconds of history used past the newest tick the server accepts
+        pub length: i32,
+        // Milliseconds of latency added on top of the real one
+        pub fake_ping: i32,
+        pub disable_interpolation: bool,
+    }
+}
+
+impl Default for BacktrackConfig {
+    fn default() -> Self {
+        BacktrackConfig {
+            enabled: false,
+            length: 200,
+            fake_ping: 0,
+            disable_interpolation: true,
+        }
     }
 }
 

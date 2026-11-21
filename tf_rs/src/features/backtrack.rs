@@ -4,6 +4,7 @@
 //! The server rewinds every player to `cmd.tick_count - lerp` before running a shot, as long as
 //! that tick is within 200ms of what it expects from our latency. Each enemy update is recorded
 //! with its bones, and when shooting the record closest to the crosshair is picked as the tick.
+//! Fake ping delays our acknowledgements so the server thinks we lag more and rewinds further.
 
 use std::{
     collections::VecDeque,
@@ -13,7 +14,8 @@ use std::{
 use once_cell::sync::{Lazy, OnceCell};
 
 use crate::{
-    config::Config,
+    config::{BacktrackConfig, Config},
+    features::fake_ping,
     helpers,
     interfaces::Interfaces,
     types::{
@@ -35,6 +37,9 @@ pub struct Record {
 
 /// Records of each player by entity index, newest first
 static RECORDS: Lazy<Mutex<Vec<VecDeque<Record>>>> = Lazy::new(|| Mutex::new(Vec::new()));
+
+/// Entity index and simulation time of the record we would shoot at
+static TARGET: Mutex<Option<(i32, f32)>> = Mutex::new(None);
 
 pub fn records() -> MutexGuard<'static, Vec<VecDeque<Record>>> {
     RECORDS.lock().unwrap()
@@ -106,31 +111,69 @@ struct Timing {
     server_tick: i32,
     // Time enemies are drawn at, interpolation keeps them this far behind the newest update
     render_time: f32,
+    // Oldest age a record may have, from the configured length
+    max_age: f32,
 }
 
 impl Timing {
-    fn now() -> Option<Self> {
+    fn now(config: &BacktrackConfig) -> Option<Self> {
         let nci = Interfaces::engine_client().get_net_channel_info()?;
         let outgoing = nci.latency(Flow::Outgoing);
         let incoming = nci.latency(Flow::Incoming);
         let maxunlag = value(cvars().maxunlag, 1.0);
         let lerp = lerp();
         let globals = Interfaces::global_vars();
+        let correct = (outgoing + incoming + fake_ping::latency() + lerp).clamp(0.0, maxunlag);
         Some(Timing {
-            correct: (outgoing + incoming + lerp).clamp(0.0, maxunlag),
+            correct,
             server_tick: globals.tickcount + time_to_ticks(outgoing),
-            render_time: globals.curtime - lerp,
+            render_time: if config.disable_interpolation {
+                f32::MAX
+            } else {
+                globals.curtime - lerp
+            },
+            max_age: (correct - WINDOW).max(0.0) + config.length.max(0) as f32 / 1000.0,
         })
+    }
+
+    /// How long before the tick the server runs our command on `sim_time` was
+    fn age(&self, sim_time: f32) -> f32 {
+        ticks_to_time(self.server_tick - time_to_ticks(sim_time))
     }
 
     /// How far the record at `sim_time` is from what the server expects, negative when too old
     fn delta(&self, sim_time: f32) -> f32 {
-        self.correct - ticks_to_time(self.server_tick - time_to_ticks(sim_time))
+        self.correct - self.age(sim_time)
     }
 
-    /// The server will rewind to the record and it isn't ahead of the drawn model
+    /// The server will rewind to the record, it's within the configured length and it isn't
+    /// ahead of the drawn model
     fn usable(&self, sim_time: f32) -> bool {
-        self.delta(sim_time).abs() < WINDOW && sim_time <= self.render_time
+        self.delta(sim_time).abs() < WINDOW
+            && self.age(sim_time) <= self.max_age
+            && sim_time <= self.render_time
+    }
+}
+
+/// Stop enemies from being interpolated so they're drawn where the newest update put them,
+/// run after the update's entity data is applied
+pub fn disable_interpolation() {
+    let config = Config::read().backtrack.clone();
+    if !config.enabled || !config.disable_interpolation {
+        return;
+    }
+    let Some(localplayer) = helpers::get_localplayer() else {
+        return;
+    };
+
+    for i in 1..=Interfaces::engine_client().get_max_clients() {
+        let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i) else {
+            continue;
+        };
+        if player == localplayer || player.is_dormant() || player.team() == localplayer.team() {
+            continue;
+        }
+        player.disable_interpolation();
     }
 }
 
@@ -138,13 +181,13 @@ impl Timing {
 pub fn update_records() {
     let mut records = records();
 
-    let enabled = Config::read().backtrack.enabled;
+    let config = Config::read().backtrack.clone();
     let localplayer = helpers::get_localplayer().filter(|p| !p.is_dead());
-    let (Some(localplayer), true) = (localplayer, enabled) else {
+    let (Some(localplayer), true) = (localplayer, config.enabled) else {
         records.iter_mut().for_each(VecDeque::clear);
         return;
     };
-    let Some(timing) = Timing::now() else {
+    let Some(timing) = Timing::now(&config) else {
         return;
     };
 
@@ -199,21 +242,33 @@ pub fn update_records() {
     }
 }
 
-/// When shooting, set the tick to the record closest to where we're aiming, or with a melee
-/// weapon the one physically closest to us
+/// Pick the record closest to where we're aiming, or with a melee weapon the one physically
+/// closest to us, and set the tick to it when shooting
 pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
     let cmd = unsafe { &mut *cmd };
-    if !config.backtrack.enabled {
-        return;
-    }
-    let melee = localplayer.active_weapon().is_some_and(|w| w.is_melee());
-    // Melee hits land a few ticks after the swing starts, using whichever command is running then
-    if !melee && (cmd.buttons & Buttons::InAttack as i32) == 0 {
-        return;
-    }
-    let Some(timing) = Timing::now() else {
+    let target = select(localplayer, cmd, &config.backtrack);
+    *TARGET.lock().unwrap() = target.map(|t| (t.0, t.1));
+
+    let Some((_, sim_time, melee)) = target else {
         return;
     };
+    // Melee hits land a few ticks after the swing starts, using whichever command is running then
+    if melee || (cmd.buttons & Buttons::InAttack as i32) != 0 {
+        cmd.tick_count = time_to_ticks(sim_time + lerp());
+    }
+}
+
+/// Entity index and simulation time of the best record, and whether it was picked for melee
+fn select(
+    localplayer: &Player,
+    cmd: &UserCmd,
+    config: &BacktrackConfig,
+) -> Option<(i32, f32, bool)> {
+    if !config.enabled {
+        return None;
+    }
+    let timing = Timing::now(config)?;
+    let melee = localplayer.active_weapon().is_some_and(|w| w.is_melee());
 
     let shoot_pos = localplayer.eye_pos();
     let score = |pos: Vec3| {
@@ -231,23 +286,27 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) {
     };
 
     let records = records();
-    let best = records
+    records
         .iter()
-        .flatten()
-        .filter(|r| timing.usable(r.sim_time))
-        .flat_map(|r| [r.head, r.body].map(|pos| (score(pos), r.sim_time)))
-        .min_by(|a, b| a.0.total_cmp(&b.0));
-
-    if let Some((_, sim_time)) = best {
-        cmd.tick_count = time_to_ticks(sim_time + lerp());
-    }
+        .enumerate()
+        .flat_map(|(i, player_records)| player_records.iter().map(move |r| (i as i32, r)))
+        .filter(|(_, r)| timing.usable(r.sim_time))
+        .flat_map(|(i, r)| [r.head, r.body].map(|pos| (score(pos), i, r.sim_time)))
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, i, sim_time)| (i, sim_time, melee))
 }
 
-/// Bones of each record of player `index` that can be shot at, oldest first
-pub fn valid_bones(index: i32, mut f: impl FnMut(&[Matrix3x4; MAX_BONES])) {
-    let Some(timing) = Timing::now() else {
+/// Bones of each record of player `index` that can be shot at, oldest first with the record
+/// we would shoot at last, and whether it's that record
+pub fn valid_bones(
+    index: i32,
+    config: &BacktrackConfig,
+    mut f: impl FnMut(&[Matrix3x4; MAX_BONES], bool),
+) {
+    let Some(timing) = Timing::now(config) else {
         return;
     };
+    let target = *TARGET.lock().unwrap();
     // Drawing never happens while records are being updated, don't wait on a lock if it somehow does
     let Ok(records) = RECORDS.try_lock() else {
         return;
@@ -255,9 +314,19 @@ pub fn valid_bones(index: i32, mut f: impl FnMut(&[Matrix3x4; MAX_BONES])) {
     let Some(player_records) = records.get(index as usize) else {
         return;
     };
+    let mut target_record = None;
     for record in player_records.iter().rev() {
-        if timing.usable(record.sim_time) {
-            f(&record.bones);
+        if !timing.usable(record.sim_time) {
+            continue;
         }
+        if target == Some((index, record.sim_time)) {
+            target_record = Some(record);
+        } else {
+            f(&record.bones, false);
+        }
+    }
+    // Last so it's drawn over the others
+    if let Some(record) = target_record {
+        f(&record.bones, true);
     }
 }

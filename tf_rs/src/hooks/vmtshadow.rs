@@ -120,6 +120,19 @@ impl VmtShadow {
         Ok(())
     }
 
+    pub fn object(&self) -> *mut c_void {
+        self.object as *mut c_void
+    }
+
+    pub fn is_installed(&self) -> bool {
+        self.installed
+    }
+
+    /// Installed and the object still points at our table, the object must still be alive
+    pub fn is_active(&self) -> bool {
+        self.installed && unsafe { *self.object == self.shadow.as_ptr().add(PREFIX) as *mut _ }
+    }
+
     pub fn original(&self, index: usize) -> FnSig {
         self.originals.get(index).copied().unwrap_or(FnSig::None)
     }
