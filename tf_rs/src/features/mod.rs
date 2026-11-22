@@ -8,6 +8,7 @@ pub mod menu;
 pub mod movement;
 pub mod movesim;
 pub mod prediction_log;
+pub mod preview;
 pub mod projectile;
 pub mod shot_log;
 pub mod spectator_list;

@@ -7,6 +7,7 @@ use crate::{
     features::{
         backtrack,
         chams::{self, Loaded},
+        preview::{self, Subject},
     },
     globals::Globals,
     helpers,
@@ -46,7 +47,8 @@ pub extern "C" fn hk_draw_model_execute(
         return call_original();
     };
 
-    if backtrack_config.enabled {
+    let preview = preview::drawing();
+    if backtrack_config.enabled && preview.is_none() {
         draw_backtrack(info_ref, &chams_config, &backtrack_config, |bones| {
             Hooks::draw_model_execute()
                 .call_draw_model_execute(this, state, info, bones)
@@ -54,7 +56,12 @@ pub extern "C" fn hk_draw_model_execute(
         });
     }
 
-    let Some(group) = chams_group(info_ref, &chams_config).filter(|g| g.active()) else {
+    let group = match preview {
+        Some(Subject::Enemy) => Some(chams_config.enemy),
+        Some(Subject::Teammate) => Some(chams_config.friendly),
+        None => chams_group(info_ref, &chams_config),
+    };
+    let Some(group) = group.filter(|g| g.active()) else {
         return call_original();
     };
     let scale = if is_first_person(info_ref) {

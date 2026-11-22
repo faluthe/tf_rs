@@ -4,7 +4,7 @@ use nuklear::Nuklear;
 
 use crate::{
     config::Config,
-    features::{menu, spectator_list, theme},
+    features::{menu, preview, spectator_list, theme},
     globals::Globals,
     helpers,
     hooks::Hooks,
@@ -22,6 +22,8 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
 
     if Nuklear::should_draw() {
         menu::draw(&nuklear);
+    } else {
+        preview::set_placement(None);
     }
 
     if Interfaces::engine_client().is_in_game() {

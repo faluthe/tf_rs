@@ -4,6 +4,7 @@ mod esp;
 mod logging;
 mod misc;
 mod players;
+mod preview;
 
 use std::sync::Mutex;
 
@@ -94,6 +95,12 @@ pub fn draw(nk: &Nuklear) {
         nk.layout_row_end();
     }
     nk.end();
+
+    if unsafe { TAB } == MenuTab::ESP && Config::read().esp.master {
+        preview::preview_panel(nk, *bounds);
+    } else {
+        crate::features::preview::set_placement(None);
+    }
 }
 
 fn nav(nk: &Nuklear) {

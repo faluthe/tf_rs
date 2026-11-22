@@ -55,6 +55,11 @@ impl Entity {
         unsafe { *f(self.this) }
     }
 
+    /// The entity's IClientRenderable
+    pub fn renderable(&self) -> Renderable {
+        Renderable::from_raw((self.this as usize + 0x8) as *mut c_void)
+    }
+
     fn get_networkable(&self) -> *mut c_void {
         (self.this as usize + 0x10) as *mut c_void
     }
@@ -132,6 +137,53 @@ impl Entity {
         let vtable = unsafe { *(networkable as *mut *mut *mut c_void) };
         let f = vfunc!(vtable, 8, extern "C" fn(*mut c_void) -> bool);
         f(networkable)
+    }
+}
+
+/// How the engine sees an entity it draws
+#[derive(Copy, Clone)]
+pub struct Renderable {
+    pub this: *mut c_void,
+    vtable: *mut *mut c_void,
+}
+
+impl FromRaw for Renderable {
+    fn from_raw(raw: *mut c_void) -> Self {
+        let vtable = unsafe { *(raw as *mut *mut *mut c_void) };
+        Renderable { this: raw, vtable }
+    }
+}
+
+impl Renderable {
+    /// Interpolated origin the model is drawn at
+    pub fn render_origin(&self) -> Vec3 {
+        let f = vfunc!(self.vtable, 1, extern "C" fn(*mut c_void) -> *const Vec3);
+        unsafe { *f(self.this) }
+    }
+
+    pub fn render_angles(&self) -> Vec3 {
+        let f = vfunc!(self.vtable, 2, extern "C" fn(*mut c_void) -> *const Vec3);
+        unsafe { *f(self.this) }
+    }
+
+    pub fn model(&self) -> *const c_void {
+        let f = vfunc!(self.vtable, 9, extern "C" fn(*mut c_void) -> *const c_void);
+        f(self.this)
+    }
+
+    pub fn body(&self) -> i32 {
+        let f = vfunc!(self.vtable, 11, extern "C" fn(*mut c_void) -> i32);
+        f(self.this)
+    }
+
+    pub fn model_instance(&self) -> u16 {
+        let f = vfunc!(self.vtable, 33, extern "C" fn(*mut c_void) -> u16);
+        f(self.this)
+    }
+
+    pub fn skin(&self) -> i32 {
+        let f = vfunc!(self.vtable, 39, extern "C" fn(*mut c_void) -> i32);
+        f(self.this)
     }
 }
 

@@ -1,6 +1,12 @@
 use std::ffi::c_void;
 
-use crate::{config::Config, features::esp, helpers, hooks::Hooks, interfaces::Interfaces};
+use crate::{
+    config::Config,
+    features::{esp, preview},
+    helpers,
+    hooks::Hooks,
+    interfaces::Interfaces,
+};
 
 pub extern "C" fn hk_paint_traverse(
     this: *mut c_void,
@@ -39,12 +45,13 @@ pub extern "C" fn hk_paint_traverse(
 
     esp::run(&localplayer, &surface, &config);
 
-    if localplayer.is_dead() {
-        return rc;
+    if !localplayer.is_dead() {
+        esp::draw_fov(&surface, &config);
+        esp::draw_prediction(&surface, &config);
     }
 
-    esp::draw_fov(&surface, &config);
-    esp::draw_prediction(&surface, &config);
+    // Last so nothing drawn here covers it
+    preview::draw(&localplayer, &surface, &config);
 
     rc
 }

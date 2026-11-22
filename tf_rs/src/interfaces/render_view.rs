@@ -1,6 +1,9 @@
-use std::ffi::c_void;
+use std::{ffi::c_void, ptr};
 
-use crate::vfunc;
+use crate::{
+    types::view_setup::{Frustum, ViewSetup},
+    vfunc,
+};
 
 #[derive(Default, Clone)]
 pub struct RenderView {
@@ -27,6 +30,27 @@ impl RenderView {
     pub fn set_color_modulation(&self, color: [f32; 3]) {
         let f = vfunc!(self.vtable, 6, (*mut c_void, *const f32) -> ());
         f(self.this, color.as_ptr());
+    }
+
+    /// Draw into `view` until `pop_view`, which takes the same `frustum`
+    pub fn push_3d_view(&self, view: &ViewSetup, clear_flags: i32, frustum: &mut Frustum) {
+        let f = vfunc!(
+            self.vtable,
+            37,
+            (*mut c_void, *const ViewSetup, i32, *mut c_void, *mut [f32; 4]) -> ()
+        );
+        f(
+            self.this,
+            view,
+            clear_flags,
+            ptr::null_mut(),
+            frustum.as_mut_ptr(),
+        );
+    }
+
+    pub fn pop_view(&self, frustum: &mut Frustum) {
+        let f = vfunc!(self.vtable, 39, (*mut c_void, *mut [f32; 4]) -> ());
+        f(self.this, frustum.as_mut_ptr());
     }
 
     pub fn get_color_modulation(&self) -> [f32; 3] {

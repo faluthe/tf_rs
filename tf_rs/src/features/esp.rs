@@ -289,7 +289,7 @@ fn building_esp(
 }
 
 // TODO: Outline in black for visibility
-fn draw_box(bbox: &BBox, color: &Color, surface: &Surface) {
+pub(crate) fn draw_box(bbox: &BBox, color: &Color, surface: &Surface) {
     surface.draw_set_color(0, 0, 0, 255);
     surface.draw_outlined_rect(bbox.left - 1, bbox.top - 1, bbox.right + 1, bbox.bottom + 1);
     surface.draw_outlined_rect(bbox.left + 1, bbox.top + 1, bbox.right - 1, bbox.bottom - 1);
@@ -298,14 +298,14 @@ fn draw_box(bbox: &BBox, color: &Color, surface: &Surface) {
 }
 
 // TODO: Add custom positioning
-fn draw_name(bbox: &BBox, name: &str, color: &Color, surface: &Surface) {
+pub(crate) fn draw_name(bbox: &BBox, name: &str, color: &Color, surface: &Surface) {
     surface.draw_set_text_color_c(color);
     surface.draw_set_text_pos(bbox.left as u32, (bbox.top - 20) as u32);
     surface.draw_print_text(name);
 }
 
 // TODO: Add overheal + custom positioning
-fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface, horizontal: bool) {
+pub(crate) fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface, horizontal: bool) {
     let max_health = entity.max_health();
     if max_health <= 0 {
         return;
@@ -421,7 +421,12 @@ fn building_color(
     }
 }
 
-fn esp_color(is_target: bool, friendly: bool, team_color: &Color, cfg: &EspColorConfig) -> Color {
+pub(crate) fn esp_color(
+    is_target: bool,
+    friendly: bool,
+    team_color: &Color,
+    cfg: &EspColorConfig,
+) -> Color {
     if is_target {
         rgba::ORANGE
     } else if cfg.use_team_colors {
