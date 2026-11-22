@@ -46,7 +46,9 @@ pub extern "C" fn hk_draw_model_execute(
         return call_original();
     };
 
-    if backtrack_config.enabled {
+    let backtrack_applies =
+        helpers::get_localplayer().is_some_and(|local| backtrack::applies(&local));
+    if backtrack_config.enabled && backtrack_applies {
         draw_backtrack(info_ref, &chams_config, &backtrack_config, |bones| {
             Hooks::draw_model_execute()
                 .call_draw_model_execute(this, state, info, bones)
