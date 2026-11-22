@@ -10,7 +10,7 @@
 
 use std::{
     cmp::Ordering,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, atomic},
 };
 
 use crate::{
@@ -386,6 +386,17 @@ fn launch_velocity(angles: &Vec3, info: &ProjectileInfo) -> Vec3 {
 }
 
 const MAX_PHYSICS_SPEED: f32 = 2000.0;
+/// Ticks of an arcing flight traced at once, the arc strays under a unit from a straight line
+/// over this many
+const TRACE_STRIDE: usize = 5;
+
+/// Traces run by the current search, for the perf log
+static TRACES: atomic::AtomicU32 = atomic::AtomicU32::new(0);
+
+fn count_trace() {
+    TRACES.fetch_add(1, atomic::Ordering::Relaxed);
+}
+
 /// Physics projectiles are a physics step along already when they're first sent, on the tick
 /// they're fired
 const PHYSICS_HEAD_START: usize = 1;
@@ -711,8 +722,9 @@ impl Solver<'_> {
             predicted.origin + predicted.maxs,
         );
         let filter = TraceFilter::projectile(self.localplayer, Some(target));
-        for n in 0..path.len().saturating_sub(1) {
-            let (from, to) = (path[n], path[n + 1]);
+        for (a, b) in self.segments(path.len()) {
+            let (from, to) = (path[a], path[b]);
+            count_trace();
             let trace = Interfaces::engine_trace().trace_hull(
                 &from,
                 &to,
@@ -725,10 +737,11 @@ impl Solver<'_> {
             let entry = helpers::segment_box_entry(&from, &to, &mins, &maxs, self.info.hull)
                 .filter(|t| world.is_none_or(|f| *t <= f));
             if let Some(t) = entry {
-                if ticks - (n as i32 + 1) >= EARLY_TICKS {
+                let tick = a as f32 + t * (b - a) as f32;
+                if ticks as f32 - tick.ceil() >= EARLY_TICKS as f32 {
                     return Err(Reject::Miss);
                 }
-                path.truncate(n + 1);
+                path.truncate(a + 1);
                 path.push(from + (to - from) * t);
                 return Ok(());
             }
@@ -736,12 +749,28 @@ impl Solver<'_> {
                 if !self.info.splash || trace.end_pos.distance_to(point) > tolerance {
                     return Err(Reject::Blocked);
                 }
-                path.truncate(n + 1);
+                path.truncate(a + 1);
                 path.push(trace.end_pos);
                 return Ok(());
             }
         }
         Err(Reject::Miss)
+    }
+
+    /// Stretches of a path of `len` points traced at once: all of it for projectiles that fly
+    /// straight, a few ticks at a time for ones that arc
+    fn segments(&self, len: usize) -> Vec<(usize, usize)> {
+        if len < 2 {
+            return Vec::new();
+        }
+        let last = len - 1;
+        if self.info.gravity == 0.0 {
+            return vec![(0, last)];
+        }
+        (0..last)
+            .step_by(TRACE_STRIDE)
+            .map(|a| (a, (a + TRACE_STRIDE).min(last)))
+            .collect()
     }
 
     /// The projectile's collision box
@@ -754,10 +783,11 @@ impl Solver<'_> {
     fn clear(&self, path: &[Vec3], target: &Player, point: &Vec3, tolerance: f32) -> bool {
         let (mins, maxs) = self.hull();
         let filter = TraceFilter::projectile(self.localplayer, Some(target));
-        for w in path.windows(2) {
+        for (a, b) in self.segments(path.len()) {
+            count_trace();
             let trace = Interfaces::engine_trace().trace_hull(
-                &w[0],
-                &w[1],
+                &path[a],
+                &path[b],
                 &mins,
                 &maxs,
                 mask::SOLID,
@@ -842,6 +872,7 @@ fn splash_points(
         .iter()
         .filter_map(|dir| {
             let ray = Ray::init(&center, &(center + *dir * reach));
+            count_trace();
             let trace = Interfaces::engine_trace().trace(&ray, mask::SOLID, &filter);
             if trace.start_solid || trace.fraction >= 1.0 {
                 return None;
@@ -916,9 +947,13 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
 
     let logging = aim.log_prediction;
     let started = std::time::Instant::now();
+    TRACES.store(0, atomic::Ordering::Relaxed);
     let (found, diagnostics) = find_target(localplayer, cmd, config, info);
     if logging {
-        shot_log::search_time(started.elapsed().as_secs_f32() * 1000.0);
+        shot_log::search_time(
+            started.elapsed().as_secs_f32() * 1000.0,
+            TRACES.load(atomic::Ordering::Relaxed),
+        );
     }
     Globals::write().target = found.as_ref().map(|f| Target {
         target_index: f.index,
