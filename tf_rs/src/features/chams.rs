@@ -15,6 +15,7 @@ use crate::{
 pub struct Loaded {
     pub material: Material,
     tints: Vec<MaterialVar>,
+    scale: Option<MaterialVar>,
 }
 
 impl Loaded {
@@ -23,7 +24,19 @@ impl Loaded {
             .iter()
             .filter_map(|name| material.find_var(name))
             .collect();
-        Loaded { material, tints }
+        let scale = material.find_var(c"$chamsscale");
+        Loaded {
+            material,
+            tints,
+            scale,
+        }
+    }
+
+    /// Texture scale of materials that have one
+    pub fn scale(&self, scale: f32) {
+        if let Some(var) = self.scale {
+            var.set_float(scale);
+        }
     }
 
     /// Tint the reflections `color`
@@ -54,6 +67,8 @@ pub struct Layer {
     pub phase: f32,
     /// Brightness relative to the configured color
     pub value: f32,
+    /// Texture scale for materials that read it from `$chamsscale`, before the model's own
+    pub scale: f32,
 }
 
 impl Layer {
@@ -65,6 +80,7 @@ impl Layer {
             speed: 0.0,
             phase: 0.0,
             value: 1.0,
+            scale: 1.0,
         }
     }
 }
@@ -154,12 +170,14 @@ pub const MATERIALS: &[ChamsMaterial] = &[
                 speed: 0.5,
                 phase: 0.0,
                 value: 0.45,
+                scale: 1.0,
             },
             Layer {
                 source: Source::Create(
                     r#""UnlitGeneric"
 {
     "$basetexture" "effects/animatedcaustic/caustic"
+    "$chamsscale" "1"
     "$additive" "1"
     "$model" "1"
     "Proxies"
@@ -175,7 +193,7 @@ pub const MATERIALS: &[ChamsMaterial] = &[
             "texturescrollvar" "$basetexturetransform"
             "texturescrollrate" ".15"
             "texturescrollangle" "60"
-            "texturescale" "1"
+            "texturescale" "$chamsscale"
         }
     }
 }"#,
@@ -184,12 +202,14 @@ pub const MATERIALS: &[ChamsMaterial] = &[
                 speed: 0.9,
                 phase: 0.0,
                 value: 1.0,
+                scale: 1.0,
             },
             Layer {
                 source: Source::Create(
                     r#""UnlitGeneric"
 {
     "$basetexture" "effects/animatedcaustic/caustic"
+    "$chamsscale" "1"
     "$additive" "1"
     "$model" "1"
     "Proxies"
@@ -205,7 +225,7 @@ pub const MATERIALS: &[ChamsMaterial] = &[
             "texturescrollvar" "$basetexturetransform"
             "texturescrollrate" ".1"
             "texturescrollangle" "200"
-            "texturescale" "1.7"
+            "texturescale" "$chamsscale"
         }
     }
 }"#,
@@ -214,12 +234,14 @@ pub const MATERIALS: &[ChamsMaterial] = &[
                 speed: 0.7,
                 phase: 2.1,
                 value: 0.85,
+                scale: 1.7,
             },
             Layer {
                 source: Source::Create(
                     r#""UnlitGeneric"
 {
     "$basetexture" "effects/animatedcaustic/caustic"
+    "$chamsscale" "1"
     "$additive" "1"
     "$model" "1"
     "Proxies"
@@ -235,7 +257,7 @@ pub const MATERIALS: &[ChamsMaterial] = &[
             "texturescrollvar" "$basetexturetransform"
             "texturescrollrate" ".06"
             "texturescrollangle" "320"
-            "texturescale" ".6"
+            "texturescale" "$chamsscale"
         }
     }
 }"#,
@@ -244,6 +266,7 @@ pub const MATERIALS: &[ChamsMaterial] = &[
                 speed: 1.2,
                 phase: 4.2,
                 value: 1.0,
+                scale: 0.6,
             },
         ],
     },
@@ -298,18 +321,6 @@ pub const MATERIALS: &[ChamsMaterial] = &[
     "$envmapfresnel" "1"
     "$selfillum" "1"
     "$selfillumtint" "[0 0 0]"
-    "$model" "1"
-}"#,
-        ))],
-    },
-    // Wireframe of a plain material rather than the debug one
-    ChamsMaterial {
-        label: "Wire",
-        layers: &[Layer::plain(Source::Create(
-            r#""UnlitGeneric"
-{
-    "$basetexture" "white"
-    "$wireframe" "1"
     "$model" "1"
 }"#,
         ))],

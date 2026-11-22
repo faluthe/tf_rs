@@ -57,13 +57,29 @@ pub extern "C" fn hk_draw_model_execute(
     let Some(group) = chams_group(info_ref, &chams_config).filter(|g| g.active()) else {
         return call_original();
     };
-    draw_layers(&group.layers(), true, call_original);
+    let scale = if is_first_person(info_ref) {
+        1.0
+    } else {
+        WORLD_MODEL_SCALE
+    };
+    draw_layers(&group.layers(), true, scale, call_original);
+}
+
+/// How much more scaled textures repeat on models in the world than on the first person ones.
+/// Player models fit the whole body in one texture, so a tile would cover most of them
+const WORLD_MODEL_SCALE: f32 = 4.0;
+
+fn is_first_person(info: &ModelRenderInfo) -> bool {
+    info.entity_index < 1
+        || Interfaces::entity_list()
+            .get_client_entity::<Entity>(info.entity_index)
+            .is_some_and(|e| e.class_name() == "CTFViewModel")
 }
 
 /// Draw the model once per pass of each layer with `draw`, every occluded pass first so the
 /// visible ones land on top of them. With `normal_fallback` the normal model is drawn where it
-/// can be seen when no layer has a visible pass
-fn draw_layers(layers: &[ChamsLayerConfig], normal_fallback: bool, draw: impl Fn()) {
+/// can be seen when no layer has a visible pass. Scaled textures are scaled up by `scale`
+fn draw_layers(layers: &[ChamsLayerConfig], normal_fallback: bool, scale: f32, draw: impl Fn()) {
     let render_view = Interfaces::render_view();
     let model_render = Interfaces::model_render();
     let old_color = render_view.get_color_modulation();
@@ -99,6 +115,7 @@ fn draw_layers(layers: &[ChamsLayerConfig], normal_fallback: bool, draw: impl Fn
                 .material
                 .set_material_var_flags(MATERIAL_VAR_IGNORE_Z, ignore_z);
             loaded.tint(color);
+            loaded.scale(sublayer.scale * scale);
             set_color(color);
             draw();
         }
@@ -158,7 +175,7 @@ fn draw_backtrack(
             config.backtrack
         };
         // The engine only reads the bones, the cast is for the signature
-        draw_layers(&group.layers(), false, || {
+        draw_layers(&group.layers(), false, WORLD_MODEL_SCALE, || {
             draw(bones.as_ptr() as *mut Matrix3x4)
         });
     });

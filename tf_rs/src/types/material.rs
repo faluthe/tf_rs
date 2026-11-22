@@ -74,6 +74,11 @@ impl FromRaw for MaterialVar {
 }
 
 impl MaterialVar {
+    pub fn set_float(&self, value: f32) {
+        let f = vfunc!(self.vtable, 3, (*mut c_void, f32) -> ());
+        f(self.this, value);
+    }
+
     pub fn set_vec3(&self, x: f32, y: f32, z: f32) {
         let f = vfunc!(self.vtable, 11, (*mut c_void, f32, f32, f32) -> ());
         f(self.this, x, y, z);
