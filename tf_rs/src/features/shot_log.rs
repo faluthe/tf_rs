@@ -83,10 +83,10 @@ impl TargetDiagnostics {
 
 struct Shot {
     id: u32,
-    /// Server time the projectile leaves, as the aimbot worked it out
+    /// Our tick base when the projectile leaves, the clock it flies on
     time: f32,
     prediction: Prediction,
-    /// Server time it was predicted to land at
+    /// When it was predicted to land, on the target's clock
     land_time: f32,
     path: Vec<Vec3>,
     created: f32,
@@ -279,7 +279,7 @@ pub fn shot(localplayer: &Player, p: &Prediction, path: &[Vec3], flight_time: f3
     ));
     state.shots.push(Shot {
         id,
-        time: assumed,
+        time,
         prediction: *p,
         land_time: assumed + p.ticks as f32 * tick,
         path: path.to_vec(),
@@ -497,7 +497,7 @@ fn miss_row(shot: &Shot) -> String {
         lv.length_2d(),
         lv.z,
         shot.prediction.target_on_ground as i32,
-        shot.land_time - shot.time,
+        shot.prediction.ticks as f32 * tick(),
         spawn_k,
         spawn_err,
         shot.projectile_track.len(),

@@ -1007,8 +1007,11 @@ fn find_target(
         cmd,
         strafe: Strafe::from(aim),
         tick,
-        // The server fires the projectile when it runs this command, at our tick base
-        fire_time: localplayer.curtime(),
+        // The server fires the projectile when it runs this command, at our tick base. That's
+        // this many ticks past the newest server tick we've been sent, the tick target updates
+        // come in on. Targets' own simulation times can't be used, each player's clock runs ahead
+        // of the server by a different amount.
+        latency_ticks: (localplayer.tick_base() - Interfaces::global_vars().tickcount).max(0),
         max_ticks,
         use_splash: aim.splash && info.splash_radius > 0.0,
         splash_slack: info.splash_radius / solver.speed,
@@ -1046,8 +1049,8 @@ struct Search<'a> {
     cmd: &'a UserCmd,
     strafe: Strafe,
     tick: f32,
-    /// When the server fires the projectile
-    fire_time: f32,
+    /// Ticks targets move before the server fires the projectile
+    latency_ticks: i32,
     max_ticks: i32,
     use_splash: bool,
     /// How much sooner than the target a shot at a spot near them can land
@@ -1072,7 +1075,7 @@ impl Search<'_> {
         let choke = sim.choke();
         // Targets keep moving from their last update until the projectile leaves. The sim has
         // already caught up the ticks since that update arrived.
-        let latency_ticks = (((self.fire_time - start_time) / tick).round() as i32 - choke).max(0);
+        let latency_ticks = self.latency_ticks;
         for _ in 0..latency_ticks {
             sim.run_tick();
         }
