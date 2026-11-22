@@ -33,25 +33,24 @@ pub extern "C" fn hk_paint_traverse(
 
     surface.draw_set_text_font(esp::esp_font(&surface));
 
-    if !Interfaces::engine_client().is_in_game() {
-        return rc;
-    }
-
-    let Some(localplayer) = helpers::get_localplayer() else {
-        return rc;
-    };
+    let localplayer = Interfaces::engine_client()
+        .is_in_game()
+        .then(helpers::get_localplayer)
+        .flatten();
     // A copy, holding the lock while drawing can deadlock with the menu on the render thread
     let config = Config::read().clone();
 
-    esp::run(&localplayer, &surface, &config);
+    if let Some(localplayer) = &localplayer {
+        esp::run(localplayer, &surface, &config);
 
-    if !localplayer.is_dead() {
-        esp::draw_fov(&surface, &config);
-        esp::draw_prediction(&surface, &config);
+        if !localplayer.is_dead() {
+            esp::draw_fov(&surface, &config);
+            esp::draw_prediction(&surface, &config);
+        }
     }
 
-    // Last so nothing drawn here covers it
-    preview::draw(&localplayer, &surface, &config);
+    // Last so nothing drawn here covers it, and outside a map too
+    preview::draw(localplayer.as_ref(), &surface, &config);
 
     rc
 }

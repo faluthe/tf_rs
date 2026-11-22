@@ -181,6 +181,25 @@ impl Renderable {
         f(self.this)
     }
 
+    /// First entity attached to this one, when it is an entity's
+    pub fn first_shadow_child(&self) -> Option<Renderable> {
+        let f = vfunc!(self.vtable, 29, extern "C" fn(*mut c_void) -> *mut c_void);
+        let child = f(self.this);
+        (!child.is_null()).then(|| Renderable::from_raw(child))
+    }
+
+    /// Next entity attached to the same one as this
+    pub fn next_shadow_peer(&self) -> Option<Renderable> {
+        let f = vfunc!(self.vtable, 30, extern "C" fn(*mut c_void) -> *mut c_void);
+        let peer = f(self.this);
+        (!peer.is_null()).then(|| Renderable::from_raw(peer))
+    }
+
+    /// The entity this is the renderable of, for renderables that are entities
+    pub fn entity(&self) -> Entity {
+        Entity::from_raw((self.this as usize - 0x8) as *mut c_void)
+    }
+
     pub fn skin(&self) -> i32 {
         let f = vfunc!(self.vtable, 39, extern "C" fn(*mut c_void) -> i32);
         f(self.this)

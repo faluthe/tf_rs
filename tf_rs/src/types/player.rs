@@ -120,6 +120,11 @@ impl Player {
         self.lifestate() != 1
     }
 
+    /// Entity index of the held weapon
+    pub fn active_weapon_index(&self) -> i32 {
+        self.active_weapon_() & 0xFFF
+    }
+
     pub fn active_weapon(&self) -> Option<Weapon> {
         // lower 12 bits represent the index
         let index = self.active_weapon_() & 0xFFF;
