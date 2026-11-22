@@ -683,15 +683,18 @@ impl Solver<'_> {
     fn hits(
         &self,
         path: &mut Vec<Vec3>,
-        target: &Hull,
+        target: &Player,
+        predicted: &Hull,
         point: &Vec3,
         tolerance: f32,
         ticks: i32,
     ) -> Result<(), Reject> {
-        let hull = self.info.hull.min(3.0);
-        let (hull_mins, hull_maxs) = (Vec3::new(-hull, -hull, -hull), Vec3::new(hull, hull, hull));
-        let (mins, maxs) = (target.origin + target.mins, target.origin + target.maxs);
-        let filter = TraceFilter::world_only();
+        let (hull_mins, hull_maxs) = self.hull();
+        let (mins, maxs) = (
+            predicted.origin + predicted.mins,
+            predicted.origin + predicted.maxs,
+        );
+        let filter = TraceFilter::projectile(self.localplayer, Some(target));
         for n in 0..path.len().saturating_sub(1) {
             let (from, to) = (path[n], path[n + 1]);
             let trace = Interfaces::engine_trace().trace_hull(
@@ -699,7 +702,7 @@ impl Solver<'_> {
                 &to,
                 &hull_mins,
                 &hull_maxs,
-                mask::SHOT,
+                mask::SOLID,
                 &filter,
             );
             let world = trace.did_hit().then_some(trace.fraction);
@@ -725,18 +728,23 @@ impl Solver<'_> {
         Err(Reject::Miss)
     }
 
-    /// Whether the projectile reaches `point` without running into the world first
-    fn clear(&self, path: &[Vec3], point: &Vec3, tolerance: f32) -> bool {
-        let hull = self.info.hull.min(3.0);
-        let (mins, maxs) = (Vec3::new(-hull, -hull, -hull), Vec3::new(hull, hull, hull));
-        let filter = TraceFilter::world_only();
+    /// The projectile's collision box
+    fn hull(&self) -> (Vec3, Vec3) {
+        let h = self.info.hull;
+        (Vec3::new(-h, -h, -h), Vec3::new(h, h, h))
+    }
+
+    /// Whether the projectile reaches `point` without running into anything first
+    fn clear(&self, path: &[Vec3], target: &Player, point: &Vec3, tolerance: f32) -> bool {
+        let (mins, maxs) = self.hull();
+        let filter = TraceFilter::projectile(self.localplayer, Some(target));
         for w in path.windows(2) {
             let trace = Interfaces::engine_trace().trace_hull(
                 &w[0],
                 &w[1],
                 &mins,
                 &maxs,
-                mask::SHOT,
+                mask::SOLID,
                 &filter,
             );
             if trace.did_hit() {
@@ -799,14 +807,20 @@ fn sphere_directions() -> &'static [Vec3] {
 
 /// Spots on surfaces around a player standing at `origin` that a blast would reach them from,
 /// facing `eye` and closest first
-fn splash_points(origin: Vec3, target: &Player, info: &ProjectileInfo, eye: &Vec3) -> Vec<Vec3> {
+fn splash_points(
+    shooter: &Player,
+    origin: Vec3,
+    target: &Player,
+    info: &ProjectileInfo,
+    eye: &Vec3,
+) -> Vec<Vec3> {
     let (mins, maxs) = (target.mins(), target.maxs());
     let center = origin + Vec3::new(0.0, 0.0, (mins.z + maxs.z) / 2.0);
     // A little short of the full radius, the blast falls off and positions aren't exact
     let reach = info.splash_radius * 0.9;
     // Off the surface by the projectile's size so it doesn't clip it on the way in
-    let lift = info.hull.min(3.0) + 1.0;
-    let filter = TraceFilter::world_only();
+    let lift = info.hull + 1.0;
+    let filter = TraceFilter::projectile(shooter, Some(target));
 
     let mut points: Vec<(f32, Vec3)> = sphere_directions()
         .iter()
@@ -1076,6 +1090,7 @@ impl Search<'_> {
                     let extra = if n == 0 && info.splash { 8.0 } else { 0.0 };
                     let point = origin + offset;
                     self.attempt(
+                        target,
                         &point,
                         ticks,
                         direct_tolerance + extra,
@@ -1095,10 +1110,10 @@ impl Search<'_> {
                     .is_some_and(|(_, time)| time - self.splash_slack <= ticks as f32 * tick);
                 if in_window {
                     splash_ticks += 1;
-                    hit = splash_points(origin, target, info, &eye)
+                    hit = splash_points(self.solver.localplayer, origin, target, info, &eye)
                         .iter()
                         .find_map(|point| {
-                            self.attempt(point, ticks, splash_tolerance, None, diag)
+                            self.attempt(target, point, ticks, splash_tolerance, None, diag)
                                 .map(|hit| (hit, *point, true))
                         });
                 }
@@ -1135,32 +1150,33 @@ impl Search<'_> {
         None
     }
 
-    /// A shot landing on `point` within `ticks` that gets there unobstructed, counting why in
-    /// `diag` when there isn't one. Aimed at `target`, the shot is flown for real and has to hit
-    /// their box, otherwise it only has to reach the surface at `point`.
+    /// A shot at `target` landing on `point` within `ticks` that gets there unobstructed, counting
+    /// why in `diag` when there isn't one. Aimed at them directly, the shot is flown for real and
+    /// has to hit their `predicted` box, otherwise it only has to reach the surface at `point`.
     fn attempt(
         &self,
+        target: &Player,
         point: &Vec3,
         ticks: i32,
         tolerance: f32,
-        target: Option<&Hull>,
+        predicted: Option<&Hull>,
         diag: &mut shot_log::TargetDiagnostics,
     ) -> Option<(Solution, Vec<Vec3>, f32)> {
         let solver = &self.solver;
         let reject = match solver.solve(point, ticks) {
             Solve::Good(solution) => {
                 let fov = self.cmd.view_angles.fov_to(&solution.angles);
-                let shot = match target {
-                    Some(target) => {
+                let shot = match predicted {
+                    Some(predicted) => {
                         let tick = Interfaces::global_vars().interval_per_tick;
                         let mut path = solver.path(&solution.angles, ticks as f32 * tick);
                         solver
-                            .hits(&mut path, target, point, tolerance, ticks)
+                            .hits(&mut path, target, predicted, point, tolerance, ticks)
                             .map(|()| path)
                     }
                     None => {
                         let path = solver.path(&solution.angles, solution.time);
-                        if solver.clear(&path, point, tolerance) {
+                        if solver.clear(&path, target, point, tolerance) {
                             Ok(path)
                         } else {
                             Err(Reject::Blocked)
