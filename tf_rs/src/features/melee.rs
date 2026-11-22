@@ -85,7 +85,7 @@ impl Swing {
         );
         // Sweeping the cube is the same as a line against the box grown by the cube, and the
         // line trace the server tries first can only hit inside that
-        segment_hits_box(&self.start, &self.end, &mins, &maxs, self.hull)
+        helpers::segment_box_entry(&self.start, &self.end, &mins, &maxs, self.hull).is_some()
     }
 }
 
@@ -374,31 +374,4 @@ pub fn forward(angles: &Vec3) -> Vec3 {
 
 fn add_scaled(a: &Vec3, b: &Vec3, scale: f32) -> Vec3 {
     Vec3::new(a.x + b.x * scale, a.y + b.y * scale, a.z + b.z * scale)
-}
-
-/// Whether the segment from `start` to `end` passes through the box grown by `grow` on each side
-fn segment_hits_box(start: &Vec3, end: &Vec3, mins: &Vec3, maxs: &Vec3, grow: f32) -> bool {
-    let axes = [
-        (start.x, end.x, mins.x, maxs.x),
-        (start.y, end.y, mins.y, maxs.y),
-        (start.z, end.z, mins.z, maxs.z),
-    ];
-    let (mut enter, mut exit) = (0.0f32, 1.0f32);
-    for (s, e, lo, hi) in axes {
-        let (lo, hi) = (lo - grow, hi + grow);
-        let d = e - s;
-        if d.abs() < f32::EPSILON {
-            if s < lo || s > hi {
-                return false;
-            }
-            continue;
-        }
-        let (t0, t1) = ((lo - s) / d, (hi - s) / d);
-        enter = enter.max(t0.min(t1));
-        exit = exit.min(t0.max(t1));
-        if enter > exit {
-            return false;
-        }
-    }
-    true
 }

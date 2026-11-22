@@ -59,6 +59,7 @@ pub struct TargetDiagnostics {
     pub late: u32,
     pub bad: u32,
     pub blocked: u32,
+    pub miss: u32,
 }
 
 impl TargetDiagnostics {
@@ -67,6 +68,7 @@ impl TargetDiagnostics {
             Reject::Late => self.late += 1,
             Reject::Bad => self.bad += 1,
             Reject::Blocked => self.blocked += 1,
+            Reject::Miss => self.miss += 1,
         }
     }
 }
@@ -120,7 +122,7 @@ const PERF: usize = 4;
 const FILES: [(&str, &str); 5] = [
     (
         "no_shot.csv",
-        "time,target,fov,distance,on_ground,no_sim,waiting,late,bad,blocked\n",
+        "time,target,fov,distance,on_ground,no_sim,waiting,late,bad,blocked,miss\n",
     ),
     (
         "shots.csv",
@@ -187,7 +189,7 @@ pub fn no_shot(diagnostics: &[TargetDiagnostics]) {
     state.last_no_shot = now;
     for d in diagnostics {
         state.files[NO_SHOT].push_str(&format!(
-            "{:.2},{},{:.1},{:.0},{},{},{},{},{},{}\n",
+            "{:.2},{},{:.1},{:.0},{},{},{},{},{},{},{}\n",
             now,
             d.index,
             d.fov,
@@ -198,6 +200,7 @@ pub fn no_shot(diagnostics: &[TargetDiagnostics]) {
             d.late,
             d.bad,
             d.blocked,
+            d.miss,
         ));
     }
 }
