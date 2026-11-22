@@ -1001,7 +1001,8 @@ fn find_target(
         cmd,
         strafe: Strafe::from(aim),
         tick,
-        latency_ticks: (helpers::round_trip() / tick).round() as i32,
+        // The server fires the projectile when it runs this command, at our tick base
+        fire_time: localplayer.curtime(),
         max_ticks,
         use_splash: aim.splash && info.splash_radius > 0.0,
         splash_slack: info.splash_radius / solver.speed,
@@ -1039,8 +1040,8 @@ struct Search<'a> {
     cmd: &'a UserCmd,
     strafe: Strafe,
     tick: f32,
-    /// Ticks until the server fires the projectile, counting how far behind what we see is
-    latency_ticks: i32,
+    /// When the server fires the projectile
+    fire_time: f32,
     max_ticks: i32,
     use_splash: bool,
     /// How much sooner than the target a shot at a spot near them can land
@@ -1063,8 +1064,10 @@ impl Search<'_> {
         };
         let start_time = target.simulation_time();
         let choke = sim.choke();
-        // The projectile leaves once the server gets the command, and what we see is behind
-        for _ in 0..self.latency_ticks {
+        // Targets keep moving from their last update until the projectile leaves. The sim has
+        // already caught up the ticks since that update arrived.
+        let latency_ticks = (((self.fire_time - start_time) / tick).round() as i32 - choke).max(0);
+        for _ in 0..latency_ticks {
             sim.run_tick();
         }
 
@@ -1072,7 +1075,7 @@ impl Search<'_> {
         let splash_tolerance = info.hull.max(4.0) + 12.0;
         let mut splash_ticks = 0;
         for ticks in 1..=self.max_ticks {
-            let land_time = start_time + (choke + self.latency_ticks + ticks) as f32 * tick;
+            let land_time = start_time + (choke + latency_ticks + ticks) as f32 * tick;
             if wait_for.is_some_and(|w| land_time >= w) {
                 diag.waiting = true;
                 return None;
@@ -1138,7 +1141,7 @@ impl Search<'_> {
                     target: target.index(),
                     start_time,
                     choke,
-                    latency_ticks: self.latency_ticks,
+                    latency_ticks,
                     ticks,
                     origin,
                     point,
