@@ -42,4 +42,9 @@ impl Globals {
     pub fn read() -> RwLockReadGuard<'static, Globals> {
         G.read().unwrap()
     }
+
+    /// Read without waiting, none while something is writing
+    pub fn try_read() -> Option<RwLockReadGuard<'static, Globals>> {
+        G.try_read().ok()
+    }
 }

@@ -187,6 +187,7 @@ struct_with_serialize! {
         pub weapon: ChamsGroupConfig,
         pub backtrack: ChamsGroupConfig,
         pub backtrack_target: ChamsGroupConfig,
+        pub aimbot_target: ChamsTargetConfig,
     }
 }
 
@@ -228,6 +229,77 @@ impl Default for ChamsConfig {
                 },
                 ..ChamsGroupConfig::new(false, 0, 0)
             },
+            aimbot_target: ChamsTargetConfig::default(),
+        }
+    }
+}
+
+struct_with_serialize! {
+    // Colors the aimbot target's chams are drawn in instead of its group's, with its group's
+    // materials
+    #[derive(Clone, Copy)]
+    pub struct ChamsTargetConfig {
+        pub visible: bool,
+        pub occluded: bool,
+        pub visible_color: Color,
+        pub occluded_color: Color,
+    }
+}
+
+impl Default for ChamsTargetConfig {
+    fn default() -> Self {
+        ChamsTargetConfig {
+            visible: false,
+            occluded: false,
+            visible_color: Color::hex(0xffd000),
+            occluded_color: Color::hex(0x9a7d00),
+        }
+    }
+}
+
+struct_with_serialize! {
+    #[derive(Clone, Copy)]
+    pub struct ChamsLayerConfig {
+        // Index into chams::MATERIALS
+        pub material: usize,
+        // Draw where the entity can be seen
+        pub visible: bool,
+        // Draw through walls
+        pub occluded: bool,
+        pub visible_color: Color,
+        pub occluded_color: Color,
+    }
+}
+
+impl Default for ChamsLayerConfig {
+    fn default() -> Self {
+        ChamsLayerConfig {
+            material: 0,
+            visible: false,
+            occluded: false,
+            visible_color: Color::hex(0xffffff),
+            occluded_color: Color::hex(0xffffff),
+        }
+    }
+}
+
+/// Mutable access to one layer of a group
+pub struct ChamsLayerMut<'a> {
+    pub material: &'a mut usize,
+    pub visible: &'a mut bool,
+    pub occluded: &'a mut bool,
+    pub visible_color: &'a mut Color,
+    pub occluded_color: &'a mut Color,
+}
+
+impl ChamsLayerConfig {
+    fn as_mut(&mut self) -> ChamsLayerMut<'_> {
+        ChamsLayerMut {
+            material: &mut self.material,
+            visible: &mut self.visible,
+            occluded: &mut self.occluded,
+            visible_color: &mut self.visible_color,
+            occluded_color: &mut self.occluded_color,
         }
     }
 }
@@ -235,18 +307,22 @@ impl Default for ChamsConfig {
 struct_with_serialize! {
     #[derive(Clone, Copy)]
     pub struct ChamsGroupConfig {
-        // Index into chams::MATERIALS
+        // The first layer, its fields stay at this level so configs from before layers load.
+        // Without a visible pass on any layer the normal model is drawn where it can be seen
         pub material: usize,
-        // Draw chams where the entity can be seen, otherwise draw the normal model there
         pub visible: bool,
-        // Draw chams through walls
         pub occluded: bool,
         pub visible_color: Color,
         pub occluded_color: Color,
+        // Drawn on top of the first layer, in order
+        pub overlay1: ChamsLayerConfig,
+        pub overlay2: ChamsLayerConfig,
     }
 }
 
 impl ChamsGroupConfig {
+    pub const LAYERS: usize = 3;
+
     fn new(enabled: bool, visible: u32, occluded: u32) -> Self {
         ChamsGroupConfig {
             material: 0,
@@ -254,15 +330,14 @@ impl ChamsGroupConfig {
             occluded: enabled,
             visible_color: Color::hex(visible),
             occluded_color: Color::hex(occluded),
+            overlay1: ChamsLayerConfig::default(),
+            overlay2: ChamsLayerConfig::default(),
         }
     }
 
     fn from_color(color: Color) -> Self {
         let dim = |c: u8| (c as u16 * 3 / 5) as u8;
         ChamsGroupConfig {
-            material: 0,
-            visible: false,
-            occluded: false,
             visible_color: color,
             occluded_color: Color {
                 r: dim(color.r),
@@ -270,11 +345,41 @@ impl ChamsGroupConfig {
                 b: dim(color.b),
                 a: color.a,
             },
+            ..ChamsGroupConfig::new(false, 0, 0)
+        }
+    }
+
+    /// Every layer, bottom first
+    pub fn layers(&self) -> [ChamsLayerConfig; Self::LAYERS] {
+        [
+            ChamsLayerConfig {
+                material: self.material,
+                visible: self.visible,
+                occluded: self.occluded,
+                visible_color: self.visible_color,
+                occluded_color: self.occluded_color,
+            },
+            self.overlay1,
+            self.overlay2,
+        ]
+    }
+
+    pub fn layer_mut(&mut self, index: usize) -> ChamsLayerMut<'_> {
+        match index {
+            0 => ChamsLayerMut {
+                material: &mut self.material,
+                visible: &mut self.visible,
+                occluded: &mut self.occluded,
+                visible_color: &mut self.visible_color,
+                occluded_color: &mut self.occluded_color,
+            },
+            1 => self.overlay1.as_mut(),
+            _ => self.overlay2.as_mut(),
         }
     }
 
     pub fn active(&self) -> bool {
-        self.visible || self.occluded
+        self.layers().iter().any(|l| l.visible || l.occluded)
     }
 }
 
