@@ -194,7 +194,12 @@ pub fn draw(localplayer: Option<&Player>, surface: &Surface, config: &Config) {
     CLASS_MODEL.store(player.is_none(), Ordering::Relaxed);
     let shown = match player {
         Some(player) => draw_player(&player, subject, yaw, area, model_shown),
-        None => studio::draw(class(), subject, &team, yaw, area, model_shown, config),
+        // Only the teammate model draws here, so every subject is shown as one with its overlay
+        None => {
+            let teammate = Subject::Teammate;
+            let team = subject_team(teammate, &local_team);
+            studio::draw(class(), teammate, &team, yaw, area, model_shown, config)
+        }
     };
     if let Some(shown) = shown {
         overlay(&shown, subject, &team, surface, config);
