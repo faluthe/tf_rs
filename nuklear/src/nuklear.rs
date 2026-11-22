@@ -130,6 +130,29 @@ impl Nuklear {
             != 0
     }
 
+    /// `begin` with its own background color, which may be transparent
+    pub fn begin_bg<T: Into<Vec<u8>>>(
+        &self,
+        title: T,
+        flags: PanelFlags,
+        size: Rect,
+        bg: Color,
+    ) -> bool {
+        self.context
+            .begin_bg(CString::new(title).unwrap(), size.into(), flags.bits(), bg)
+    }
+
+    /// Screen bounds of the next widget slot, which is left empty
+    pub fn reserve_slot(&self) -> Rect {
+        self.context.reserve_slot().into()
+    }
+
+    /// Horizontal mouse movement this frame while the left button is held after pressing it
+    /// inside `rect`
+    pub fn drag_x(&self, rect: Rect) -> Option<f32> {
+        self.context.drag_x(rect.into())
+    }
+
     pub fn row_dynamic(&self, height: f32, cols: i32) -> &Self {
         self.context.row_dynamic(height, cols);
         self
