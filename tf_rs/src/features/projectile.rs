@@ -578,6 +578,12 @@ impl Solver<'_> {
         })
     }
 
+    /// Where the projectile fired along `angles` starts and how fast it's going
+    fn launch(&self, angles: &Vec3) -> (Vec3, Vec3) {
+        let (pos, ang) = fire_setup(self.localplayer, &self.eye, angles, &self.info);
+        (pos, launch_velocity(&ang, &self.info))
+    }
+
     /// Positions of the projectile fired along `angles`, every tick for `time` seconds
     fn path(&self, angles: &Vec3, time: f32) -> Vec<Vec3> {
         let tick = Interfaces::global_vars().interval_per_tick;
@@ -1050,6 +1056,9 @@ fn find_target(
                         point,
                         splash,
                         target_on_ground: sim.on_ground(),
+                        launch: solver.launch(&solution.angles),
+                        gravity: info.gravity,
+                        drag: info.drag,
                     },
                 });
             }
