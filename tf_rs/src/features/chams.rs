@@ -4,8 +4,39 @@ use log::warn;
 
 use crate::{
     interfaces::Interfaces,
-    types::{Color, Material, material::MATERIAL_VAR_NO_DRAW},
+    types::{
+        Color, Material,
+        material::{MATERIAL_VAR_NO_DRAW, MaterialVar},
+    },
 };
+
+/// A loaded layer and the parameters that tint its reflections, the draw color doesn't reach
+/// those
+pub struct Loaded {
+    pub material: Material,
+    tints: Vec<MaterialVar>,
+}
+
+impl Loaded {
+    fn new(material: Material) -> Self {
+        let tints = [c"$phongtint", c"$envmaptint"]
+            .iter()
+            .filter_map(|name| material.find_var(name))
+            .collect();
+        Loaded { material, tints }
+    }
+
+    /// Tint the reflections `color`
+    pub fn tint(&self, color: Color) {
+        for var in &self.tints {
+            var.set_vec3(
+                color.r as f32 / 255.0,
+                color.g as f32 / 255.0,
+                color.b as f32 / 255.0,
+            );
+        }
+    }
+}
 
 pub struct ChamsMaterial {
     pub label: &'static str,
@@ -46,7 +77,7 @@ pub enum Source {
 }
 
 /// Menu label and the layers drawn on top of each other, indexed by ChamsLayerConfig::material.
-/// New ones go before Original so saved indexes keep pointing at the same material
+/// New ones go at the end so saved indexes keep pointing at the same material
 pub const MATERIALS: &[ChamsMaterial] = &[
     ChamsMaterial {
         label: "Debug",
@@ -221,6 +252,68 @@ pub const MATERIALS: &[ChamsMaterial] = &[
         label: "Original",
         layers: &[],
     },
+    // Glowing edges and a see-through middle, the sky reflected at grazing angles
+    ChamsMaterial {
+        label: "Fresnel",
+        layers: &[Layer::plain(Source::Create(
+            r#""VertexLitGeneric"
+{
+    "$basetexture" "white"
+    "$bumpmap" "models/player/shared/shared_normal"
+    "$color2" "[0 0 0]"
+    "$additive" "1"
+    "$phong" "1"
+    "$phongfresnelranges" "[0 0.5 1]"
+    "$envmap" "skybox/sky_dustbowl_01"
+    "$envmapfresnel" "1"
+    "$model" "1"
+}"#,
+        ))],
+    },
+    // Glossy sheen
+    ChamsMaterial {
+        label: "Shine",
+        layers: &[Layer::plain(Source::Create(
+            r#""VertexLitGeneric"
+{
+    "$additive" "1"
+    "$envmap" "cubemaps/cubemap_sheen002.hdr"
+    "$envmaptint" "[1 1 1]"
+    "$model" "1"
+}"#,
+        ))],
+    },
+    // Frozen statue with a faint glow at the edges
+    ChamsMaterial {
+        label: "Tint",
+        layers: &[Layer::plain(Source::Create(
+            r#""VertexLitGeneric"
+{
+    "$basetexture" "models/player/shared/ice_player"
+    "$bumpmap" "models/player/shared/shared_normal"
+    "$additive" "1"
+    "$phong" "1"
+    "$phongfresnelranges" "[0 0.001 0.001]"
+    "$envmap" "skybox/sky_dustbowl_01"
+    "$envmapfresnel" "1"
+    "$selfillum" "1"
+    "$selfillumtint" "[0 0 0]"
+    "$model" "1"
+}"#,
+        ))],
+    },
+    // Wireframe of a plain material rather than the debug one
+    ChamsMaterial {
+        label: "Wire",
+        layers: &[Layer::plain(Source::Create(
+            r#""UnlitGeneric"
+{
+    "$basetexture" "white"
+    "$wireframe" "1"
+    "$model" "1"
+}"#,
+        ))],
+    },
 ];
 
 /// Whether the material at `index` draws the model with its own materials
@@ -229,7 +322,7 @@ pub fn is_original(index: usize) -> bool {
 }
 
 // Each material's layers, empty if any of them failed to load
-static LOADED: OnceLock<Vec<Vec<Material>>> = OnceLock::new();
+static LOADED: OnceLock<Vec<Vec<Loaded>>> = OnceLock::new();
 
 /// Loads or creates every chams material, call from the main thread outside of rendering
 pub fn init() {
@@ -258,17 +351,20 @@ pub fn init() {
                     return Vec::new();
                 };
 
-                for material in &loaded {
-                    material.set_material_var_flags(MATERIAL_VAR_NO_DRAW, false);
-                }
                 loaded
+                    .into_iter()
+                    .map(|material| {
+                        material.set_material_var_flags(MATERIAL_VAR_NO_DRAW, false);
+                        Loaded::new(material)
+                    })
+                    .collect()
             })
             .collect()
     });
 }
 
 /// Layers of the material at `index` in MATERIALS and their loaded materials, once init has run
-pub fn layers(index: usize) -> Option<(&'static [Layer], &'static [Material])> {
+pub fn layers(index: usize) -> Option<(&'static [Layer], &'static [Loaded])> {
     let loaded = LOADED.get()?.get(index)?;
     (!loaded.is_empty()).then(|| (MATERIALS[index].layers, loaded.as_slice()))
 }

@@ -4,15 +4,17 @@ use crate::{
     config::{
         BacktrackConfig, ChamsConfig, ChamsGroupConfig, ChamsLayerConfig, ChamsTargetConfig, Config,
     },
-    features::{backtrack, chams},
+    features::{
+        backtrack,
+        chams::{self, Loaded},
+    },
     globals::Globals,
     helpers,
     hooks::Hooks,
     interfaces::Interfaces,
     player_db::{self, PlayerCategory},
     types::{
-        ClassId, Color, Entity, Material, Matrix3x4, ModelRenderInfo, Player,
-        material::MATERIAL_VAR_IGNORE_Z,
+        ClassId, Color, Entity, Matrix3x4, ModelRenderInfo, Player, material::MATERIAL_VAR_IGNORE_Z,
     },
 };
 
@@ -83,17 +85,21 @@ fn draw_layers(layers: &[ChamsLayerConfig], normal_fallback: bool, draw: impl Fn
         draw();
     };
 
-    let mut used: Vec<&'static [Material]> = Vec::new();
+    let mut used: Vec<&'static [Loaded]> = Vec::new();
     // Each of the material's own layers in its drifting shade of `color`
     let mut draw_pass = |material: usize, color: Color, ignore_z: bool| {
-        let Some((sublayers, materials)) = chams::layers(material) else {
+        let Some((sublayers, loaded)) = chams::layers(material) else {
             return;
         };
-        used.push(materials);
-        for (sublayer, material) in sublayers.iter().zip(materials) {
-            model_render.forced_material_override(Some(material));
-            material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, ignore_z);
-            set_color(sublayer.color(color, time));
+        used.push(loaded);
+        for (sublayer, loaded) in sublayers.iter().zip(loaded) {
+            let color = sublayer.color(color, time);
+            model_render.forced_material_override(Some(&loaded.material));
+            loaded
+                .material
+                .set_material_var_flags(MATERIAL_VAR_IGNORE_Z, ignore_z);
+            loaded.tint(color);
+            set_color(color);
             draw();
         }
     };
@@ -117,8 +123,10 @@ fn draw_layers(layers: &[ChamsLayerConfig], normal_fallback: bool, draw: impl Fn
     }
 
     model_render.forced_material_override(None);
-    for material in used.into_iter().flatten() {
-        material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, false);
+    for loaded in used.into_iter().flatten() {
+        loaded
+            .material
+            .set_material_var_flags(MATERIAL_VAR_IGNORE_Z, false);
     }
     render_view.set_color_modulation(old_color);
     render_view.set_blend(old_blend);
