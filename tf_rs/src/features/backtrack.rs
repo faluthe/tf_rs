@@ -256,14 +256,14 @@ pub fn update_records() {
 pub enum Choice {
     /// Pick one from where we're aiming
     Auto,
-    /// Leave the tick alone, the melee aimbot is going for where the player is now
+    /// Leave the tick alone, the aimbot is going for where the target is now
     Keep,
-    /// The melee aimbot picked this entity index and simulation time
+    /// The aimbot picked this entity index and simulation time
     Record(i32, f32),
 }
 
 /// Pick the record closest to where we're aiming, or with a melee weapon one the swing would
-/// connect with, and set the tick to it when shooting
+/// connect with, and set the tick to it when shooting. A record the aimbot picked is always used
 pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config, choice: Choice) {
     let cmd = unsafe { &mut *cmd };
     let target = if !config.backtrack.enabled {
@@ -277,11 +277,11 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config, choice: Cho
     };
     *TARGET.lock().unwrap() = target.map(|t| (t.0, t.1));
 
-    let Some((_, sim_time, melee)) = target else {
+    let Some((_, sim_time, picked)) = target else {
         return;
     };
     // Melee hits land a few ticks after the swing starts, using whichever command is running then
-    if melee || (cmd.buttons & Buttons::InAttack as i32) != 0 {
+    if picked || (cmd.buttons & Buttons::InAttack as i32) != 0 {
         cmd.tick_count = time_to_ticks(sim_time + lerp());
     }
 }
@@ -345,6 +345,25 @@ pub fn candidates(index: i32, lead: f32, config: &Config) -> Vec<(Hull, f32)> {
         .flatten()
         .filter(|r| timing.usable_in(r.sim_time, lead))
         .map(|r| (r.hull, r.sim_time))
+        .collect()
+}
+
+/// Simulation time, head and body of player `index`'s records that can be shot at now, none when
+/// backtrack is off
+pub fn aim_points(index: i32, config: &Config) -> Vec<(f32, Vec3, Vec3)> {
+    if !config.backtrack.enabled {
+        return Vec::new();
+    }
+    let Some(timing) = Timing::now(&config.backtrack) else {
+        return Vec::new();
+    };
+    let records = records();
+    records
+        .get(index as usize)
+        .into_iter()
+        .flatten()
+        .filter(|r| timing.usable(r.sim_time))
+        .map(|r| (r.sim_time, r.head, r.body))
         .collect()
 }
 

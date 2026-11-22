@@ -16,7 +16,7 @@ pub struct Globals {
     pub prediction: Option<PredictionPaths>,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Target {
     pub target_index: i32,
     pub should_headshot: bool,
