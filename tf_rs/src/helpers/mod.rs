@@ -165,3 +165,37 @@ pub fn is_ent_visible(from: &Vec3, to: &Vec3, ent: &Entity, ignore_entity: &Play
     let trace = Interfaces::engine_trace().trace_ray(from, to, mask::BULLET, Some(ignore_entity));
     trace.fraction >= 0.97 || trace.entity == ent.this || trace.end_pos == *to
 }
+
+/// How far along `start` to `end` it enters the box `mins`..`maxs` grown by `grow`, as a fraction
+/// of the segment, zero when it starts inside
+pub fn segment_box_entry(
+    start: &Vec3,
+    end: &Vec3,
+    mins: &Vec3,
+    maxs: &Vec3,
+    grow: f32,
+) -> Option<f32> {
+    let axes = [
+        (start.x, end.x, mins.x, maxs.x),
+        (start.y, end.y, mins.y, maxs.y),
+        (start.z, end.z, mins.z, maxs.z),
+    ];
+    let (mut enter, mut exit) = (0.0f32, 1.0f32);
+    for (s, e, lo, hi) in axes {
+        let (lo, hi) = (lo - grow, hi + grow);
+        let d = e - s;
+        if d.abs() < f32::EPSILON {
+            if s < lo || s > hi {
+                return None;
+            }
+            continue;
+        }
+        let (t0, t1) = ((lo - s) / d, (hi - s) / d);
+        enter = enter.max(t0.min(t1));
+        exit = exit.min(t0.max(t1));
+        if enter > exit {
+            return None;
+        }
+    }
+    Some(enter)
+}
