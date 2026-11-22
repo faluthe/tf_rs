@@ -1,47 +1,34 @@
-use std::{ffi::CString, sync::OnceLock};
+use std::{
+    ffi::{CStr, CString},
+    sync::OnceLock,
+};
 
 use log::warn;
 
 use crate::{
     interfaces::Interfaces,
-    types::{
-        Color, Material,
-        material::{MATERIAL_VAR_NO_DRAW, MaterialVar},
-    },
+    types::{Color, Material, material::MATERIAL_VAR_NO_DRAW},
 };
 
-/// A loaded layer and the parameters that tint its reflections, the draw color doesn't reach
-/// those
+/// A loaded layer. Its parameters are looked up on every use, a map change rebuilds them
 pub struct Loaded {
     pub material: Material,
-    tints: Vec<MaterialVar>,
-    scale: Option<MaterialVar>,
 }
 
-impl Loaded {
-    fn new(material: Material) -> Self {
-        let tints = [c"$phongtint", c"$envmaptint"]
-            .iter()
-            .filter_map(|name| material.find_var(name))
-            .collect();
-        let scale = material.find_var(c"$chamsscale");
-        Loaded {
-            material,
-            tints,
-            scale,
-        }
-    }
+/// Parameters the draw color doesn't reach, set to it instead
+const TINTS: [&CStr; 3] = [c"$phongtint", c"$envmaptint", c"$selfillumtint"];
 
-    /// Texture scale of materials that have one
+impl Loaded {
+    /// Texture scale of materials that read it from `$chamsscale`
     pub fn scale(&self, scale: f32) {
-        if let Some(var) = self.scale {
+        if let Some(var) = self.material.find_var(c"$chamsscale") {
             var.set_float(scale);
         }
     }
 
-    /// Tint the reflections `color`
+    /// Tint reflections and self illumination `color`
     pub fn tint(&self, color: Color) {
-        for var in &self.tints {
+        for var in TINTS.iter().filter_map(|name| self.material.find_var(name)) {
             var.set_vec3(
                 color.r as f32 / 255.0,
                 color.g as f32 / 255.0,
@@ -306,7 +293,7 @@ pub const MATERIALS: &[ChamsMaterial] = &[
 }"#,
         ))],
     },
-    // Frozen statue with a faint glow at the edges
+    // Ice statue lit in the layer's color
     ChamsMaterial {
         label: "Tint",
         layers: &[Layer::plain(Source::Create(
@@ -366,7 +353,7 @@ pub fn init() {
                     .into_iter()
                     .map(|material| {
                         material.set_material_var_flags(MATERIAL_VAR_NO_DRAW, false);
-                        Loaded::new(material)
+                        Loaded { material }
                     })
                     .collect()
             })
