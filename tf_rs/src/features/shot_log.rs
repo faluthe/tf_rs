@@ -40,7 +40,7 @@ pub struct Prediction {
     pub start_time: f32,
     /// Ticks the sim ran to catch up to now
     pub choke: i32,
-    /// Ticks the sim ran for our latency
+    /// Ticks the sim ran after catching up, until the shot leaves at our tick base
     pub latency_ticks: i32,
     /// Ticks after that until the projectile lands
     pub ticks: i32,

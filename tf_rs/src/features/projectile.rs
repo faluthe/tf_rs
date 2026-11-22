@@ -893,7 +893,8 @@ fn find_target(
         ground: aim.strafe_ground,
         air: aim.strafe_air,
     };
-    let latency_ticks = (latency() / tick).round() as i32;
+    // The server fires the projectile when it runs this command, at our tick base
+    let fire_time = localplayer.curtime();
     let max_ticks = ((aim.max_sim_time as f32 / 1000.0).min(info.lifetime) / tick) as i32;
 
     // Closest to the crosshair first, simulating everyone would be too slow
@@ -949,7 +950,9 @@ fn find_target(
                 None
             }
         };
-        // The projectile leaves once the server gets the command, and what we see is behind
+        // Targets keep moving from their last update until the projectile leaves. The sim has
+        // already caught up the ticks since that update arrived.
+        let latency_ticks = (((fire_time - start_time) / tick).round() as i32 - choke).max(0);
         for _ in 0..latency_ticks {
             sim.run_tick();
         }
