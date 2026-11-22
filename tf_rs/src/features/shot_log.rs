@@ -4,6 +4,8 @@
 //! - shots.csv: each shot fired, with the timeline it assumed against the server time it fires at
 //! - shot_projectile.csv: the projectile that shot made, against the path it was predicted to take
 //! - shot_target.csv: where the target really was when the shot was predicted to land
+//! - shot_launch.csv: where each shot's projectile was predicted to start and how fast
+//! - shot_flight.csv: where each shot's projectile really was every update, by ticks since firing
 //! - shot_miss.csv: how close each projectile came to its target and which way it missed, and how
 //!   many ticks earlier or later the target would have had to be for it to come closest
 //! - perf.csv: each second, commands and frames, and how long the aimbot's search took
@@ -47,6 +49,10 @@ pub struct Prediction {
     pub point: Vec3,
     pub splash: bool,
     pub target_on_ground: bool,
+    /// Predicted start position and velocity of the projectile
+    pub launch: (Vec3, Vec3),
+    pub gravity: f32,
+    pub drag: f32,
 }
 
 #[derive(Default)]
@@ -121,7 +127,7 @@ struct State {
     known: HashSet<u32>,
     last_no_shot: f32,
     perf: Perf,
-    files: [String; 6],
+    files: [String; 8],
     last_flush: f32,
 }
 
@@ -133,7 +139,9 @@ const PROJECTILE: usize = 2;
 const TARGET: usize = 3;
 const PERF: usize = 4;
 const MISS: usize = 5;
-const FILES: [(&str, &str); 6] = [
+const LAUNCH: usize = 6;
+const FLIGHT: usize = 7;
+const FILES: [(&str, &str); 8] = [
     (
         "no_shot.csv",
         "time,target,fov,distance,on_ground,no_sim,waiting,late,bad,blocked,miss\n",
@@ -158,6 +166,8 @@ const FILES: [(&str, &str); 6] = [
         "shot_miss.csv",
         "id,weapon,local_on_ground,local_speed,local_vz,target_on_ground,flight_time,spawn_k,spawn_err,samples,min_dist,miss_along,miss_side,miss_z,target_speed,best_shift,best_min_dist\n",
     ),
+    ("shot_launch.csv", "id,weapon,x,y,z,vx,vy,vz,gravity,drag\n"),
+    ("shot_flight.csv", "id,k,x,y,z\n"),
 ];
 
 /// One search took `ms`, from CreateMove
@@ -262,6 +272,11 @@ pub fn shot(localplayer: &Player, p: &Prediction, path: &[Vec3], flight_time: f3
     let (target_mins, target_maxs) = target
         .as_ref()
         .map_or((Vec3::default(), Vec3::default()), |t| (t.mins(), t.maxs()));
+    let (lp, lv) = p.launch;
+    state.files[LAUNCH].push_str(&format!(
+        "{id},{weapon},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{},{}\n",
+        lp.x, lp.y, lp.z, lv.x, lv.y, lv.z, p.gravity, p.drag
+    ));
     state.shots.push(Shot {
         id,
         time: assumed,
@@ -305,7 +320,7 @@ pub fn observe() {
     let ours = projectile::our_projectiles(local);
 
     let mut state = STATE.lock().unwrap();
-    let mut rows = [String::new(), String::new(), String::new()];
+    let mut rows = [String::new(), String::new(), String::new(), String::new()];
 
     // A new one belongs to the waiting shot whose predicted path it's on
     for (handle, ent) in &ours {
@@ -348,6 +363,10 @@ pub fn observe() {
                     .map(|o| (o, actual.distance_to(&at(k + o))))
                     .min_by(|a, b| a.1.total_cmp(&b.1))
                     .unwrap_or((0, err));
+                rows[3].push_str(&format!(
+                    "{},{},{:.2},{:.2},{:.2}\n",
+                    shot.id, k, actual.x, actual.y, actual.z
+                ));
                 if shot.spawn.is_none() {
                     shot.spawn = Some((k, err));
                 }
@@ -419,7 +438,8 @@ pub fn observe() {
         keep
     });
 
-    let [projectile_rows, target_rows, miss_rows] = rows;
+    let [projectile_rows, target_rows, miss_rows, flight_rows] = rows;
+    state.files[FLIGHT].push_str(&flight_rows);
     state.files[PROJECTILE].push_str(&projectile_rows);
     state.files[TARGET].push_str(&target_rows);
     state.files[MISS].push_str(&miss_rows);
