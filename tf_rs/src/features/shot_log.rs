@@ -119,6 +119,8 @@ struct Perf {
     frame_time: f32,
     total_ms: f32,
     max_ms: f32,
+    traces: u32,
+    max_traces: u32,
 }
 
 #[derive(Default)]
@@ -162,7 +164,7 @@ const FILES: [(&str, &str); 8] = [
     ),
     (
         "perf.csv",
-        "time,searches,frames,searches_per_frame,fps,avg_ms,max_ms\n",
+        "time,searches,frames,searches_per_frame,fps,avg_ms,max_ms,avg_traces,max_traces\n",
     ),
     (
         "shot_miss.csv",
@@ -172,8 +174,8 @@ const FILES: [(&str, &str); 8] = [
     ("shot_flight.csv", "id,k,x,y,z\n"),
 ];
 
-/// One search took `ms`, from CreateMove
-pub fn search_time(ms: f32) {
+/// One search took `ms` and ran `traces` traces, from CreateMove
+pub fn search_time(ms: f32, traces: u32) {
     let globals = Interfaces::global_vars();
     let mut state = STATE.lock().unwrap();
     let p = &mut state.perf;
@@ -188,11 +190,13 @@ pub fn search_time(ms: f32) {
     }
     p.total_ms += ms;
     p.max_ms = p.max_ms.max(ms);
+    p.traces += traces;
+    p.max_traces = p.max_traces.max(traces);
     if globals.realtime - p.start >= 1.0 {
         let p = std::mem::take(&mut state.perf);
         let frames = p.frames.max(1) as f32;
         state.files[PERF].push_str(&format!(
-            "{:.1},{},{},{:.2},{:.0},{:.2},{:.2}\n",
+            "{:.1},{},{},{:.2},{:.0},{:.2},{:.2},{},{}\n",
             p.start,
             p.searches,
             p.frames,
@@ -200,6 +204,8 @@ pub fn search_time(ms: f32) {
             frames / p.frame_time.max(0.001),
             p.total_ms / p.searches as f32,
             p.max_ms,
+            p.traces / p.searches,
+            p.max_traces,
         ));
     }
 }

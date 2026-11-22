@@ -352,6 +352,17 @@ fn launch_velocity(angles: &Vec3, info: &ProjectileInfo) -> Vec3 {
 }
 
 const MAX_PHYSICS_SPEED: f32 = 2000.0;
+/// Ticks of an arcing flight traced at once, the arc strays under a unit from a straight line
+/// over this many
+const TRACE_STRIDE: usize = 5;
+
+/// Traces run by the current search, for the perf log
+static TRACES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+fn count_trace() {
+    TRACES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Physics projectiles are a physics step along already when they're first sent, on the tick
 /// they're fired
 const PHYSICS_HEAD_START: usize = 1;
@@ -373,6 +384,24 @@ struct ArcTable {
 }
 
 impl ArcTable {
+    /// The table for this projectile, only built again when what it flies with changes
+    fn cached(info: &ProjectileInfo, speed: f32, max_time: f32) -> std::sync::Arc<Self> {
+        type Key = [u32; 5];
+        static CACHE: std::sync::Mutex<Option<(Key, std::sync::Arc<ArcTable>)>> =
+            std::sync::Mutex::new(None);
+        let tick = Interfaces::global_vars().interval_per_tick;
+        let key = [speed, info.drag, info.gravity, max_time, tick].map(f32::to_bits);
+        let mut cache = CACHE.lock().unwrap();
+        if let Some((k, table)) = cache.as_ref()
+            && *k == key
+        {
+            return table.clone();
+        }
+        let table = std::sync::Arc::new(ArcTable::new(info, speed, max_time));
+        *cache = Some((key, table.clone()));
+        table
+    }
+
     fn new(info: &ProjectileInfo, speed: f32, max_time: f32) -> Self {
         let tick = Interfaces::global_vars().interval_per_tick;
         let ticks = (max_time / tick).ceil() as usize;
@@ -454,7 +483,7 @@ struct Solver<'a> {
     ang_fix: Vec3,
     offset_time: f32,
     /// For projectiles with drag
-    arcs: Option<ArcTable>,
+    arcs: Option<std::sync::Arc<ArcTable>>,
 }
 
 #[derive(Clone, Copy)]
@@ -472,11 +501,17 @@ enum Solve {
 }
 
 impl Solver<'_> {
-    fn new<'a>(localplayer: &'a Player, eye: Vec3, info: ProjectileInfo) -> Solver<'a> {
+    /// A solver for shots landing within `max_time`
+    fn new<'a>(
+        localplayer: &'a Player,
+        eye: Vec3,
+        info: ProjectileInfo,
+        max_time: f32,
+    ) -> Solver<'a> {
         let v = launch_velocity(&Vec3::default(), &info);
         let (pos, _) = fire_setup(localplayer, &eye, &Vec3::default(), &info);
         let speed = v.length();
-        let arcs = (info.drag > 0.0).then(|| ArcTable::new(&info, speed, info.lifetime.min(5.0)));
+        let arcs = (info.drag > 0.0).then(|| ArcTable::cached(&info, speed, max_time));
         Solver {
             localplayer,
             eye,
@@ -643,18 +678,20 @@ impl Solver<'_> {
             predicted.origin + predicted.maxs,
         );
         let filter = TraceFilter::projectile(self.localplayer, Some(target));
-        for n in 0..path.len().saturating_sub(1) {
-            let (from, to) = (path[n], path[n + 1]);
+        for (a, b) in self.segments(path.len()) {
+            let (from, to) = (path[a], path[b]);
+            count_trace();
             let trace = Interfaces::engine_trace()
                 .trace_hull(&from, &to, &hull_mins, &hull_maxs, MASK_SOLID, &filter);
             let world = trace.did_hit().then_some(trace.fraction);
             let entry = helpers::segment_box_entry(&from, &to, &mins, &maxs, self.info.hull)
                 .filter(|t| world.is_none_or(|f| *t <= f));
             if let Some(t) = entry {
-                if ticks - (n as i32 + 1) >= EARLY_TICKS {
+                let tick = a as f32 + t * (b - a) as f32;
+                if ticks as f32 - tick.ceil() >= EARLY_TICKS as f32 {
                     return Err(Reject::Miss);
                 }
-                path.truncate(n + 1);
+                path.truncate(a + 1);
                 path.push(from + (to - from) * t);
                 return Ok(());
             }
@@ -662,12 +699,28 @@ impl Solver<'_> {
                 if !self.info.splash || trace.end_pos.distance_to(point) > tolerance {
                     return Err(Reject::Blocked);
                 }
-                path.truncate(n + 1);
+                path.truncate(a + 1);
                 path.push(trace.end_pos);
                 return Ok(());
             }
         }
         Err(Reject::Miss)
+    }
+
+    /// Stretches of a path of `len` points traced at once: all of it for projectiles that fly
+    /// straight, a few ticks at a time for ones that arc
+    fn segments(&self, len: usize) -> Vec<(usize, usize)> {
+        if len < 2 {
+            return Vec::new();
+        }
+        let last = len - 1;
+        if self.info.gravity == 0.0 {
+            return vec![(0, last)];
+        }
+        (0..last)
+            .step_by(TRACE_STRIDE)
+            .map(|a| (a, (a + TRACE_STRIDE).min(last)))
+            .collect()
     }
 
     /// The projectile's collision box
@@ -680,9 +733,10 @@ impl Solver<'_> {
     fn clear(&self, path: &[Vec3], target: &Player, point: &Vec3, tolerance: f32) -> bool {
         let (mins, maxs) = self.hull();
         let filter = TraceFilter::projectile(self.localplayer, Some(target));
-        for w in path.windows(2) {
+        for (a, b) in self.segments(path.len()) {
+            count_trace();
             let trace = Interfaces::engine_trace()
-                .trace_hull(&w[0], &w[1], &mins, &maxs, MASK_SOLID, &filter);
+                .trace_hull(&path[a], &path[b], &mins, &maxs, MASK_SOLID, &filter);
             if trace.did_hit() {
                 return trace.end_pos.distance_to(point) <= tolerance;
             }
@@ -752,6 +806,7 @@ fn splash_points(
         .iter()
         .filter_map(|dir| {
             let ray = Ray::init(&center, &(center + *dir * reach));
+            count_trace();
             let trace = Interfaces::engine_trace().trace(&ray, MASK_SOLID, &filter);
             if trace.start_solid || trace.fraction >= 1.0 {
                 return None;
@@ -842,9 +897,13 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
 
     let logging = aim.log_prediction;
     let started = std::time::Instant::now();
+    TRACES.store(0, std::sync::atomic::Ordering::Relaxed);
     let (found, diagnostics) = find_target(localplayer, cmd, config, info, logging);
     if logging {
-        shot_log::search_time(started.elapsed().as_secs_f32() * 1000.0);
+        shot_log::search_time(
+            started.elapsed().as_secs_f32() * 1000.0,
+            TRACES.load(std::sync::atomic::Ordering::Relaxed),
+        );
     }
     Globals::write().target = found.as_ref().map(|f| Target {
         target_index: f.index,
@@ -917,7 +976,9 @@ fn find_target(
     let mut diagnostics = Vec::new();
     let tick = Interfaces::global_vars().interval_per_tick;
     let eye = localplayer.eye_pos();
-    let solver = Solver::new(localplayer, eye, info);
+    let max_time = (aim.max_sim_time as f32 / 1000.0).min(info.lifetime);
+    let max_ticks = (max_time / tick) as i32;
+    let solver = Solver::new(localplayer, eye, info, max_time);
     let strafe = Strafe {
         ground: aim.strafe_ground,
         air: aim.strafe_air,
@@ -927,7 +988,6 @@ fn find_target(
     // Targets' own simulation times can't be used, each player's clock runs ahead of the server
     // by a different amount.
     let ahead = (localplayer.tick_base() - Interfaces::global_vars().tickcount).max(0);
-    let max_ticks = ((aim.max_sim_time as f32 / 1000.0).min(info.lifetime) / tick) as i32;
 
     // Closest to the crosshair first, simulating everyone would be too slow
     let mut targets: Vec<(f32, Player)> = (1..=Interfaces::engine_client().get_max_clients())
