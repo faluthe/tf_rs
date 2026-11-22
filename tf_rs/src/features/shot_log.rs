@@ -4,6 +4,8 @@
 //! - shots.csv: each shot fired, with the timeline it assumed against the server time it fires at
 //! - shot_projectile.csv: the projectile that shot made, against the path it was predicted to take
 //! - shot_target.csv: where the target really was when the shot was predicted to land
+//! - shot_miss.csv: how close each projectile came to its target and which way it missed, and how
+//!   many ticks earlier or later the target would have had to be for it to come closest
 //! - perf.csv: each second, commands and frames, and how long the aimbot's search took
 //!
 //! Everything is lined up by server time. The shot fires at our tick base, our projectiles and the
@@ -25,6 +27,8 @@ const OFFSETS: i32 = 4;
 const SPAWN_WINDOW: f32 = 1.0;
 /// How far off its shot's path a new projectile can be and still be matched to it
 const MATCH_DISTANCE: f32 = 150.0;
+/// Ticks either way the target's track is shifted by to find when the projectile would have hit
+const SHIFTS: i32 = 10;
 
 /// What a shot was worked out from
 #[derive(Clone, Copy, Default)]
@@ -84,6 +88,17 @@ struct Shot {
     last_projectile_time: f32,
     min_distance: f32,
     target_logged: bool,
+    weapon: i32,
+    local_on_ground: bool,
+    local_velocity: Vec3,
+    /// How far the projectile was off its path when it first showed up, and at which step
+    spawn: Option<(i32, f32)>,
+    /// Projectile positions by server tick
+    projectile_track: Vec<(i32, Vec3)>,
+    /// Target origins by the tick of their simulation time, from the shot on
+    target_track: Vec<(i32, Vec3)>,
+    target_mins: Vec3,
+    target_maxs: Vec3,
 }
 
 /// Search timing over the current second
@@ -106,7 +121,7 @@ struct State {
     known: HashSet<u32>,
     last_no_shot: f32,
     perf: Perf,
-    files: [String; 5],
+    files: [String; 6],
     last_flush: f32,
 }
 
@@ -117,7 +132,8 @@ const SHOTS: usize = 1;
 const PROJECTILE: usize = 2;
 const TARGET: usize = 3;
 const PERF: usize = 4;
-const FILES: [(&str, &str); 5] = [
+const MISS: usize = 5;
+const FILES: [(&str, &str); 6] = [
     (
         "no_shot.csv",
         "time,target,fov,distance,on_ground,no_sim,waiting,late,bad,blocked,miss\n",
@@ -137,6 +153,10 @@ const FILES: [(&str, &str); 5] = [
     (
         "perf.csv",
         "time,searches,frames,searches_per_frame,fps,avg_ms,max_ms\n",
+    ),
+    (
+        "shot_miss.csv",
+        "id,weapon,local_on_ground,local_speed,local_vz,target_on_ground,flight_time,spawn_k,spawn_err,samples,min_dist,miss_along,miss_side,miss_z,target_speed,best_shift,best_min_dist\n",
     ),
 ];
 
@@ -235,6 +255,13 @@ pub fn shot(localplayer: &Player, p: &Prediction, path: &[Vec3], flight_time: f3
         p.point.z - p.origin.z,
         (p.point - p.origin).length_2d(),
     ));
+    let local_velocity = localplayer.velocity();
+    let weapon = localplayer
+        .active_weapon()
+        .map_or(-1, |w| w.weapon_class() as i32);
+    let (target_mins, target_maxs) = target
+        .as_ref()
+        .map_or((Vec3::default(), Vec3::default()), |t| (t.mins(), t.maxs()));
     state.shots.push(Shot {
         id,
         time: assumed,
@@ -246,6 +273,14 @@ pub fn shot(localplayer: &Player, p: &Prediction, path: &[Vec3], flight_time: f3
         last_projectile_time: 0.0,
         min_distance: f32::MAX,
         target_logged: false,
+        weapon,
+        local_on_ground: localplayer.is_on_ground(),
+        local_velocity,
+        spawn: None,
+        projectile_track: Vec::new(),
+        target_track: Vec::new(),
+        target_mins,
+        target_maxs,
     });
 }
 
@@ -270,7 +305,7 @@ pub fn observe() {
     let ours = projectile::our_projectiles(local);
 
     let mut state = STATE.lock().unwrap();
-    let mut rows = [String::new(), String::new()];
+    let mut rows = [String::new(), String::new(), String::new()];
 
     // A new one belongs to the waiting shot whose predicted path it's on
     for (handle, ent) in &ours {
@@ -313,6 +348,11 @@ pub fn observe() {
                     .map(|o| (o, actual.distance_to(&at(k + o))))
                     .min_by(|a, b| a.1.total_cmp(&b.1))
                     .unwrap_or((0, err));
+                if shot.spawn.is_none() {
+                    shot.spawn = Some((k, err));
+                }
+                shot.projectile_track
+                    .push(((sim_time / tick).round() as i32, actual));
                 let target_distance = target
                     .as_ref()
                     .filter(|t| !t.is_dead() && !t.is_dormant())
@@ -330,6 +370,13 @@ pub fn observe() {
                     best_err,
                     target_distance,
                 ));
+            }
+        }
+
+        if let Some(t) = target.as_ref().filter(|t| !t.is_dead() && !t.is_dormant()) {
+            let at = (t.simulation_time() / tick).round() as i32;
+            if shot.target_track.last().is_none_or(|(last, _)| at > *last) {
+                shot.target_track.push((at, t.network_origin()));
             }
         }
 
@@ -365,12 +412,17 @@ pub fn observe() {
             None => now - shot.created < SPAWN_WINDOW,
             Some(_) => projectile.is_some(),
         };
-        waiting || !shot.target_logged
+        let keep = waiting || !shot.target_logged;
+        if !keep && shot.projectile.is_some() {
+            rows[2].push_str(&miss_row(shot));
+        }
+        keep
     });
 
-    let [projectile_rows, target_rows] = rows;
+    let [projectile_rows, target_rows, miss_rows] = rows;
     state.files[PROJECTILE].push_str(&projectile_rows);
     state.files[TARGET].push_str(&target_rows);
+    state.files[MISS].push_str(&miss_rows);
 
     if now - state.last_flush >= 1.0 {
         state.last_flush = now;
@@ -382,4 +434,81 @@ pub fn observe() {
             }
         }
     }
+}
+
+/// Where the target was at `tick` on its own track, between the updates either side
+fn target_at(track: &[(i32, Vec3)], tick: i32) -> Option<Vec3> {
+    let i = track.partition_point(|(t, _)| *t < tick);
+    let after = track.get(i)?;
+    if after.0 == tick {
+        return Some(after.1);
+    }
+    let before = track.get(i.checked_sub(1)?)?;
+    let a = (tick - before.0) as f32 / (after.0 - before.0) as f32;
+    Some(before.1 + (after.1 - before.1) * a)
+}
+
+/// Closest the projectile came to the target box with the target's track moved `shift` ticks
+/// later, and where that was
+fn closest(shot: &Shot, shift: i32) -> Option<(f32, Vec3, i32)> {
+    shot.projectile_track
+        .iter()
+        .filter_map(|(tick, p)| {
+            let o = target_at(&shot.target_track, tick + shift)?;
+            let hull = Hull {
+                origin: o,
+                mins: shot.target_mins,
+                maxs: shot.target_maxs,
+            };
+            Some((p.distance_to(&hull.nearest_point(p)), *p, *tick))
+        })
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+}
+
+/// Which way a finished shot missed its target
+fn miss_row(shot: &Shot) -> String {
+    let lv = shot.local_velocity;
+    let (spawn_k, spawn_err) = shot.spawn.unwrap_or((-1, -1.0));
+    let head = format!(
+        "{},{},{},{:.0},{:.0},{},{:.3},{},{:.1},{}",
+        shot.id,
+        shot.weapon,
+        shot.local_on_ground as i32,
+        lv.length_2d(),
+        lv.z,
+        shot.prediction.target_on_ground as i32,
+        shot.land_time - shot.time,
+        spawn_k,
+        spawn_err,
+        shot.projectile_track.len(),
+    );
+    let Some((dist, point, at)) = closest(shot, 0) else {
+        return format!("{head},-1,0,0,0,0,0,-1\n");
+    };
+    // Miss from the middle of the box, split along the way the target was going
+    let o = target_at(&shot.target_track, at).unwrap_or_default();
+    let center = o + (shot.target_mins + shot.target_maxs) * 0.5;
+    let miss = point - center;
+    let velocity = match (
+        target_at(&shot.target_track, at - 1),
+        target_at(&shot.target_track, at + 1),
+    ) {
+        (Some(a), Some(b)) => (b - a) * (0.5 / tick()),
+        _ => Vec3::default(),
+    };
+    let speed = velocity.length_2d();
+    let (along, side) = if speed > 1.0 {
+        let (fx, fy) = (velocity.x / speed, velocity.y / speed);
+        (miss.x * fx + miss.y * fy, miss.y * fx - miss.x * fy)
+    } else {
+        (0.0, miss.length_2d())
+    };
+    let (best_shift, best) = (-SHIFTS..=SHIFTS)
+        .filter_map(|s| closest(shot, s).map(|c| (s, c.0)))
+        .min_by(|a, b| a.1.total_cmp(&b.1).then(a.0.abs().cmp(&b.0.abs())))
+        .unwrap_or((0, dist));
+    format!(
+        "{head},{dist:.1},{along:.1},{side:.1},{:.1},{speed:.0},{best_shift},{best:.1}\n",
+        miss.z
+    )
 }
