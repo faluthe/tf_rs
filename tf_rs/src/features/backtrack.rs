@@ -54,6 +54,7 @@ use crate::{
     features::{
         fake_ping,
         melee::{self, Swing},
+        projectile,
     },
     helpers,
     interfaces::{GlobalVars, Interfaces},
@@ -361,11 +362,19 @@ pub enum Choice {
     Record(i32, f32),
 }
 
+/// Whether lag compensation helps the weapon we're holding. The server only rewinds players for
+/// hitscan and melee, projectiles are simulated where everyone really is.
+pub fn applies(localplayer: &Player) -> bool {
+    localplayer
+        .active_weapon()
+        .is_none_or(|w| !projectile::is_projectile_weapon(&w))
+}
+
 /// Pick the record closest to where we're aiming, or with a melee weapon one the swing would
 /// connect with, and set the tick to it when shooting. A record the aimbot picked is always used
 pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config, choice: Choice) {
     let cmd = unsafe { &mut *cmd };
-    let target = if !config.backtrack.enabled {
+    let target = if !config.backtrack.enabled || !applies(localplayer) {
         None
     } else {
         match choice {
