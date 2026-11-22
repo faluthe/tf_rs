@@ -204,12 +204,20 @@ pub(super) fn draw(
     let info = draw_info(model.ptr(), hardware, skin, ambient);
     if config.esp.master && config.esp.chams.enabled {
         let (layers, normal_fallback) = chams_layers(subject, &config.esp.chams);
+        // The layers draw the model's own look in the engine's color, which nothing has set
+        // outside a map, so it would be black and see-through
+        let old_color = render_view.get_color_modulation();
+        let old_blend = render_view.get_blend();
+        render_view.set_color_modulation([1.0; 3]);
+        render_view.set_blend(1.0);
         draw_layers(&layers, normal_fallback, WORLD_MODEL_SCALE, || {
             // The layers set the engine's color, the studio renderer keeps its own
             studio.set_color_modulation(render_view.get_color_modulation());
             studio.set_alpha_modulation(render_view.get_blend());
             draw_model(&studio, &info, &bones, &origin);
         });
+        render_view.set_color_modulation(old_color);
+        render_view.set_blend(old_blend);
     } else {
         draw_plain(&studio, &info, &bones, &origin);
     }
