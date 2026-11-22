@@ -17,7 +17,7 @@ use crate::{
     config::{BacktrackConfig, Config},
     features::{
         fake_ping,
-        melee::{Hull, Swing},
+        melee::{self, Hull, Swing},
     },
     helpers,
     interfaces::Interfaces,
@@ -304,15 +304,25 @@ fn select(
         .flat_map(|(i, player_records)| player_records.iter().map(move |r| (i as i32, r)))
         .filter(|(_, r)| timing.usable(r.sim_time));
 
-    if let Some(swing) = localplayer
-        .active_weapon()
-        .and_then(|w| Swing::new(localplayer, &w, &cmd.view_angles, 0.0))
-    {
-        // Any record the swing connects with works, the newest relies least on timing
+    if let Some(weapon) = localplayer.active_weapon().filter(|w| w.is_melee()) {
+        let eye = melee::eye_at(localplayer, 0.0);
+        let swing = Swing::new(localplayer, &weapon, &cmd.view_angles, 0.0)?;
+        let knife = weapon.is_knife();
+        let backstabs = |i: i32, r: &Record| {
+            knife
+                && Interfaces::entity_list()
+                    .get_client_entity::<Player>(i)
+                    .is_some_and(|p| {
+                        melee::can_backstab(&eye, &cmd.view_angles, &r.hull.origin, p.eye_yaw())
+                    })
+        };
+        // Any record the swing connects with works, one a knife backstabs first, then the
+        // newest which relies least on timing
         return usable
             .filter(|(_, r)| swing.hits(&r.hull))
-            .max_by(|a, b| a.1.sim_time.total_cmp(&b.1.sim_time))
-            .map(|(i, r)| (i, r.sim_time, true));
+            .map(|(i, r)| (backstabs(i, r), i, r.sim_time))
+            .max_by(|a, b| a.0.cmp(&b.0).then(a.2.total_cmp(&b.2)))
+            .map(|(_, i, sim_time)| (i, sim_time, true));
     }
 
     let shoot_pos = localplayer.eye_pos();

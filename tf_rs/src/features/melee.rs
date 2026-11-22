@@ -92,21 +92,26 @@ impl Swing {
 
 /// Where our eye will be `lead` seconds from now, plus the command's own tick of movement that
 /// the server applies before the weapon runs
-fn eye_at(localplayer: &Player, lead: f32) -> Vec3 {
+pub fn eye_at(localplayer: &Player, lead: f32) -> Vec3 {
     let tick = Interfaces::global_vars().interval_per_tick;
     add_scaled(&localplayer.eye_pos(), &localplayer.velocity(), lead + tick)
 }
 
 /// CTFKnife::IsBehindAndFacingTarget from `eye` looking along `angles`, at a target standing at
 /// `target` and looking along `target_yaw`
-fn can_backstab(eye: &Vec3, angles: &Vec3, target: &Vec3, target_yaw: f32) -> bool {
+pub fn can_backstab(eye: &Vec3, angles: &Vec3, target: &Vec3, target_yaw: f32) -> bool {
+    backstab_slack(eye, angles, target, target_yaw).is_some()
+}
+
+/// How far from failing the checks that depend on our angles are, none when it isn't a backstab
+fn backstab_slack(eye: &Vec3, angles: &Vec3, target: &Vec3, target_yaw: f32) -> Option<f32> {
     // Origins are networked to 1/16th of a unit
     const COMPRESSION: f32 = 0.0625;
 
     let (mut dx, mut dy) = (target.x - eye.x, target.y - eye.y);
     let dist = (dx * dx + dy * dy).sqrt();
     if dist < COMPRESSION * std::f32::consts::SQRT_2 {
-        return false;
+        return None;
     }
     (dx, dy) = (dx / dist, dy / dist);
     let extra = 2.0 * COMPRESSION / dist;
@@ -118,11 +123,48 @@ fn can_backstab(eye: &Vec3, angles: &Vec3, target: &Vec3, target_yaw: f32) -> bo
     let owner = flat(forward(angles));
     let victim = flat(forward(&Vec3::new(0.0, target_yaw, 0.0)));
 
-    let behind = dx * victim.0 + dy * victim.1;
-    let facing = dx * owner.0 + dy * owner.1;
-    let not_facestab = victim.0 * owner.0 + victim.1 * owner.1;
+    let behind = dx * victim.0 + dy * victim.1 - (0.0031 + extra);
+    let facing = dx * owner.0 + dy * owner.1 - (0.5 + extra);
+    let not_facestab = victim.0 * owner.0 + victim.1 * owner.1 - (-0.3 + 0.0031);
 
-    behind > 0.0031 + extra && facing > 0.5 + extra && not_facestab > -0.3 + 0.0031
+    (behind > 0.0 && facing > 0.0 && not_facestab > 0.0).then_some(facing.min(not_facestab))
+}
+
+/// Angles to swing at `hull` with that backstab, turned from aiming at its axis (`angles`) to
+/// wherever the swing still connects with the most room on both of the knife's angle checks
+fn backstab_angles(
+    localplayer: &Player,
+    weapon: &Weapon,
+    lead: f32,
+    eye: &Vec3,
+    angles: &Vec3,
+    hull: &Hull,
+    target_yaw: f32,
+) -> Option<Vec3> {
+    // Facing the target needs to be within 60 degrees of it
+    const SPREAD: i32 = 60;
+
+    let at = |offset: i32| Vec3::new(angles.x, angles.y + offset as f32, angles.z);
+    let slack: Vec<Option<f32>> = (-SPREAD - 1..=SPREAD + 1)
+        .map(|offset| {
+            let angles = at(offset);
+            let swing = Swing::new(localplayer, weapon, &angles, lead)?;
+            if !swing.hits(hull) {
+                return None;
+            }
+            backstab_slack(eye, &angles, &hull.origin, target_yaw)
+        })
+        .collect();
+
+    // Stay a degree inside the edges so a little error in either position doesn't miss it
+    (1..slack.len() - 1)
+        .filter(|&i| slack[i - 1].is_some() && slack[i + 1].is_some())
+        .filter_map(|i| Some((i, slack[i]?)))
+        .max_by(|a, b| {
+            let off = |i: usize| (i as i32 - SPREAD - 1).abs();
+            a.1.total_cmp(&b.1).then(off(b.0).cmp(&off(a.0)))
+        })
+        .map(|(i, _)| at(i as i32 - SPREAD - 1))
 }
 
 /// Whether the swing in progress was started with the aimbot, so it keeps aiming until it lands
@@ -133,6 +175,7 @@ struct Found {
     angles: Vec3,
     sim_time: Option<f32>,
     distance: f32,
+    backstab: bool,
 }
 
 /// Aim and swing with a melee weapon, returns which tick backtrack should use
@@ -161,7 +204,7 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
     };
 
     let backstab_only = knife && aim.auto_backstab;
-    let found = find_target(localplayer, weapon, cmd, config, lead, backstab_only);
+    let found = find_target(localplayer, weapon, cmd, config, lead, knife, backstab_only);
     Globals::write().target = found.as_ref().map(|f| Target {
         target_index: f.index,
         should_headshot: false,
@@ -199,13 +242,15 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
     }
 }
 
-/// The closest enemy a swing landing `lead` seconds from now would connect with, aiming at it
+/// The closest enemy a swing landing `lead` seconds from now would connect with, aiming at it.
+/// With a knife any record that can be backstabbed comes first, aiming the way that stabs it
 fn find_target(
     localplayer: &Player,
     weapon: &Weapon,
     cmd: &UserCmd,
     config: &Config,
     lead: f32,
+    knife: bool,
     backstab_only: bool,
 ) -> Option<Found> {
     let aim = &config.aimbot;
@@ -243,22 +288,30 @@ fn find_target(
             if cmd.view_angles.fov_to(&angles) > aim.fov as f32 {
                 continue;
             }
-            let Some(swing) = Swing::new(localplayer, weapon, &angles, lead) else {
-                return None;
+            let stab = knife
+                .then(|| backstab_angles(localplayer, weapon, lead, &eye, &angles, &hull, target_yaw))
+                .flatten();
+            let (angles, backstab) = match stab {
+                Some(stab) => (stab, true),
+                None if backstab_only => continue,
+                None => {
+                    let swing = Swing::new(localplayer, weapon, &angles, lead)?;
+                    if !swing.hits(&hull) {
+                        continue;
+                    }
+                    (angles, false)
+                }
             };
-            if !swing.hits(&hull) {
-                continue;
-            }
-            if backstab_only && !can_backstab(&eye, &angles, &hull.origin, target_yaw) {
-                continue;
-            }
 
             let (dx, dy, dz) = (point.x - eye.x, point.y - eye.y, point.z - eye.z);
             let distance = dx * dx + dy * dy + dz * dz;
             // Same distance, the newer record relies less on timing
             let better = best.as_ref().is_none_or(|b| {
-                distance < b.distance
-                    || (distance == b.distance && sim_time > b.sim_time && b.index == i)
+                (backstab, -distance) > (b.backstab, -b.distance)
+                    || (backstab == b.backstab
+                        && distance == b.distance
+                        && sim_time > b.sim_time
+                        && b.index == i)
             });
             if better {
                 best = Some(Found {
@@ -266,6 +319,7 @@ fn find_target(
                     angles,
                     sim_time,
                     distance,
+                    backstab,
                 });
             }
         }
