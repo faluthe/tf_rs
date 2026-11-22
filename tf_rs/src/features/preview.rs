@@ -138,7 +138,8 @@ pub fn draw(localplayer: &Player, surface: &Surface, config: &Config) {
     DRAWING.store(0, Ordering::Relaxed);
     render_view.pop_view(&mut frustum);
 
-    let Some(bbox) = helpers::bounding_box_with(&player.ent, &origin, |p| camera.project(p)) else {
+    let Some(bbox) = helpers::bounding_box_with(&origin, &mins, &maxs, |p| camera.project(p))
+    else {
         return;
     };
     overlay(&bbox, &player, index, localplayer, subject, surface, config);

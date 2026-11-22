@@ -34,19 +34,21 @@ pub fn get_localplayer() -> Option<Player> {
 
 pub fn get_bounding_box(entity: &Entity) -> Option<BBox> {
     let overlay = Interfaces::debug_overlay();
-    bounding_box_with(entity, &entity.origin(), |v| overlay.screen_position(v))
+    bounding_box_with(&entity.origin(), &entity.mins(), &entity.maxs(), |v| {
+        overlay.screen_position(v)
+    })
 }
 
-/// Screen box around `entity` standing at `origin`, its corners put on screen by `project`
+/// Screen box around a hull from `mins` to `maxs` at `origin`, its corners put on screen by
+/// `project`
 pub fn bounding_box_with(
-    entity: &Entity,
     origin: &Vec3,
+    mins: &Vec3,
+    maxs: &Vec3,
     project: impl Fn(&Vec3) -> Option<Vec2>,
 ) -> Option<BBox> {
     let shrink_xy = 0.75;
     let shrink_z = 0.95;
-    let mins = entity.mins();
-    let maxs = entity.maxs();
 
     let mins = Vec3 {
         x: mins.x * shrink_xy,

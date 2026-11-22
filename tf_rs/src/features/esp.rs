@@ -250,14 +250,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                 continue;
             };
 
-            for (j, (cond, color)) in conds.iter().enumerate() {
-                surface.draw_set_text_color_c(color);
-                surface.draw_set_text_pos(
-                    (bbox.right + 10) as u32,
-                    (bbox.top + (j as i32 * 10)) as u32,
-                );
-                surface.draw_print_text(cond.as_str());
-            }
+            draw_conds(&bbox, &conds, surface);
         }
     }
 }
@@ -304,9 +297,36 @@ pub(crate) fn draw_name(bbox: &BBox, name: &str, color: &Color, surface: &Surfac
     surface.draw_print_text(name);
 }
 
-// TODO: Add overheal + custom positioning
+/// Labels listed down the right of the box
+pub(crate) fn draw_conds(bbox: &BBox, conds: &[(String, Color)], surface: &Surface) {
+    for (j, (cond, color)) in conds.iter().enumerate() {
+        surface.draw_set_text_color_c(color);
+        surface.draw_set_text_pos(
+            (bbox.right + 10) as u32,
+            (bbox.top + (j as i32 * 10)) as u32,
+        );
+        surface.draw_print_text(cond.as_str());
+    }
+}
+
 pub(crate) fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface, horizontal: bool) {
-    let max_health = entity.max_health();
+    draw_health_values(
+        bbox,
+        entity.health(),
+        entity.max_health(),
+        surface,
+        horizontal,
+    );
+}
+
+// TODO: Add overheal + custom positioning
+pub(crate) fn draw_health_values(
+    bbox: &BBox,
+    health_raw: i32,
+    max_health: i32,
+    surface: &Surface,
+    horizontal: bool,
+) {
     if max_health <= 0 {
         return;
     }
@@ -317,7 +337,6 @@ pub(crate) fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface, horiz
         return;
     }
 
-    let health_raw = entity.health();
     let health = health_raw.clamp(0, max_health);
 
     let mut hp_pct = health as f32 / max_health as f32;
