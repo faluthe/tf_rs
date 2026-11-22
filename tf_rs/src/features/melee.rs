@@ -12,6 +12,7 @@ use crate::{
     config::Config,
     features::{
         backtrack::{self, Choice},
+        engine_prediction,
         movesim::{MoveSim, Strafe},
     },
     globals::{Globals, Target},
@@ -99,15 +100,21 @@ pub fn eye_at(localplayer: &Player, cmd: &UserCmd, lead: f32, config: &Config) -
         ground: false,
         air: false,
     };
+    // The command's own tick, unless engine prediction has already run it
+    let own = if engine_prediction::active() { 0 } else { 1 };
     if let Some(mut sim) = MoveSim::new(localplayer, Some((cmd, config.bunnyhop)), no_strafe) {
-        for _ in 0..1 + ticks(lead) {
+        for _ in 0..own + ticks(lead) {
             sim.run_tick();
         }
         // Read before the sim restores it, ducking moves the view
         return sim.origin() + localplayer.view_offset();
     }
     let tick = Interfaces::global_vars().interval_per_tick;
-    add_scaled(&localplayer.eye_pos(), &localplayer.velocity(), lead + tick)
+    add_scaled(
+        &localplayer.eye_pos(),
+        &localplayer.velocity(),
+        lead + own as f32 * tick,
+    )
 }
 
 /// Where the server will have `player` when a swing lands `lead` seconds from now

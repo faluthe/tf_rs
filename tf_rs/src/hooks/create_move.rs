@@ -2,7 +2,10 @@ use std::ffi::c_void;
 
 use crate::{
     config::Config,
-    features::{aimbot, backtrack, chams, fake_ping, movement, prediction_log, sticky},
+    features::{
+        aimbot, backtrack, chams, engine_prediction::Prediction, fake_ping, movement,
+        prediction_log, sticky,
+    },
     globals::Globals,
     helpers,
     hooks::Hooks,
@@ -53,6 +56,7 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
     let config = Config::read().clone();
 
     movement::bunnyhop(&localplayer, cmd, &config);
+    let prediction = Prediction::start(&localplayer, cmd);
     let choice = aimbot::run(&localplayer, cmd, &config);
     if config.aimbot.master
         && config.aimbot.projectile
@@ -62,6 +66,7 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
         sticky::run(&localplayer, unsafe { &mut *cmd }, &config);
     }
     backtrack::run(&localplayer, cmd, &config, choice);
+    drop(prediction);
     if config.aimbot.projectile && config.aimbot.log_prediction {
         prediction_log::sample(&localplayer, &config);
     }
