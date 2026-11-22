@@ -231,8 +231,9 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             info.drag = if matches!(weapon.weapon_class(), WeaponClass::Cannon) {
                 0.385 / 1454.0
             } else if attrib(0.0, c"grenade_no_spin") != 0.0 {
-                // Loch-n-Load, a pipe that doesn't spin
-                0.07 / 1504.0
+                // Loch-n-Load, a pipe that doesn't spin. Fitted to logged flights, Amalgam's
+                // 0.07 / 1504 has them slowing down 2.5 times too little.
+                0.175 / 1504.0
             } else {
                 0.12 / 1217.0
             };
@@ -351,6 +352,9 @@ fn launch_velocity(angles: &Vec3, info: &ProjectileInfo) -> Vec3 {
 }
 
 const MAX_PHYSICS_SPEED: f32 = 2000.0;
+/// Physics projectiles are a physics step along already when they're first sent, on the tick
+/// they're fired
+const PHYSICS_HEAD_START: usize = 1;
 
 /// One tick of a physics projectile's flight: gravity and drag change its velocity, then it moves
 fn physics_step(pos: &mut Vec3, vel: &mut Vec3, dt: f32, info: &ProjectileInfo) {
@@ -380,7 +384,10 @@ impl ArcTable {
                 let mut pos = Vec3::default();
                 let mut vel = Vec3::new(cos * speed, 0.0, sin * speed);
                 let mut arc = Vec::with_capacity(ticks + 1);
-                arc.push((0.0, 0.0));
+                for _ in 0..PHYSICS_HEAD_START {
+                    physics_step(&mut pos, &mut vel, tick, info);
+                }
+                arc.push((pos.x, pos.z));
                 for _ in 0..ticks {
                     physics_step(&mut pos, &mut vel, tick, info);
                     arc.push((pos.x, pos.z));
@@ -592,6 +599,9 @@ impl Solver<'_> {
         let mut out = Vec::new();
         if self.info.drag > 0.0 {
             let (mut pos, mut vel) = (pos, v);
+            for _ in 0..PHYSICS_HEAD_START {
+                physics_step(&mut pos, &mut vel, tick, &self.info);
+            }
             out.push(pos);
             let mut t = 0.0;
             while t < time {
