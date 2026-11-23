@@ -372,9 +372,8 @@ pub fn draw_prediction(surface: &Surface, config: &Config) {
     if Interfaces::global_vars().realtime > paths.until {
         return;
     }
-    let overlay = Interfaces::debug_overlay();
     let draw = |points: &[Vec3]| {
-        let screen: Vec<_> = points.iter().map(|p| overlay.screen_position(p)).collect();
+        let screen: Vec<_> = points.iter().map(helpers::view::world_to_screen).collect();
         for w in screen.windows(2) {
             if let (Some(a), Some(b)) = (w[0], w[1]) {
                 surface.draw_line(a.x as i32, a.y as i32, b.x as i32, b.y as i32);

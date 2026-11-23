@@ -10,6 +10,7 @@ use crate::{
 
 pub mod macros;
 pub mod module;
+pub mod view;
 
 /// Path this library was loaded from, as passed to dlopen.
 pub fn lib_path() -> Option<CString> {
@@ -68,7 +69,7 @@ pub fn get_bounding_box(entity: &Entity) -> Option<BBox> {
             y: origin.y + oy,
             z: origin.z + oz,
         })
-        .map(|v| Interfaces::debug_overlay().screen_position(&v))
+        .map(|v| view::world_to_screen(&v))
         .collect::<Option<Vec<_>>>()?; // None if any projection failed
 
     let first = points_2d[0];
