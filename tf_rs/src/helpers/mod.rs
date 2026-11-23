@@ -13,6 +13,7 @@ use crate::{
 
 pub mod macros;
 pub mod module;
+pub mod view;
 
 /// Index and player of each enemy of `localplayer` that's alive and not dormant, leaving out
 /// invisible ones with `ignore_invis`
@@ -121,7 +122,7 @@ pub fn get_bounding_box(entity: &Entity) -> Option<BBox> {
             y: origin.y + oy,
             z: origin.z + oz,
         })
-        .map(|v| Interfaces::debug_overlay().screen_position(&v))
+        .map(|v| view::world_to_screen(&v))
         .collect::<Option<Vec<_>>>()?; // None if any projection failed
 
     let first = points_2d[0];
