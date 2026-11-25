@@ -1,6 +1,9 @@
 pub mod aimbot;
+pub mod backtrack;
 pub mod chams;
 pub mod esp;
+pub mod fake_ping;
+pub mod melee;
 pub mod menu;
 pub mod movement;
 pub mod spectator_list;

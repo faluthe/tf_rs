@@ -34,7 +34,8 @@ pub extern "C" fn hk_paint_traverse(
     let Some(localplayer) = helpers::get_localplayer() else {
         return rc;
     };
-    let config = Config::read();
+    // A copy, holding the lock while drawing can deadlock with the menu on the render thread
+    let config = Config::read().clone();
 
     esp::run(&localplayer, &surface, &config);
 

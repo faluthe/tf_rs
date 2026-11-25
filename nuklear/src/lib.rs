@@ -1,3 +1,16 @@
+//! Safe wrapper around the [Nuklear](https://github.com/Immediate-Mode-UI/Nuklear) bindings
+//! in `nuklear_sys`, with chained row builders:
+//!
+//! ```ignore
+//! nk.row_dynamic(30.0, 2)
+//!     .label("FOV", TextAlignment::LEFT)
+//!     .slider_int(1, &mut config.aimbot.fov, 100, 1);
+//! ```
+//!
+//! Draws in its own GL context, made current for the frame and then handed back, so the
+//! game's GL state isn't touched. Events go to Nuklear before the game, and the ones it
+//! uses while the menu is open are cleared so the game ignores them.
+
 mod context;
 pub mod flags;
 mod icon;

@@ -4,9 +4,17 @@ use crate::{
     interfaces::Interfaces,
     offset_get,
     traits::FromRaw,
-    types::{Entity, Vec3, Weapon},
+    types::{Entity, Matrix3x4, Vec3, Weapon},
     vfunc,
 };
+
+pub const MAX_BONES: usize = 128;
+
+pub const BONE_USED_BY_HITBOX: i32 = 0x100;
+pub const BONE_USED_BY_ANYTHING: i32 = 0x7FF00;
+
+/// Bone to world transforms, as set up by `setup_bones`
+pub type Bones = [Matrix3x4; MAX_BONES];
 
 #[derive(PartialEq, Eq)]
 pub struct Player {
@@ -46,6 +54,7 @@ impl Player {
     offset_get!(fn conds_4: u32, 0x1F74);
     offset_get!(fn invisibility: f32, 0x1FE8);
     offset_get!(fn observer_target_: i32, 0x1648);
+    offset_get!(pub fn eye_yaw: f32, 0x23F0);
 
     pub fn is_on_ground(&self) -> bool {
         (self.flags() & 1) != 0
@@ -67,6 +76,11 @@ impl Player {
         eye_pos
     }
 
+    /// Server time of the command being built, from our tick base
+    pub fn curtime(&self) -> f32 {
+        Interfaces::global_vars().ticks_to_time(self.tick_base())
+    }
+
     pub fn can_attack(&self) -> bool {
         let weapon = match self.active_weapon() {
             Some(weapon) => weapon,
@@ -74,30 +88,56 @@ impl Player {
         };
 
         let next_attack = weapon.next_attack();
-        let cur_time = self.tick_base() as f32 * Interfaces::global_vars().interval_per_tick;
 
-        if next_attack > cur_time {
+        if next_attack > self.curtime() {
             return false;
         }
 
         true
     }
 
-    pub fn get_bone_position(&self, bone_id: usize) -> Option<Vec3> {
-        let mut bone_to_world_out: [[[f32; 4]; 3]; 128] = [[[0.0; 4]; 3]; 128];
+    /// Fill `out` with the bone to world matrices of every bone in `mask`
+    pub fn setup_bones(&self, out: &mut Bones, mask: i32, time: f32) -> bool {
         let f = vfunc!(
             self.vtable,
             96,
-            extern "C" fn(*mut c_void, *mut [[[f32; 4]; 3]; 128], i32, i32, f32) -> i32
+            extern "C" fn(*mut c_void, *mut Matrix3x4, i32, i32, f32) -> i32
         );
-        if f(self.this, &mut bone_to_world_out, 128, 0x100, 0.0) == 0 {
+        f(self.this, out.as_mut_ptr(), MAX_BONES as i32, mask, time) != 0
+    }
+
+    /// Make the next setup_bones rebuild the bones instead of returning the ones cached this frame
+    pub fn invalidate_bone_cache(&self) {
+        unsafe {
+            // m_iMostRecentModelBoneCounter, anything but the current g_iModelBoneCounter
+            let counter = (self.this as *mut u8).add(0x820) as *mut u64;
+            *counter = (*counter).wrapping_sub(1);
+            // m_flLastBoneSetupTime
+            *((self.this as *mut u8).add(0xBA0) as *mut f32) = -f32::MAX;
+        }
+    }
+
+    /// Leave the values the last update set instead of interpolating towards them
+    pub fn disable_interpolation(&self) {
+        unsafe {
+            // m_VarMap: entries of { u16 type, u16 m_bNeedsToInterpolate, data, watcher }
+            let entries = *((self.this as usize + 0x28) as *const *mut u8);
+            let interpolated = *((self.this as usize + 0x48) as *const i32);
+            if entries.is_null() {
+                return;
+            }
+            for i in 0..interpolated.max(0) as usize {
+                *(entries.add(i * 0x18 + 2) as *mut u16) = 0;
+            }
+        }
+    }
+
+    pub fn get_bone_position(&self, bone_id: usize) -> Option<Vec3> {
+        let mut bones = [Matrix3x4::default(); MAX_BONES];
+        if !self.setup_bones(&mut bones, BONE_USED_BY_HITBOX, 0.0) {
             return None;
         }
-        Some(Vec3 {
-            x: bone_to_world_out[bone_id][0][3],
-            y: bone_to_world_out[bone_id][1][3],
-            z: bone_to_world_out[bone_id][2][3],
-        })
+        Some(bones[bone_id].position())
     }
 
     pub fn head_bone_id(&self) -> usize {

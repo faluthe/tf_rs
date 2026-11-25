@@ -1,16 +1,21 @@
+//! Hooks an object's virtual functions by giving it its own copy of its vtable rather
+//! than patching the game's. No `mprotect` is needed, the game's read only vtable is
+//! never written, only that one object is affected, and restoring is a single write of
+//! the original vptr.
+
 use std::{ffi::c_void, fs, ptr};
 
 use anyhow::{Result, anyhow};
 
 use crate::hooks::FnSig;
 
-/* Itanium ABI stores offset-to-top at [-2] and the RTTI pointer at [-1].
- * Copy them so dynamic_cast/typeid on the object keep working. */
+/// Itanium ABI stores offset-to-top at [-2] and the RTTI pointer at [-1].
+/// Copy them so dynamic_cast/typeid on the object keep working.
 const PREFIX: usize = 2;
 const MAX_ENTRIES: usize = 1024;
 
-/* Replaces an object's vptr with a pointer to our own copy of its vtable.
- * The game's vtable is never written to. */
+/// Replaces an object's vptr with a pointer to our own copy of its vtable.
+/// The game's vtable is never written to.
 pub struct VmtShadow {
     object: *mut *mut *mut c_void,
     original_vtable: *mut *mut c_void,
@@ -120,13 +125,26 @@ impl VmtShadow {
         Ok(())
     }
 
+    pub fn object(&self) -> *mut c_void {
+        self.object as *mut c_void
+    }
+
+    pub fn is_installed(&self) -> bool {
+        self.installed
+    }
+
+    /// Installed and the object still points at our table, the object must still be alive
+    pub fn is_active(&self) -> bool {
+        self.installed && unsafe { *self.object == self.shadow.as_ptr().add(PREFIX) as *mut _ }
+    }
+
     pub fn original(&self, index: usize) -> FnSig {
         self.originals.get(index).copied().unwrap_or(FnSig::None)
     }
 }
 
-/* Count entries until one doesn't point into executable memory. The next
- * vtable's offset-to-top (usually 0) or RTTI pointer ends the count. */
+/// Count entries until one doesn't point into executable memory. The next
+/// vtable's offset-to-top (usually 0) or RTTI pointer ends the count.
 fn vtable_len(vtable: *mut *mut c_void) -> Result<usize> {
     let exec = executable_ranges()?;
     let is_code = |addr: usize| exec.iter().any(|&(start, end)| addr >= start && addr < end);

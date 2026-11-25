@@ -3,7 +3,7 @@ use std::ffi::c_void;
 use crate::{
     offset_get,
     traits::FromRaw,
-    types::{Color, Vec3, rgba},
+    types::{Color, Hull, Vec3, rgba},
     vfunc,
 };
 
@@ -23,6 +23,8 @@ impl FromRaw for Entity {
 impl Entity {
     offset_get!(pub fn team: Team, 0xDC);
     offset_get!(pub fn origin: Vec3, 0x328);
+    offset_get!(pub fn simulation_time: f32, 0x98);
+    offset_get!(pub fn velocity: Vec3, 0x168);
 
     fn get_networkable(&self) -> *mut c_void {
         (self.this as usize + 0x10) as *mut c_void
@@ -61,6 +63,15 @@ impl Entity {
         let vtable = unsafe { *(collideable as *mut *mut *mut c_void) };
         let f = vfunc!(vtable, 2, extern "C" fn(*mut c_void) -> *const Vec3);
         unsafe { *(f(collideable)) }
+    }
+
+    /// Collision box at the entity's origin
+    pub fn hull(&self) -> Hull {
+        Hull {
+            origin: self.origin(),
+            mins: self.mins(),
+            maxs: self.maxs(),
+        }
     }
 
     /// Network name of the entity's client class, e.g. "CTFViewModel"

@@ -1,3 +1,7 @@
+//! Source engine libraries export `CreateInterface`, which returns an interface for a
+//! version string like `VEngineClient014`. The libraries are already loaded by the game,
+//! `RTLD_NOLOAD` gets their handle without loading them again.
+
 use std::{
     ffi::{CString, c_char, c_void},
     mem, ptr,

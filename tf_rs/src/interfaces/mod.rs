@@ -1,4 +1,5 @@
 mod core;
+mod cvar;
 mod debug_overlay;
 mod engine_client;
 mod engine_trace;
@@ -14,12 +15,13 @@ mod render_view;
 pub mod surface;
 
 pub use core::*;
+use cvar::*;
 use debug_overlay::*;
 use engine_client::*;
 use engine_trace::*;
 use entity_list::*;
 use factory::*;
-use global_vars::*;
+pub use global_vars::*;
 use key_values::*;
 use material_system::*;
 use model_info::*;

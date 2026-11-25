@@ -24,8 +24,11 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
         return;
     }
 
-    let globals = Globals::read();
-    let target = globals.target.as_ref();
+    // Copied out so the lock isn't held while drawing
+    let target = Globals::read()
+        .target
+        .as_ref()
+        .map(|t| (t.target_index, t.should_headshot));
 
     for i in 1..Interfaces::entity_list().max_entities() {
         if let Some(entity) = Interfaces::entity_list().get_client_entity::<Entity>(i) {
@@ -36,10 +39,10 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
             let mut conds: Vec<(String, Color)> = Vec::new();
 
             let is_target = if config.esp.aimbot_target {
-                if Some(i) == target.map(|t| t.target_index) {
+                if Some(i) == target.map(|t| t.0) {
                     conds.push(("TARGET".to_string(), rgba::WHITE));
 
-                    if Some(true) == target.map(|t| t.should_headshot) {
+                    if Some(true) == target.map(|t| t.1) {
                         conds.push(("HS".to_string(), rgba::RED));
                     }
                     true

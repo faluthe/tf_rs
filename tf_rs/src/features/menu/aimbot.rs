@@ -1,7 +1,7 @@
 use nuklear::Nuklear;
 
 use super::{ROW, field, key_button};
-use crate::{config::Config, globals::Globals, player_db};
+use crate::{config::Config, features::fake_ping, globals::Globals, player_db};
 
 pub(super) fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
     let aim = &mut config.aimbot;
@@ -10,9 +10,29 @@ pub(super) fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
         .row_dynamic(ROW, 1)
         .checkbox("Enabled", &mut aim.master);
 
-    if !aim.master {
+    if aim.master {
+        aimbot_settings(nk, config);
+    }
+
+    let bt = &mut config.backtrack;
+    nk.section("Backtrack", false)
+        .row_dynamic(ROW, 1)
+        .checkbox("Enabled", &mut bt.enabled);
+    if !bt.enabled {
         return;
     }
+    nk.row_dynamic(ROW, 1)
+        .checkbox("Disable interpolation", &mut bt.disable_interpolation);
+    field(nk, &format!("Length ({} ms)", bt.length), |nk| {
+        nk.slider_int(0, &mut bt.length, 400, 5);
+    });
+    field(nk, &format!("Fake ping ({} ms)", bt.fake_ping), |nk| {
+        nk.slider_int(0, &mut bt.fake_ping, fake_ping::MAX_MS, 10);
+    });
+}
+
+fn aimbot_settings(nk: &Nuklear, config: &mut Config) {
+    let aim = &mut config.aimbot;
 
     nk.row_dynamic(ROW, 1)
         .checkbox("Silent aim", &mut aim.silent_aim)
@@ -45,6 +65,16 @@ pub(super) fn aimbot_tab(nk: &Nuklear, config: &mut Config) {
             &mut aim.disable_when_spectated,
         );
     });
+
+    nk.section("Melee", false)
+        .row_dynamic(ROW, 1)
+        .checkbox("Enabled", &mut aim.melee);
+    if aim.melee {
+        nk.row_dynamic(ROW, 1)
+            .checkbox("Auto swing", &mut aim.auto_swing)
+            .checkbox("Swing prediction", &mut aim.swing_prediction)
+            .checkbox("Auto backstab", &mut aim.auto_backstab);
+    }
 
     nk.section("Player categories", false);
     let cat_names = player_db::get_names();

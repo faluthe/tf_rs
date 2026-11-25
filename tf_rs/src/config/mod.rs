@@ -1,3 +1,12 @@
+//! Feature settings, saved to `~/.<name>.tf_rs.cfg`. Nested structs are indented blocks:
+//!
+//! ```text
+//! esp:
+//!     master: true
+//!     player_enemy:
+//!         boxes: true
+//! ```
+
 use std::{
     env, fs,
     path::PathBuf,
@@ -26,11 +35,12 @@ static L: Lazy<RwLock<Vec<String>>> = Lazy::new(|| {
 });
 
 struct_with_serialize! {
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct Config {
         pub bunnyhop: bool,
         pub esp: ESPConfig,
         pub aimbot: AimbotConfig,
+        pub backtrack: BacktrackConfig,
         pub thirdperson: KeyConfig,
         pub spectator_list: bool,
         pub no_zoom: bool,
@@ -40,9 +50,9 @@ struct_with_serialize! {
     }
 }
 
-// theme indexes `features::theme::THEMES`, font indexes `nuklear::Font::ALL`
 struct_with_serialize! {
-    #[derive(Default)]
+    /// theme indexes `features::theme::THEMES`, font indexes `nuklear::Font::ALL`
+    #[derive(Default, Clone)]
     pub struct MenuConfig {
         pub theme: usize,
         pub font: usize,
@@ -50,6 +60,7 @@ struct_with_serialize! {
 }
 
 struct_with_serialize! {
+    #[derive(Clone)]
     pub struct EspColorConfig {
         pub use_team_colors: bool,
         pub enemy: Color,
@@ -70,6 +81,7 @@ impl Default for EspColorConfig {
 }
 
 struct_with_serialize! {
+    #[derive(Clone)]
     pub struct BuildingColorConfig {
         pub enemy: Color,
         pub friendly: Color,
@@ -86,6 +98,7 @@ impl Default for BuildingColorConfig {
 }
 
 struct_with_serialize! {
+    #[derive(Clone)]
     pub struct BuildingsColorsConfig {
         pub use_team_colors: bool,
         pub sentry: BuildingColorConfig,
@@ -106,6 +119,7 @@ impl Default for BuildingsColorsConfig {
 }
 
 struct_with_serialize! {
+    #[derive(Clone)]
     pub struct PlayerCategoryColors {
         pub category1: Color,
         pub category2: Color,
@@ -130,6 +144,7 @@ impl Default for PlayerCategoryColors {
 }
 
 struct_with_serialize! {
+    #[derive(Clone)]
     pub struct ColorsConfig {
         pub boxes: EspColorConfig,
         pub names: EspColorConfig,
@@ -150,7 +165,7 @@ impl Default for ColorsConfig {
 }
 
 struct_with_serialize! {
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct ESPConfig {
         pub master: bool,
         pub player_enemy: EntityESPConfig,
@@ -179,6 +194,8 @@ struct_with_serialize! {
         pub category4: ChamsGroupConfig,
         pub hands: ChamsGroupConfig,
         pub weapon: ChamsGroupConfig,
+        pub backtrack: ChamsGroupConfig,
+        pub backtrack_target: ChamsGroupConfig,
     }
 }
 
@@ -198,6 +215,28 @@ impl Default for ChamsConfig {
             category4: ChamsGroupConfig::from_color(categories.category4),
             hands: ChamsGroupConfig::new(false, 0x8080ff, 0x8080ff),
             weapon: ChamsGroupConfig::new(false, 0xffffff, 0xffffff),
+            backtrack: ChamsGroupConfig {
+                visible_color: Color {
+                    a: 90,
+                    ..Color::hex(0xffffff)
+                },
+                occluded_color: Color {
+                    a: 50,
+                    ..Color::hex(0xffffff)
+                },
+                ..ChamsGroupConfig::new(false, 0, 0)
+            },
+            backtrack_target: ChamsGroupConfig {
+                visible_color: Color {
+                    a: 140,
+                    ..Color::hex(0xffd000)
+                },
+                occluded_color: Color {
+                    a: 90,
+                    ..Color::hex(0xffd000)
+                },
+                ..ChamsGroupConfig::new(false, 0, 0)
+            },
         }
     }
 }
@@ -205,11 +244,11 @@ impl Default for ChamsConfig {
 struct_with_serialize! {
     #[derive(Clone, Copy)]
     pub struct ChamsGroupConfig {
-        // Index into chams::MATERIALS
+        /// Index into chams::MATERIALS
         pub material: usize,
-        // Draw chams where the entity can be seen, otherwise draw the normal model there
+        /// Draw chams where the entity can be seen, otherwise draw the normal model there
         pub visible: bool,
-        // Draw chams through walls
+        /// Draw chams through walls
         pub occluded: bool,
         pub visible_color: Color,
         pub occluded_color: Color,
@@ -255,6 +294,7 @@ impl Default for ChamsGroupConfig {
 }
 
 struct_with_serialize! {
+    #[derive(Clone)]
     pub struct CondDisplayConfig {
         pub enabled: bool,
         pub color: Color,
@@ -271,7 +311,7 @@ impl Default for CondDisplayConfig {
 }
 
 struct_with_serialize! {
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct CondsDisplayConfig {
         pub disguised: CondDisplayConfig,
         pub taunting: CondDisplayConfig,
@@ -285,7 +325,7 @@ struct_with_serialize! {
 }
 
 struct_with_serialize! {
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct EntityESPConfig {
         pub boxes: bool,
         pub names: bool,
@@ -295,7 +335,7 @@ struct_with_serialize! {
 }
 
 struct_with_serialize! {
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct AimbotConfig {
         pub master: bool,
         pub silent_aim: bool,
@@ -307,11 +347,36 @@ struct_with_serialize! {
         pub priority_category: u8,
         pub disable_when_spectated: usize,
         pub ignore_invis: bool,
+        pub melee: bool,
+        pub auto_swing: bool,
+        pub swing_prediction: bool,
+        pub auto_backstab: bool,
     }
 }
 
 struct_with_serialize! {
-    #[derive(Default)]
+    #[derive(Clone)]
+    pub struct BacktrackConfig {
+        pub enabled: bool,
+        pub length: i32,
+        pub fake_ping: i32,
+        pub disable_interpolation: bool,
+    }
+}
+
+impl Default for BacktrackConfig {
+    fn default() -> Self {
+        BacktrackConfig {
+            enabled: false,
+            length: 200,
+            fake_ping: 0,
+            disable_interpolation: true,
+        }
+    }
+}
+
+struct_with_serialize! {
+    #[derive(Default, Clone)]
     pub struct KeyConfig {
         pub use_key: bool,
         pub is_mouse_button: bool,

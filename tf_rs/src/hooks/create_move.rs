@@ -2,7 +2,7 @@ use std::ffi::c_void;
 
 use crate::{
     config::Config,
-    features::{aimbot, chams, movement},
+    features::{aimbot, backtrack, chams, fake_ping, movement},
     globals::Globals,
     helpers,
     hooks::Hooks,
@@ -10,7 +10,7 @@ use crate::{
     types::UserCmd,
 };
 
-// Thirdperson toggle state
+/// Thirdperson toggle state
 static mut TP: i32 = 0;
 static mut LAST_TP: bool = false;
 
@@ -40,6 +40,9 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
     }
 
     chams::init();
+    // A copy, so no lock is held while calling into the game
+    let config = Config::read().clone();
+    fake_ping::update(&config.backtrack);
 
     let localplayer = helpers::get_localplayer().expect("Failed to get localplayer");
 
@@ -47,10 +50,9 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
         return rc;
     }
 
-    let config = Config::read();
-
     movement::bunnyhop(&localplayer, cmd, &config);
-    aimbot::run(&localplayer, cmd, &config);
+    let choice = aimbot::run(&localplayer, cmd, &config);
+    backtrack::run(&localplayer, cmd, &config, choice);
 
     let pressed = Globals::read().thirdperson_pressed;
     unsafe {
