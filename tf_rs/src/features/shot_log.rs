@@ -208,10 +208,6 @@ pub fn search_time(ms: f32, traces: u32) {
     }
 }
 
-fn tick() -> f32 {
-    Interfaces::global_vars().interval_per_tick
-}
-
 /// The aimbot looked and found nothing
 pub fn no_shot(diagnostics: &[TargetDiagnostics]) {
     let now = Interfaces::global_vars().realtime;
@@ -242,7 +238,7 @@ pub fn no_shot(diagnostics: &[TargetDiagnostics]) {
 /// A shot is being fired on this command
 pub fn shot(localplayer: &Player, p: &Prediction, path: &[Vec3], flight_time: f32, fov: f32) {
     let time = localplayer.curtime();
-    let tick = tick();
+    let tick = Interfaces::global_vars().interval_per_tick;
     // Where the sim put the projectile leaving against when the server will really fire it
     let assumed = p.start_time + (p.choke + p.latency_ticks) as f32 * tick;
     let target = Interfaces::entity_list().get_client_entity::<Player>(p.target);
@@ -320,7 +316,7 @@ pub fn observe() {
     };
     let local = localplayer.index();
     let list = Interfaces::entity_list();
-    let tick = tick();
+    let tick = Interfaces::global_vars().interval_per_tick;
     let now = Interfaces::global_vars().realtime;
 
     let ours = projectile::our_projectiles(local);
@@ -503,7 +499,7 @@ fn miss_row(shot: &Shot) -> String {
         lv.length_2d(),
         lv.z,
         shot.prediction.target_on_ground as i32,
-        shot.prediction.ticks as f32 * tick(),
+        Interfaces::global_vars().ticks_to_time(shot.prediction.ticks),
         spawn_k,
         spawn_err,
         shot.projectile_track.len(),
@@ -519,7 +515,7 @@ fn miss_row(shot: &Shot) -> String {
         target_at(&shot.target_track, at - 1),
         target_at(&shot.target_track, at + 1),
     ) {
-        (Some(a), Some(b)) => (b - a) * (0.5 / tick()),
+        (Some(a), Some(b)) => (b - a) * (0.5 / Interfaces::global_vars().interval_per_tick),
         _ => Vec3::default(),
     };
     let speed = velocity.length_2d();

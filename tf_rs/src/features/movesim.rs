@@ -144,10 +144,6 @@ fn tick_interval() -> f32 {
     Interfaces::global_vars().interval_per_tick
 }
 
-fn time_to_ticks(t: f32) -> i32 {
-    (0.5 + t / tick_interval()) as i32
-}
-
 /// Record each enemy's newest network update, run in FrameStageNotify NET_UPDATE_END
 pub fn update() {
     let Some(localplayer) = helpers::get_localplayer() else {
@@ -181,8 +177,9 @@ pub fn update() {
         if first {
             continue;
         }
-        h.deltas
-            .push_front(time_to_ticks(delta).clamp(1, 24) as f32 * tick_interval());
+        h.deltas.push_front(
+            Interfaces::global_vars().time_to_ticks(delta).clamp(1, 24) as f32 * tick_interval(),
+        );
         h.deltas.truncate(MAX_DELTAS);
 
         record_origin(h, &player, sim_time);
@@ -203,7 +200,7 @@ fn record_origin(h: &mut History, player: &Player, sim_time: f32) {
         return;
     };
 
-    let ticks = time_to_ticks(new.1 - old.1);
+    let ticks = Interfaces::global_vars().time_to_ticks(new.1 - old.1);
     if ticks <= 0 {
         return;
     }
@@ -288,7 +285,9 @@ fn axis_velocity(
         }
     }
 
-    let ticks = time_to_ticks(new.1 - old_time).max(1);
+    let ticks = Interfaces::global_vars()
+        .time_to_ticks(new.1 - old_time)
+        .max(1);
     let mut correction = 0.0;
     if i == 2 && !grounded {
         let t = ticks as f32 + 0.5;
@@ -423,7 +422,9 @@ impl YawTracker {
         tuning: &StrafeTuning,
         max_speed: f32,
     ) -> Option<f32> {
-        let ticks = time_to_ticks(r1.sim_time - r2.sim_time).max(1);
+        let ticks = Interfaces::global_vars()
+            .time_to_ticks(r1.sim_time - r2.sim_time)
+            .max(1);
         let mut yaw = normalize_angle(r1.direction.yaw() - r2.direction.yaw());
         if max_speed != 0.0 && r1.mode != Mode::Air {
             yaw *= (r1.velocity.length_2d() / max_speed).clamp(0.0, 1.0);
@@ -444,7 +445,7 @@ impl YawTracker {
 
         if start {
             self.changes = 0;
-            self.start = time_to_ticks(r1.sim_time);
+            self.start = Interfaces::global_vars().time_to_ticks(r1.sim_time);
             if straight {
                 self.changes += 1;
                 if self.changes > tuning.max_changes {
@@ -459,7 +460,10 @@ impl YawTracker {
                 return None;
             }
         }
-        if self.changes != 0 && self.start - time_to_ticks(r2.sim_time) > tuning.max_change_time {
+        if self.changes != 0
+            && self.start - Interfaces::global_vars().time_to_ticks(r2.sim_time)
+                > tuning.max_change_time
+        {
             return None;
         }
         Some(yaw)
@@ -489,7 +493,9 @@ fn average_yaw(records: &VecDeque<MoveRecord>, ground: bool, max_speed: f32, dis
             break;
         };
         total += yaw;
-        ticks += time_to_ticks(r1.sim_time - r2.sim_time).max(1);
+        ticks += Interfaces::global_vars()
+            .time_to_ticks(r1.sim_time - r2.sim_time)
+            .max(1);
         i += 1;
     }
     if i <= min_strafes + skips {
