@@ -349,7 +349,7 @@ fn select(
 
     if let Some(weapon) = localplayer.active_weapon().filter(|w| w.is_melee()) {
         let eye = melee::eye_at(localplayer, 0.0);
-        let swing = Swing::new(localplayer, &weapon, &cmd.view_angles, 0.0)?;
+        let swing = Swing::new(localplayer, &weapon, &cmd.view_angles, 0.0);
         let knife = weapon.is_knife();
         let backstabs = |i: i32, r: &Record| {
             knife
