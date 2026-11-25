@@ -364,7 +364,7 @@ pub enum Choice {
 
 /// Whether lag compensation helps the weapon we're holding. The server only rewinds players for
 /// hitscan and melee, projectiles are simulated where everyone really is.
-pub fn applies(localplayer: &Player) -> bool {
+pub fn weapon_is_lag_compensated(localplayer: &Player) -> bool {
     localplayer
         .active_weapon()
         .is_none_or(|w| !projectile::is_projectile_weapon(&w))
@@ -374,7 +374,7 @@ pub fn applies(localplayer: &Player) -> bool {
 /// connect with, and set the tick to it when shooting. A record the aimbot picked is always used
 pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config, choice: Choice) {
     let cmd = unsafe { &mut *cmd };
-    let target = if !config.backtrack.enabled || !applies(localplayer) {
+    let target = if !config.backtrack.enabled || !weapon_is_lag_compensated(localplayer) {
         None
     } else {
         match choice {
