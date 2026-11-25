@@ -1,12 +1,8 @@
 //! Projectile aimbot.
 //!
-//! Targets are moved forward tick by tick with movement simulation. At each tick the angle that
-//! lands a projectile on them is solved for, and the first tick the projectile gets there in time
-//! is the one aimed at. The solve accounts for the projectile starting off to the side of the eye
-//! and, for rockets and arrows, being angled in towards the crosshair.
-//!
-//! Explosives that can't reach a target directly look for a surface near it to hit instead,
-//! close enough for the blast to reach them with nothing in between.
+//! Targets are simulated forward tick by tick, and the first tick a projectile can reach them in
+//! time is aimed at. Explosives that can't reach a target directly aim at a nearby surface the
+//! blast would reach them from.
 
 use std::{
     cmp::Ordering,
@@ -36,8 +32,7 @@ const SPLASH_DIRECTIONS: usize = 32;
 const SPLASH_CANDIDATES: usize = 6;
 /// Ticks per target splash is looked for, from the first one the projectile could make it by
 const SPLASH_TICKS: i32 = 12;
-/// How many ticks before the target gets to where it's aimed at the projectile can reach its box
-/// and still hit, any earlier and the target isn't there yet
+/// How many ticks early the projectile can reach the target's box and still hit
 const EARLY_TICKS: i32 = 5;
 
 /// Seconds a shot waits for its projectile to show up before it's taken as never fired
@@ -46,13 +41,13 @@ const SPAWN_WINDOW: f32 = 0.5;
 /// An explosive we fired that's still on its way to a target
 struct InFlight {
     target: i32,
-    /// Server time it lands, on the same timeline targets are simulated on
+    /// Server time it lands
     land_time: f32,
     /// Realtime it was fired at
     fired: f32,
     /// Its entity handle once it's shown up
     projectile: Option<u32>,
-    /// Realtime by which it should have landed, still flying after that it missed
+    /// Realtime after which it's taken as a miss
     expires: f32,
 }
 
@@ -70,14 +65,13 @@ static TRACKING: Mutex<Tracking> = Mutex::new(Tracking {
     known: Vec::new(),
 });
 
-/// One of our projectiles, found by a scan
 struct Scanned {
     handle: u32,
     index: i32,
 }
 
-/// The last scan for our projectiles and the local player it was for. They only come and go with
-/// network updates, so one scan serves every caller until `forget_projectiles` at the next one.
+/// Our projectiles and the local player they were scanned for. They only change with network
+/// updates, so the scan is reused until `forget_projectiles`.
 static SCANNED: Mutex<Option<(i32, Vec<Scanned>)>> = Mutex::new(None);
 
 /// Projectiles may have come or gone, the next caller scans again
@@ -159,9 +153,8 @@ fn track_in_flight(localplayer: &Player) {
     *known = ours;
 }
 
-/// Target and landing time of each of our explosives in the air. Only ones seen flying count,
-/// several commands in a frame can each look like they fire before the weapon's next attack
-/// time catches up.
+/// Target and landing time of each of our explosives seen flying. Unconfirmed shots don't count,
+/// several commands in a frame can each look like they fire.
 fn landings() -> Vec<(i32, f32)> {
     TRACKING
         .lock()
@@ -180,8 +173,7 @@ enum Clip {
     None,
     /// To where a line from the eye hits a brush, rockets and energy shots
     Line,
-    /// To where a box 8 units each way from the eye hits a brush, pipes. Starting stuck in one
-    /// stops the shot.
+    /// To where an 8 unit box from the eye hits a brush, pipes. Starting stuck stops the shot.
     Hull,
 }
 
@@ -193,29 +185,23 @@ struct ProjectileInfo {
     /// Fired straight along the view instead of angled in to meet the crosshair
     pipes: bool,
     clip: Clip,
-    /// How far the launch point drops straight down after the angle is worked out, lining the
-    /// Pomson's shot up with its muzzle
+    /// Drop applied to the launch point after the angle is solved, the Pomson's muzzle
     drop: f32,
     speed: f32,
-    /// Extra upwards launch speed, pipes and stickies get 200
+    /// Extra upwards launch speed
     up_speed: f32,
-    /// Units per second squared
     gravity: f32,
-    /// Air drag on physics projectiles, the fraction of their speed lost each second per unit
-    /// per second they're going. vphysics takes half the air density times |v . basis| of the
-    /// velocity off every second, the basis being the collision model's side areas over its mass.
-    /// A spinning pipe averages out to about one basis, so these are fitted to logged flights.
+    /// Fraction of speed lost per second per unit of speed, fitted to logged flights
     drag: f32,
     /// Half size of the projectile's box
     hull: f32,
-    /// Collision group the game's rules decide what it runs into by
+    /// Collision group
     group: i32,
-    /// Runs into enemy players. Pipes and the Bison and Pomson's shots go through players and
-    /// only hit them by touching.
+    /// Runs into enemy players. Pipes, Bison and Pomson pass through and hit by touching.
     hits_players: bool,
     /// Seconds into the flight it starts running into teammates too
     teammates_after: f32,
-    /// Seconds before it's gone, the simulation stops there
+    /// Seconds before it's gone
     lifetime: f32,
     /// Explodes, so aim at the feet of players on the ground
     splash: bool,
@@ -238,7 +224,7 @@ fn remap(value: f32, from: (f32, f32), to: (f32, f32)) -> f32 {
     to.0 + t * (to.1 - to.0)
 }
 
-/// How the held weapon fires its projectile, from the game's fire setup and projectile speeds
+/// How the held weapon fires its projectile
 fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> {
     let gravity = movesim::gravity();
     let ducking = localplayer.is_ducking();
@@ -254,8 +240,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
         gravity: 0.0,
         drag: 0.0,
         hull: 0.0,
-        // Rockets, flares and the Mangler's shot, CTFBaseRocket. They pass through teammates
-        // for their first quarter second.
+        // CTFBaseRocket, passes through teammates for its first quarter second
         group: group::ROCKETS,
         hits_players: true,
         teammates_after: 0.25,
@@ -301,7 +286,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             info.drag = if matches!(class, WeaponClass::Cannon) {
                 0.385 / 1454.0
             } else if attrib(0.0, c"grenade_no_spin") != 0.0 {
-                // Loch-n-Load, a pipe that doesn't spin. Fitted to logged flights.
+                // Loch-n-Load, doesn't spin
                 0.175 / 1504.0
             } else {
                 0.12 / 1217.0
@@ -414,11 +399,9 @@ fn fire_setup(
     (pos - Vec3::new(0.0, 0.0, info.drop), angles)
 }
 
-/// Launch velocity for a projectile heading along `angles`
 fn launch_velocity(angles: &Vec3, info: &ProjectileInfo) -> Vec3 {
     let (forward, _, up) = angles.angle_vectors();
     let v = forward * info.speed + up * info.up_speed;
-    // Physics objects can't go faster than the physics speed limit
     if info.pipes && v.length() > MAX_PHYSICS_SPEED {
         return v.normalized() * MAX_PHYSICS_SPEED;
     }
@@ -426,8 +409,7 @@ fn launch_velocity(angles: &Vec3, info: &ProjectileInfo) -> Vec3 {
 }
 
 const MAX_PHYSICS_SPEED: f32 = 2000.0;
-/// Ticks of an arcing flight traced at once, the arc strays under a unit from a straight line
-/// over this many
+/// Ticks of an arcing flight traced at once, short enough to stray under a unit from the arc
 const TRACE_STRIDE: usize = 5;
 
 /// Traces run by the current search, for the perf log
@@ -437,8 +419,7 @@ fn count_trace() {
     TRACES.fetch_add(1, atomic::Ordering::Relaxed);
 }
 
-/// Physics projectiles are a physics step along already when they're first sent, on the tick
-/// they're fired
+/// Physics steps a physics projectile has already taken on the tick it's fired
 const PHYSICS_HEAD_START: usize = 1;
 
 /// One tick of a physics projectile's flight: gravity and drag change its velocity, then it moves
@@ -449,8 +430,8 @@ fn physics_step(pos: &mut Vec3, vel: &mut Vec3, dt: f32, info: &ProjectileInfo) 
     *pos += *vel * dt;
 }
 
-/// Flights of a physics projectile launched at each whole degree of pitch, as horizontal distance
-/// and height every tick, to solve against since drag leaves no formula for the arc
+/// Distance and height every tick of a physics projectile launched at each whole degree of pitch.
+/// Drag leaves no closed form for the arc, so it's solved against this.
 struct ArcTable {
     /// Pitch in degrees, up positive, lowest first
     pitches: Vec<f32>,
@@ -483,8 +464,7 @@ impl ArcTable {
         ArcTable { pitches, arcs }
     }
 
-    /// The table for these flights, reusing the last one built when nothing changed. Building one
-    /// is a few hundred ticks for each of 179 pitches, too slow to do every command.
+    /// The last table built if nothing changed, building one every command is too slow
     fn cached(info: &ProjectileInfo, speed: f32, max_time: f32) -> Arc<Self> {
         static LAST: Mutex<Option<([u32; 4], Arc<ArcTable>)>> = Mutex::new(None);
         let tick = Interfaces::global_vars().interval_per_tick;
@@ -521,8 +501,8 @@ impl ArcTable {
     /// The low arc's pitch (radians, up positive) and flight time to `distance` out and `height` up
     fn solve(&self, distance: f32, height: f32) -> Option<(f32, f32)> {
         let tick = Interfaces::global_vars().interval_per_tick;
-        // Height at the distance rises with pitch up to the furthest reaching arc, the first
-        // pitch that gets high enough is the low arc
+        // Height at a distance rises with pitch up to the furthest arc, so the first pitch high
+        // enough is the low arc
         let mut below: Option<(f32, f32, f32)> = None;
         for (pitch, arc) in self.pitches.iter().zip(&self.arcs) {
             let Some((z, t)) = Self::at(arc, distance, tick) else {
@@ -789,9 +769,8 @@ impl Solver<'_> {
         Some(out)
     }
 
-    /// Whether the projectile flying along `path` hits `target` before the world, and not so long
-    /// before the target gets there that it flies past. Explosives that hit the world close
-    /// enough to `point` first still catch the target in the blast. On a hit, the path is cut
+    /// Whether `path` hits `target`'s predicted box before the world and not too early.
+    /// Explosives hitting the world within `tolerance` of `point` count. On a hit, `path` is cut
     /// where it lands.
     fn hits(
         &self,
@@ -843,9 +822,8 @@ impl Solver<'_> {
         Err(Reject::Miss)
     }
 
-    /// Stretches of a path of `len` points traced at once: all of it for projectiles that fly
-    /// straight, a few ticks at a time for ones that arc. Split where it starts running into
-    /// teammates, the stretches after trace with a different mask.
+    /// Spans of a `len` point path traced at once: all of it for straight flights, a few ticks
+    /// for arcs. Split where teammates start being hit, since the mask changes there.
     fn segments(&self, len: usize) -> Vec<(usize, usize)> {
         if len < 2 {
             return Vec::new();
@@ -1049,10 +1027,9 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
     let charging = info.charge && charge_time(weapon, localplayer.curtime()) > 0.0;
     let can_attack = localplayer.can_attack();
 
-    // Charged weapons fire when attack is let go. With the key they charge while it's held and
-    // let go once there's a shot, otherwise the shot is aimed when the user lets go.
-    // Others aim whenever they'd fire, even while the weapon isn't ready: attack with a loaded
-    // clip cuts a reload short, and the shot leaves as soon as the game allows.
+    // Charged weapons fire on release: with the key they charge while it's held and release on a
+    // shot, otherwise the shot is aimed as the user releases. Others aim even while the weapon
+    // isn't ready, since attack cuts a reload short and fires as soon as it can.
     let looking = if info.charge {
         if key && key_down {
             cmd.buttons |= ATTACK;
@@ -1165,7 +1142,6 @@ fn find_target(
     targets.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
     targets.truncate(MAX_TARGETS);
 
-    // Read once rather than for each target
     let landings = if aim.wait_for_shot {
         landings()
     } else {
@@ -1175,10 +1151,8 @@ fn find_target(
         cmd,
         strafe: Strafe::from(aim),
         tick,
-        // The server fires the projectile when it runs this command, at our tick base. That's
-        // this many ticks past the newest server tick we've been sent, the tick target updates
-        // come in on. Targets' own simulation times can't be used, each player's clock runs ahead
-        // of the server by a different amount.
+        // The server fires on this command at our tick base, this far past the newest tick we've
+        // been sent. Targets' simulation times can't be used, each runs ahead by its own amount.
         latency_ticks: (localplayer.tick_base() - Interfaces::global_vars().tickcount).max(0),
         max_ticks,
         use_splash: aim.splash && info.splash_radius > 0.0,
@@ -1247,8 +1221,7 @@ impl Search<'_> {
         };
         let start_time = target.simulation_time();
         let choke = sim.choke();
-        // Targets keep moving from their last update until the projectile leaves. The sim has
-        // already caught up the ticks since that update arrived.
+        // Targets keep moving until the projectile leaves, the sim has already caught up to now
         let latency_ticks = self.latency_ticks;
         for _ in 0..latency_ticks {
             sim.run_tick();
@@ -1286,8 +1259,8 @@ impl Search<'_> {
                     .map(|hit| (hit, point, false))
                 });
 
-            // Spots near the target are at most the blast radius closer than it, so there's
-            // no point looking before the projectile could nearly make it to the target
+            // Splash spots are at most the blast radius closer, so only look once the projectile
+            // could nearly reach the target
             if hit.is_none() && self.use_splash && splash_ticks < SPLASH_TICKS {
                 let center = origin + Vec3::new(0.0, 0.0, target.maxs().z / 2.0);
                 let in_window = self
@@ -1339,9 +1312,8 @@ impl Search<'_> {
         None
     }
 
-    /// A shot at `target` landing on `point` within `ticks` that gets there unobstructed, counting
-    /// why in `diag` when there isn't one. Aimed at them directly, the shot is flown for real and
-    /// has to hit their `predicted` box, otherwise it only has to reach the surface at `point`.
+    /// An unobstructed shot landing on `point` within `ticks`, counting why not in `diag`. With
+    /// `predicted` it has to hit that box, otherwise only reach the surface at `point`.
     fn attempt(
         &self,
         target: &Player,
