@@ -3,19 +3,31 @@
 //!
 //! # How the server lag compensates
 //!
-//! What we see of other players is always in the past. An update takes our latency to reach us,
-//! and the client then draws players `lerp` behind the newest update so it always has two updates
-//! to interpolate between. When we aim at someone we're aiming at where they were about
-//! `latency + lerp` ago, and they've moved on by the time the shot reaches the server.
+//! What we see of other players is always in the past, and a shot lands later still:
+//!
+//! - An update takes the incoming half of our latency to reach us.
+//! - The client draws players `lerp` behind the newest update. Updates arrive in steps, one every
+//!   15ms at 66 a second, and moving a player smoothly between two of them needs the next one to
+//!   already be here. Otherwise players would either jump from update to update or have to be
+//!   guessed ahead and corrected. Staying `cl_interp_ratio` updates behind keeps the time being
+//!   drawn between two updates we have. A ratio of 1 stutters when an update is late or lost, 2
+//!   covers one lost update but shows everyone one update further back.
+//! - Our shot takes the outgoing half of our latency to reach the server.
+//!
+//! With 50ms of ping split evenly and 15ms of lerp, what's on screen is 40ms behind where the
+//! server has players at that moment, and 65ms behind by the time the shot gets there. The ping
+//! net_graph shows is only the round trip, outgoing plus incoming; lerp is its own line and adds on
+//! top.
 //!
 //! To make that hit anyway, every command carries `tick_count`, the tick the client was on when it
 //! made the command. Before running a shot the server:
 //!
 //! 1. Takes `tick_count - lerp` as the tick we were looking at. It knows our lerp from the
 //!    interpolation cvars we send it.
-//! 2. Works out how far back it expected that to be, `latency + lerp` from its own measurement of
-//!    our connection, capped at `sv_maxunlag`.
-//! 3. Uses its own estimate instead if our tick is more than 200ms off from it.
+//! 2. Works out how far back it expected that to be, round trip latency plus lerp from its own
+//!    measurement of our connection, capped at `sv_maxunlag`.
+//! 3. Uses its own estimate instead if our tick is more than 200ms off from it. Some slack is
+//!    needed because ping jitters and lerp is rounded to whole ticks.
 //! 4. Moves every player to where they were on that tick, runs the shot and moves them back.
 //!
 //! # How we abuse it
@@ -24,10 +36,11 @@
 //! enemy update is recorded with its bones, and when shooting `tick_count` is set to the tick of
 //! the record closest to the crosshair plus lerp, so the server rewinds exactly to that record.
 //! The server keeps its own history, ours is only to know where enemies were and which ticks are
-//! still in the window.
+//! still in the window. With the 65ms above, records from now back to 265ms ago are accepted,
+//! minus any newer than the model being drawn.
 //!
 //! Fake ping delays our acknowledgements so the server measures more latency, which moves the
-//! window further back.
+//! window further back. It shows up in net_graph's ping too.
 
 use std::{
     collections::VecDeque,
@@ -104,9 +117,9 @@ fn lerp() -> f32 {
 
 /// Clock used to check records against the window the server will accept
 struct Timing {
-    /// How far back the server expects to rewind
+    /// How far back the server expects to rewind, both directions of latency plus lerp
     correct: f32,
-    /// Tick the server will be on when it runs our command
+    /// Tick the server will be on when it runs our command, the outgoing latency from now
     server_tick: i32,
     /// Time enemies are drawn at, interpolation keeps them this far behind the newest update
     render_time: f32,
@@ -185,7 +198,8 @@ fn records() -> MutexGuard<'static, Vec<History>> {
 }
 
 /// Stop enemies from being interpolated so they're drawn where the newest update put them,
-/// run after the update's entity data is applied
+/// run after the update's entity data is applied. Their movement is choppier, but they're drawn
+/// lerp more recently and the drawn model matches the newest record
 pub fn disable_interpolation() {
     let config = Config::read().backtrack.clone();
     if !config.enabled || !config.disable_interpolation {
