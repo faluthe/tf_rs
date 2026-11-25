@@ -19,8 +19,8 @@ use crate::{
     helpers::{self, module},
     interfaces::{Interfaces, mask},
     types::{
-        ConVar, Cond, MoveData, Player, TraceFilter, UserCmd, Vec3, datamap::Snapshot,
-        user_cmd::Buttons, vec3::normalize_angle,
+        ConVar, Cond, Entity, MoveData, Player, TraceFilter, UserCmd, Vec3, datamap::Snapshot,
+        entity::handle_index, user_cmd::Buttons, vec3::normalize_angle,
     },
 };
 
@@ -658,7 +658,7 @@ impl MoveSim {
         d.old_angles = d.view_angles;
         let constraint = p.constraint_entity();
         d.constraint_center = Interfaces::entity_list()
-            .get_client_entity::<crate::types::Entity>((constraint & 0xFFF) as i32)
+            .get_client_entity::<Entity>(handle_index(constraint))
             .filter(|_| constraint != u32::MAX)
             .map_or(p.constraint_center(), |e| e.origin());
         d.constraint_radius = p.constraint_radius();

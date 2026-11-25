@@ -22,9 +22,7 @@ use crate::{
 
 const IN_ATTACK2: i32 = 1 << 11;
 
-const THROWER: usize = 0xC30;
 const DAMAGE_RADIUS: usize = 0xC14;
-const LAUNCHER: usize = 0xC44;
 const TYPE: usize = 0xC58;
 /// TF_GL_MODE_REMOTE_DETONATE and its practice variant
 const REMOTE_DETONATE: [i32; 2] = [1, 2];
@@ -61,7 +59,7 @@ fn armed_stickies(localplayer: &Player, now: f32) -> Vec<Sticky> {
 
     for (handle, ent) in projectile::our_projectiles(local) {
         if !matches!(ent.class_id(), Some(ClassId::PillOrSticky))
-            || (read::<u32>(&ent, THROWER) & 0xFFF) as i32 != local
+            || ent.thrower_index() != local
             || !REMOTE_DETONATE.contains(&read::<i32>(&ent, TYPE))
         {
             continue;
@@ -69,8 +67,7 @@ fn armed_stickies(localplayer: &Player, now: f32) -> Vec<Sticky> {
         seen.push(handle);
         let fired = *first_seen.entry(handle).or_insert(now);
 
-        let launcher =
-            list.get_client_entity::<Weapon>((read::<u32>(&ent, LAUNCHER) & 0xFFF) as i32);
+        let launcher = list.get_client_entity::<Weapon>(ent.launcher_index());
         let (arm_time, needs_aim) = match &launcher {
             Some(w) => (
                 w.attrib_float(live_time(), c"sticky_arm_time"),

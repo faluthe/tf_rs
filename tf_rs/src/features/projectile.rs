@@ -36,8 +36,6 @@ const SPLASH_CANDIDATES: usize = 6;
 /// Ticks per target splash is looked for, from the first one the projectile could make it by
 const SPLASH_TICKS: i32 = 12;
 
-const OWNER: usize = 0x754;
-const THROWER: usize = 0xC30;
 /// Seconds a shot waits for its projectile to show up before it's taken as never fired
 const SPAWN_WINDOW: f32 = 0.5;
 
@@ -122,10 +120,8 @@ fn scan_projectiles(local: i32) -> Vec<Scanned> {
         if !projectile || ent.is_dormant() {
             continue;
         }
-        let handle_index = |offset| ((unsafe { *ent.field::<u32>(offset) }) & 0xFFF) as i32;
-        let thrower =
-            matches!(class, Some(ClassId::PillOrSticky)) && handle_index(THROWER) == local;
-        if handle_index(OWNER) == local || thrower {
+        let thrower = matches!(class, Some(ClassId::PillOrSticky)) && ent.thrower_index() == local;
+        if ent.owner_index() == local || thrower {
             out.push(Scanned {
                 handle: ent.ref_handle(),
                 index: i,

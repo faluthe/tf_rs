@@ -20,6 +20,11 @@ impl FromRaw for Entity {
     }
 }
 
+/// Entity index a handle points at
+pub fn handle_index(handle: u32) -> i32 {
+    (handle & 0xFFF) as i32
+}
+
 impl Entity {
     offset_get!(pub fn team: Team, 0xDC);
     offset_get!(pub fn origin: Vec3, 0x328);
@@ -36,6 +41,21 @@ impl Entity {
     /// m_vecOrigin as last networked, without interpolation
     pub fn network_origin(&self) -> Vec3 {
         unsafe { *self.field::<Vec3>(0x448) }
+    }
+
+    /// Entity index of m_hOwnerEntity
+    pub fn owner_index(&self) -> i32 {
+        handle_index(unsafe { *self.field::<u32>(0x754) })
+    }
+
+    /// Entity index of whoever threw a pipe or sticky
+    pub fn thrower_index(&self) -> i32 {
+        handle_index(unsafe { *self.field::<u32>(0xC30) })
+    }
+
+    /// Entity index of the launcher that fired a pipe or sticky
+    pub fn launcher_index(&self) -> i32 {
+        handle_index(unsafe { *self.field::<u32>(0xC44) })
     }
 
     /// Pointer to the member at `offset`, for fields that get written
