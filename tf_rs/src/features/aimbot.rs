@@ -21,8 +21,6 @@ struct Candidate {
     sim_time: Option<f32>,
 }
 
-/// Nothing solid between us and a backtrack record, other players are where they are now so only
-/// the world counts
 fn world_visible(from: &Vec3, to: &Vec3) -> bool {
     let filter = TraceFilter::world_only();
     Interfaces::engine_trace()
@@ -105,131 +103,123 @@ fn get_target(
     // Priority category targets win over any other
     let mut priority: Option<Candidate> = None;
 
-    for i in 1..=Interfaces::entity_list().max_entities() {
-        if i <= Interfaces::engine_client().get_max_clients()
-            && let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i)
+    for (i, player) in helpers::enemies(localplayer, config.aimbot.ignore_invis) {
+        let player_cat = if config.aimbot.ignore_category > 0 || config.aimbot.priority_category > 0
         {
-            if &player == localplayer
-                || player.is_dormant()
-                || player.is_dead()
-                || player.team() == localplayer.team()
-                || (config.aimbot.ignore_invis && player.is_invisible())
-            {
-                continue;
-            }
+            let info = Interfaces::engine_client().get_player_info(i);
+            let guid = str::from_utf8(&info.guid)
+                .unwrap_or("")
+                .trim_end_matches('\0');
+            player_db::get(guid).index()
+        } else {
+            0
+        };
 
-            let player_cat =
-                if config.aimbot.ignore_category > 0 || config.aimbot.priority_category > 0 {
-                    let info = Interfaces::engine_client().get_player_info(i);
-                    let guid = str::from_utf8(&info.guid)
-                        .unwrap_or("")
-                        .trim_end_matches('\0');
-                    player_db::get(guid).index()
-                } else {
-                    0
-                };
+        let is_priority =
+            config.aimbot.priority_category > 0 && player_cat == config.aimbot.priority_category;
 
-            let is_priority = config.aimbot.priority_category > 0
-                && player_cat == config.aimbot.priority_category;
+        if !is_priority
+            && config.aimbot.ignore_category > 0
+            && player_cat == config.aimbot.ignore_category
+        {
+            continue;
+        }
 
-            if !is_priority
-                && config.aimbot.ignore_category > 0
-                && player_cat == config.aimbot.ignore_category
-            {
-                continue;
-            }
+        let headshot = player.health() > 50 && weapon.can_headshot();
 
-            let headshot = player.health() > 50 && weapon.can_headshot();
-
-            // With backtrack the server rewinds to whichever record we pick, so aim at those
-            let points: Vec<(Vec3, Option<f32>)> = if config.backtrack.enabled {
-                backtrack::aim_points(i, config)
-                    .into_iter()
-                    .map(|(sim_time, head, body)| {
-                        (if headshot { head } else { body }, Some(sim_time))
-                    })
-                    .collect()
+        // With backtrack the server rewinds to whichever record we pick, so aim at those
+        let points: Vec<(Vec3, Option<f32>)> = if config.backtrack.enabled {
+            backtrack::aim_points(i, config)
+                .into_iter()
+                .map(|(sim_time, head, body)| (if headshot { head } else { body }, Some(sim_time)))
+                .collect()
+        } else {
+            let bone_id = if headshot {
+                player.head_bone_id()
             } else {
-                let bone_id = if headshot {
-                    player.head_bone_id()
-                } else {
-                    1 // Torso
-                };
-                player
-                    .get_bone_position(bone_id)
-                    .map(|pos| (pos, None))
-                    .into_iter()
-                    .collect()
+                1 // Torso
             };
+            player
+                .get_bone_position(bone_id)
+                .map(|pos| (pos, None))
+                .into_iter()
+                .collect()
+        };
 
-            let slot = if is_priority {
-                &mut priority
-            } else {
-                &mut best
-            };
-            for (pos, sim_time) in points {
-                let angle = helpers::calculate_angle(&shoot_pos, &pos);
-                let fov = view_angle.fov_to(&angle);
-                if fov > config.aimbot.fov as f32 || slot.as_ref().is_some_and(|b| b.fov <= fov) {
-                    continue;
-                }
-                let visible = match sim_time {
-                    Some(_) => world_visible(&shoot_pos, &pos),
-                    None => helpers::is_ent_visible(&shoot_pos, &pos, &player, localplayer),
-                };
-                if visible {
-                    *slot = Some(Candidate {
-                        target: Target {
-                            target_index: i,
-                            should_headshot: headshot,
-                        },
-                        angle,
-                        fov,
-                        sim_time,
-                    });
-                }
-            }
-        } else if let Some(entity) = Interfaces::entity_list().get_client_entity::<Entity>(i) {
-            if !config.aimbot.building_aim
-                || entity.is_dormant()
-                || entity.team() == localplayer.team()
-            {
-                continue;
-            }
-
-            if !matches!(
-                entity.class_id(),
-                Some(ClassId::Sentry) | Some(ClassId::Dispenser) | Some(ClassId::Teleporter)
-            ) {
-                continue;
-            }
-
-            let entity_pos = entity.origin();
-            let mins = entity.mins();
-            let maxs = entity.maxs();
-            let entity_pos = Vec3 {
-                x: entity_pos.x + (mins.x + maxs.x) / 2.,
-                y: entity_pos.y + (mins.y + maxs.y) / 2.,
-                z: entity_pos.z + (mins.z + maxs.z) / 2.,
-            };
-
-            let angle = helpers::calculate_angle(&shoot_pos, &entity_pos);
+        let slot = if is_priority {
+            &mut priority
+        } else {
+            &mut best
+        };
+        for (pos, sim_time) in points {
+            let angle = helpers::calculate_angle(&shoot_pos, &pos);
             let fov = view_angle.fov_to(&angle);
-
-            if fov <= config.aimbot.fov as f32
-                && !best.as_ref().is_some_and(|b| b.fov <= fov)
-                && helpers::is_ent_visible(&shoot_pos, &entity_pos, &entity, localplayer)
-            {
-                best = Some(Candidate {
+            if fov > config.aimbot.fov as f32 || slot.as_ref().is_some_and(|b| b.fov <= fov) {
+                continue;
+            }
+            let visible = match sim_time {
+                Some(_) => world_visible(&shoot_pos, &pos),
+                None => helpers::is_ent_visible(&shoot_pos, &pos, &player, localplayer),
+            };
+            if visible {
+                *slot = Some(Candidate {
                     target: Target {
                         target_index: i,
-                        should_headshot: false,
+                        should_headshot: headshot,
                     },
                     angle,
                     fov,
-                    sim_time: None,
+                    sim_time,
                 });
             }
+        }
+    }
+
+    if !config.aimbot.building_aim {
+        return priority.or(best);
+    }
+
+    let first_building = Interfaces::engine_client().get_max_clients() + 1;
+    for i in first_building..=Interfaces::entity_list().max_entities() {
+        let Some(entity) = Interfaces::entity_list().get_client_entity::<Entity>(i) else {
+            continue;
+        };
+        if entity.is_dormant() || entity.team() == localplayer.team() {
+            continue;
+        }
+
+        if !matches!(
+            entity.class_id(),
+            Some(ClassId::Sentry) | Some(ClassId::Dispenser) | Some(ClassId::Teleporter)
+        ) {
+            continue;
+        }
+
+        let entity_pos = entity.origin();
+        let mins = entity.mins();
+        let maxs = entity.maxs();
+        let entity_pos = Vec3 {
+            x: entity_pos.x + (mins.x + maxs.x) / 2.,
+            y: entity_pos.y + (mins.y + maxs.y) / 2.,
+            z: entity_pos.z + (mins.z + maxs.z) / 2.,
+        };
+
+        let angle = helpers::calculate_angle(&shoot_pos, &entity_pos);
+        let fov = view_angle.fov_to(&angle);
+
+        if fov <= config.aimbot.fov as f32
+            && !best.as_ref().is_some_and(|b| b.fov <= fov)
+            && helpers::is_ent_visible(&shoot_pos, &entity_pos, &entity, localplayer)
+        {
+            best = Some(Candidate {
+                target: Target {
+                    target_index: i,
+                    should_headshot: false,
+                },
+                angle,
+                fov,
+                sim_time: None,
+            });
         }
     }
 
