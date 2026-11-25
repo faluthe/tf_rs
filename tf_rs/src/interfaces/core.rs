@@ -131,9 +131,16 @@ impl Interfaces {
         unsafe {
             let before_add = *(w.client as *mut *mut *const c_void);
             let hud_update = *(before_add.add(11)) as usize;
-            let eaddr = ptr::read_unaligned((hud_update + 0x16) as *const u32);
-            let ip = hud_update + 0x1A;
-            w.global_vars = ptr::read_unaligned((ip + eaddr as usize) as *const *mut GlobalVars);
+            // First `mov rax, [rip+disp32]` loads gpGlobals, its position shifts between builds
+            let code = std::slice::from_raw_parts(hud_update as *const u8, 0x40);
+            let mov = code
+                .windows(3)
+                .position(|b| b == [0x48, 0x8B, 0x05])
+                .ok_or_else(|| anyhow::anyhow!("gpGlobals load not found in HudUpdate"))?;
+            let eaddr = ptr::read_unaligned((hud_update + mov + 3) as *const i32);
+            let ip = hud_update + mov + 7;
+            w.global_vars =
+                ptr::read_unaligned(ip.wrapping_add_signed(eaddr as isize) as *const *mut GlobalVars);
             info!("Global vars interface at {:p}", w.global_vars);
         }
 
