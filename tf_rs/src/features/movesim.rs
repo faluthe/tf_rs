@@ -530,22 +530,13 @@ impl MoveSim {
             return None;
         }
         let snapshot = Snapshot::take(player.this, player.pred_desc_map())?;
-        let index = player.index();
-
-        let (history_velocity, records, deltas, choke) = {
-            let history = HISTORY.lock().unwrap();
-            let h = history.get(index as usize)?;
-            let choke = Interfaces::global_vars().tickcount - h.update_tick;
-            (
-                h.avg_velocity,
-                h.records.clone(),
-                h.deltas.clone(),
-                if h.update_tick > 0 {
-                    choke.clamp(0, 24)
-                } else {
-                    0
-                },
-            )
+        // Held until the sim is set up, read in place rather than copied out
+        let history = HISTORY.lock().unwrap();
+        let h = history.get(player.index() as usize)?;
+        let choke = if h.update_tick > 0 {
+            (Interfaces::global_vars().tickcount - h.update_tick).clamp(0, 24)
+        } else {
+            0
         };
 
         let mut sim = MoveSim {
@@ -565,7 +556,7 @@ impl MoveSim {
         };
 
         if local.is_none() {
-            if let Some(v) = history_velocity {
+            if let Some(v) = h.avg_velocity {
                 player.set_velocity(v);
             }
         }
@@ -596,12 +587,10 @@ impl MoveSim {
             }
         }
 
-        sim.setup(local.map(|l| l.0), records.front());
-        sim.predicted_delta = if deltas.is_empty() {
-            tick_interval()
-        } else {
-            deltas.iter().sum::<f32>() / deltas.len() as f32
-        };
+        sim.setup(local.map(|l| l.0), h.records.front());
+        if !h.deltas.is_empty() {
+            sim.predicted_delta = h.deltas.iter().sum::<f32>() / h.deltas.len() as f32;
+        }
         sim.sim_time = player.simulation_time();
         sim.predicted_sim_time = sim.sim_time + sim.predicted_delta;
 
@@ -615,8 +604,9 @@ impl MoveSim {
                 let distance = helpers::get_localplayer()
                     .map_or(0.0, |l| l.origin().distance_to(&player.origin()));
                 sim.average_yaw =
-                    average_yaw(&records, sim.direct_move, player.max_speed(), distance);
+                    average_yaw(&h.records, sim.direct_move, player.max_speed(), distance);
             }
+            drop(history);
             // Catch up on the ticks they've moved since the last update we got
             for _ in 0..choke {
                 sim.run_tick();
