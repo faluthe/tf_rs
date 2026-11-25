@@ -13,6 +13,7 @@ pub const FL_ONGROUND: i32 = 1 << 0;
 pub const FL_DUCKING: i32 = 1 << 1;
 pub const BONE_USED_BY_HITBOX: i32 = 0x100;
 pub const BONE_USED_BY_ANYTHING: i32 = 0x7FF00;
+const HITGROUP_HEAD: i32 = 1;
 
 /// Bone to world transforms, as set up by `setup_bones`
 pub type Bones = [Matrix3x4; MAX_BONES];
@@ -193,6 +194,49 @@ impl Player {
             return None;
         }
         Some(bones[bone_id].position())
+    }
+
+    /// The model being drawn, through IClientRenderable::GetModel
+    pub fn model(&self) -> *const c_void {
+        let renderable = (self.this as usize + 8) as *mut c_void;
+        let vtable = unsafe { *(renderable as *mut *mut *mut c_void) };
+        let f = vfunc!(vtable, 9, (*mut c_void) -> *const c_void);
+        f(renderable)
+    }
+
+    /// Middle of the head hitbox, from the first hitbox in the model's hitbox set that's in
+    /// HITGROUP_HEAD, placed by its bone
+    pub fn head_center(&self) -> Option<Vec3> {
+        let model = self.model();
+        if model.is_null() {
+            return None;
+        }
+        let hdr = Interfaces::model_info().get_studio_model(model);
+        if hdr.is_null() {
+            return None;
+        }
+        let read = |p: *const u8, offset: usize| unsafe { *(p.add(offset) as *const i32) };
+        let read_vec = |p: *const u8, offset: usize| unsafe { *(p.add(offset) as *const Vec3) };
+        // studiohdr_t numhitboxsets and hitboxsetindex, the first set is the one players use
+        if read(hdr, 172) < 1 {
+            return None;
+        }
+        let set = unsafe { hdr.add(read(hdr, 176) as usize) };
+        // mstudiohitboxset_t numhitboxes and hitboxindex, then 68 byte mstudiobbox_ts
+        let (count, first) = (read(set, 4), read(set, 8) as usize);
+        let head = (0..count.max(0) as usize)
+            .map(|i| unsafe { set.add(first + i * 68) })
+            .find(|hitbox| read(*hitbox, 4) == HITGROUP_HEAD)?;
+        let bone = read(head, 0) as usize;
+        if bone >= MAX_BONES {
+            return None;
+        }
+        let center = (read_vec(head, 8) + read_vec(head, 20)) * 0.5;
+        let mut bones = [Matrix3x4::default(); MAX_BONES];
+        if !self.setup_bones(&mut bones, BONE_USED_BY_HITBOX, 0.0) {
+            return None;
+        }
+        Some(bones[bone].transform(&center))
     }
 
     pub fn head_bone_id(&self) -> usize {

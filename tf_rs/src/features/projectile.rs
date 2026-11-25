@@ -935,19 +935,19 @@ fn aim_points(
     target: &Player,
     info: &ProjectileInfo,
     on_ground: bool,
+    head_offset: Option<Vec3>,
 ) -> impl Iterator<Item = Vec3> {
     let (mins, maxs) = (target.mins(), target.maxs());
     let head = Vec3::new(0.0, 0.0, maxs.z - 5.0);
     let body = Vec3::new(0.0, 0.0, (maxs.z - mins.z) / 2.0);
     let feet = Vec3::new(0.0, 0.0, mins.z + 5.0);
     if info.headshot {
-        // Between the eyes and the top of the box
-        let eye = target.view_offset().z.clamp(mins.z + 5.0, maxs.z - 5.0);
-        [
-            Some(Vec3::new(0.0, 0.0, eye + (maxs.z - eye) * 0.5)),
-            Some(body),
-            None,
-        ]
+        // The head hitbox, or between the eyes and the top of the box without one
+        let head = head_offset.unwrap_or_else(|| {
+            let eye = target.view_offset().z.clamp(mins.z + 5.0, maxs.z - 5.0);
+            Vec3::new(0.0, 0.0, eye + (maxs.z - eye) * 0.5)
+        });
+        [Some(head), Some(body), None]
     } else if info.splash && on_ground {
         [Some(feet), Some(body), None]
     } else {
@@ -1235,6 +1235,12 @@ impl Search<'_> {
         diag: &mut shot_log::TargetDiagnostics,
     ) -> Option<Found> {
         let (info, eye, tick) = (&self.solver.info, self.solver.eye, self.tick);
+        // Where the head is from their origin, read before the sim moves them
+        let head = info
+            .headshot
+            .then(|| target.head_center())
+            .flatten()
+            .map(|head| head - target.origin());
         let Some(mut sim) = MoveSim::new(target, None, self.strafe) else {
             diag.no_sim = true;
             return None;
@@ -1264,7 +1270,7 @@ impl Search<'_> {
                 mins: target.mins(),
                 maxs: target.maxs(),
             };
-            let mut hit = aim_points(target, info, sim.on_ground())
+            let mut hit = aim_points(target, info, sim.on_ground(), head)
                 .enumerate()
                 .find_map(|(n, offset)| {
                     let extra = if n == 0 && info.splash { 8.0 } else { 0.0 };
