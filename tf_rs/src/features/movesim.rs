@@ -148,7 +148,7 @@ fn time_to_ticks(t: f32) -> i32 {
     (0.5 + t / tick_interval()) as i32
 }
 
-/// Record each player's newest network update, run in FrameStageNotify NET_UPDATE_END
+/// Record each enemy's newest network update, run in FrameStageNotify NET_UPDATE_END
 pub fn update() {
     let Some(localplayer) = helpers::get_localplayer() else {
         return;
@@ -159,7 +159,9 @@ pub fn update() {
     for i in 1..=Interfaces::engine_client().get_max_clients().min(64) {
         let h = &mut history[i as usize];
         let player = Interfaces::entity_list().get_client_entity::<Player>(i);
-        let Some(player) = player.filter(|p| *p != localplayer && !p.is_dead()) else {
+        let Some(player) =
+            player.filter(|p| *p != localplayer && !p.is_dead() && p.team() != localplayer.team())
+        else {
             *h = History::default();
             continue;
         };
