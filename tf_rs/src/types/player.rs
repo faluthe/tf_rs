@@ -14,6 +14,9 @@ pub const FL_DUCKING: i32 = 1 << 1;
 pub const BONE_USED_BY_HITBOX: i32 = 0x100;
 pub const BONE_USED_BY_ANYTHING: i32 = 0x7FF00;
 
+/// Bone to world transforms, as set up by `setup_bones`
+pub type Bones = [Matrix3x4; MAX_BONES];
+
 #[derive(PartialEq, Eq)]
 pub struct Player {
     pub ent: Entity,
@@ -134,7 +137,7 @@ impl Player {
 
     /// Server time of the command being built, from our tick base
     pub fn curtime(&self) -> f32 {
-        self.tick_base() as f32 * Interfaces::global_vars().interval_per_tick
+        Interfaces::global_vars().ticks_to_time(self.tick_base())
     }
 
     pub fn can_attack(&self) -> bool {
@@ -149,7 +152,7 @@ impl Player {
     }
 
     /// Fill `out` with the bone to world matrices of every bone in `mask`
-    pub fn setup_bones(&self, out: &mut [Matrix3x4; MAX_BONES], mask: i32, time: f32) -> bool {
+    pub fn setup_bones(&self, out: &mut Bones, mask: i32, time: f32) -> bool {
         let f = vfunc!(
             self.vtable,
             96,

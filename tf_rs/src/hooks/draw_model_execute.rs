@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 
 use crate::{
-    config::{BacktrackConfig, ChamsConfig, ChamsGroupConfig, Config},
+    config::{ChamsConfig, ChamsGroupConfig, Config},
     features::{backtrack, chams},
     helpers,
     hooks::Hooks,
@@ -9,7 +9,7 @@ use crate::{
     player_db::{self, PlayerCategory},
     types::{
         ClassId, Color, Entity, Material, Matrix3x4, ModelRenderInfo, Player,
-        material::MATERIAL_VAR_IGNORE_Z,
+        material::MATERIAL_VAR_IGNORE_Z, player::Bones,
     },
 };
 
@@ -25,12 +25,12 @@ pub extern "C" fn hk_draw_model_execute(
             .expect("Invalid DrawModelExecute function signature");
     };
 
-    let (chams_config, backtrack_config) = {
+    let (chams_config, backtrack) = {
         let config = Config::read();
         if !config.esp.master || !config.esp.chams.enabled {
             return call_original();
         }
-        (config.esp.chams.clone(), config.backtrack.clone())
+        (config.esp.chams.clone(), config.backtrack.enabled)
     };
 
     if !Interfaces::engine_client().is_in_game() {
@@ -41,8 +41,8 @@ pub extern "C" fn hk_draw_model_execute(
         return call_original();
     };
 
-    if backtrack_config.enabled {
-        draw_backtrack(info_ref, &chams_config, &backtrack_config, |bones| {
+    if backtrack {
+        draw_backtrack(info_ref, &chams_config, |bones| {
             Hooks::draw_model_execute()
                 .call_draw_model_execute(this, state, info, bones)
                 .expect("Invalid DrawModelExecute function signature");
@@ -112,12 +112,7 @@ pub extern "C" fn hk_draw_model_execute(
 
 /// Draw the model posed at each backtrack record of an enemy player, `draw` renders it with
 /// the given bones
-fn draw_backtrack(
-    info: &ModelRenderInfo,
-    config: &ChamsConfig,
-    backtrack_config: &BacktrackConfig,
-    draw: impl Fn(*mut Matrix3x4),
-) {
+fn draw_backtrack(info: &ModelRenderInfo, config: &ChamsConfig, draw: impl Fn(*mut Matrix3x4)) {
     // The target falls back to the other ticks' look when it has none of its own
     let target_group = if config.backtrack_target.active() {
         config.backtrack_target
@@ -128,24 +123,33 @@ fn draw_backtrack(
     {
         return;
     }
+    let Some(records) = backtrack::drawn(info.entity_index, info.origin) else {
+        return;
+    };
 
     let render_view = Interfaces::render_view();
     let model_render = Interfaces::model_render();
     let old_color = render_view.get_color_modulation();
     let old_blend = render_view.get_blend();
     let time = Interfaces::global_vars().realtime;
-    let mut used: Vec<&'static [Material]> = Vec::new();
+    let mut used: [Option<&'static [Material]>; 2] = [None; 2];
+    // The engine only reads the bones, the cast is for the signature
+    let draw = |bones: &Bones| draw(bones.as_ptr() as *mut Matrix3x4);
 
-    backtrack::valid_bones(info.entity_index, backtrack_config, |bones, is_target| {
-        let group = if is_target {
-            target_group
+    // The target last so it's drawn over the others
+    for (slot, group, is_target) in [(0, config.backtrack, false), (1, target_group, true)] {
+        let none = if is_target {
+            records.target().is_none()
         } else {
-            config.backtrack
+            records.others().next().is_none()
         };
+        if none {
+            continue;
+        }
         let Some((layers, materials)) = chams::layers(group.material) else {
-            return;
+            continue;
         };
-        used.push(materials);
+        used[slot] = Some(materials);
 
         let passes = [
             (group.occluded, group.occluded_color, true),
@@ -153,6 +157,7 @@ fn draw_backtrack(
         ];
         for (_, color, ignore_z) in passes.into_iter().filter(|p| p.0) {
             for (layer, material) in layers.iter().zip(materials) {
+                // Set once for every record drawn with this layer
                 let color = layer.color(color, time);
                 model_render.forced_material_override(Some(material));
                 material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, ignore_z);
@@ -162,14 +167,17 @@ fn draw_backtrack(
                     color.b as f32 / 255.0,
                 ]);
                 render_view.set_blend(color.a as f32 / 255.0);
-                // The engine only reads the bones, the cast is for the signature
-                draw(bones.as_ptr() as *mut Matrix3x4);
+                if is_target {
+                    records.target().into_iter().for_each(draw);
+                } else {
+                    records.others().for_each(draw);
+                }
             }
         }
-    });
+    }
 
     model_render.forced_material_override(None);
-    for material in used.into_iter().flatten() {
+    for material in used.into_iter().flatten().flatten() {
         material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, false);
     }
     render_view.set_color_modulation(old_color);

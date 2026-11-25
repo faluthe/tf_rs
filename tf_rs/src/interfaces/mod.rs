@@ -25,7 +25,7 @@ use engine_trace::*;
 use entity_list::*;
 use factory::*;
 pub use game_movement::*;
-use global_vars::*;
+pub use global_vars::*;
 use key_values::*;
 use material_system::*;
 use model_info::*;

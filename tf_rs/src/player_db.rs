@@ -1,3 +1,15 @@
+//! Player categories by GUID, saved to `~/.tf_rs_players.cfg` on every change.
+//!
+//! ```text
+//! #cat1=Friendlies
+//! #cat2=Enemies
+//! #cat3=
+//! #cat4=
+//! STEAM_0:0:12345678|Cat 1
+//! ```
+//!
+//! `#catN=` lines name the categories, the rest are `GUID|category` pairs.
+
 use std::{collections::HashMap, env, fs, sync::RwLock};
 
 use once_cell::sync::Lazy;

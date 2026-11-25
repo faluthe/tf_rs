@@ -1,3 +1,12 @@
+//! Feature settings, saved to `~/.<name>.tf_rs.cfg`. Nested structs are indented blocks:
+//!
+//! ```text
+//! esp:
+//!     master: true
+//!     player_enemy:
+//!         boxes: true
+//! ```
+
 use std::{
     env, fs,
     path::PathBuf,
@@ -41,8 +50,8 @@ struct_with_serialize! {
     }
 }
 
-// theme indexes `features::theme::THEMES`, font indexes `nuklear::Font::ALL`
 struct_with_serialize! {
+    /// theme indexes `features::theme::THEMES`, font indexes `nuklear::Font::ALL`
     #[derive(Default, Clone)]
     pub struct MenuConfig {
         pub theme: usize,
@@ -235,11 +244,11 @@ impl Default for ChamsConfig {
 struct_with_serialize! {
     #[derive(Clone, Copy)]
     pub struct ChamsGroupConfig {
-        // Index into chams::MATERIALS
+        /// Index into chams::MATERIALS
         pub material: usize,
-        // Draw chams where the entity can be seen, otherwise draw the normal model there
+        /// Draw chams where the entity can be seen, otherwise draw the normal model there
         pub visible: bool,
-        // Draw chams through walls
+        /// Draw chams through walls
         pub occluded: bool,
         pub visible_color: Color,
         pub occluded_color: Color,
@@ -339,11 +348,8 @@ struct_with_serialize! {
         pub disable_when_spectated: usize,
         pub ignore_invis: bool,
         pub melee: bool,
-        // Swing on its own whenever a target is in reach
         pub auto_swing: bool,
-        // Start swinging when the target will be in reach once the swing lands
         pub swing_prediction: bool,
-        // With a knife, only go for backstabs and stab on its own when one is possible
         pub auto_backstab: bool,
         // Predict players turning as they move, on the ground and in the air
         pub strafe_ground: bool,
@@ -367,9 +373,7 @@ struct_with_serialize! {
     #[derive(Clone)]
     pub struct BacktrackConfig {
         pub enabled: bool,
-        // Milliseconds of history used past the newest tick the server accepts
         pub length: i32,
-        // Milliseconds of latency added on top of the real one
         pub fake_ping: i32,
         pub disable_interpolation: bool,
     }
