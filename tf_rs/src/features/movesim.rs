@@ -29,7 +29,7 @@ const MAX_RECORDS: usize = 66;
 const MAX_DELTAS: usize = 5;
 const MAX_ORIGINS: usize = 5;
 
-/// Strafe prediction tuning, Amalgam's defaults
+/// Strafe prediction tuning: how many records are averaged and when a turn counts as steady
 struct StrafeTuning {
     samples: usize,
     straight_fuzzy: f32,
@@ -389,7 +389,8 @@ impl Movement {
     }
 }
 
-/// Air control is weaker while moving up slowly, Amalgam's estimate of how much
+/// How much of the averaged turn to keep in the air, less while moving up slowly. An estimate,
+/// the game's air movement has no such term.
 fn friction_scale(velocity_xy: f32, turn: f32, velocity_z: f32, min: f32, max: f32) -> f32 {
     if velocity_z <= 0.0 || velocity_z > 250.0 {
         return 1.0;

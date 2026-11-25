@@ -36,7 +36,7 @@ const SPLASH_CANDIDATES: usize = 6;
 /// Ticks per target splash is looked for, from the first one the projectile could make it by
 const SPLASH_TICKS: i32 = 12;
 /// How many ticks before the target gets to where it's aimed at the projectile can reach its box
-/// and still hit, any earlier and the target isn't there yet. Amalgam's.
+/// and still hit, any earlier and the target isn't there yet
 const EARLY_TICKS: i32 = 5;
 
 /// Seconds a shot waits for its projectile to show up before it's taken as never fired
@@ -185,8 +185,9 @@ struct ProjectileInfo {
     /// Units per second squared
     gravity: f32,
     /// Air drag on physics projectiles, the fraction of their speed lost each second per unit
-    /// per second they're going. Amalgam's measurements, the engine takes off |v . basis| of the
-    /// velocity every second and a spinning pipe averages out to about one basis.
+    /// per second they're going. vphysics takes half the air density times |v . basis| of the
+    /// velocity off every second, the basis being the collision model's side areas over its mass.
+    /// A spinning pipe averages out to about one basis, so these are fitted to logged flights.
     drag: f32,
     /// Half size of the projectile's box
     hull: f32,
@@ -213,7 +214,7 @@ fn remap(value: f32, from: (f32, f32), to: (f32, f32)) -> f32 {
     to.0 + t * (to.1 - to.0)
 }
 
-/// Amalgam's per weapon projectile info, without the vphysics drag on pipes
+/// How the held weapon fires its projectile, from the game's fire setup and projectile speeds
 fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> {
     let gravity = movesim::gravity();
     let ducking = localplayer.is_ducking();
@@ -265,8 +266,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             info.drag = if matches!(class, WeaponClass::Cannon) {
                 0.385 / 1454.0
             } else if attrib(0.0, c"grenade_no_spin") != 0.0 {
-                // Loch-n-Load, a pipe that doesn't spin. Fitted to logged flights, Amalgam's
-                // 0.07 / 1504 has them slowing down 2.5 times too little.
+                // Loch-n-Load, a pipe that doesn't spin. Fitted to logged flights.
                 0.175 / 1504.0
             } else {
                 0.12 / 1217.0
@@ -818,7 +818,7 @@ fn aim_points(
     let body = Vec3::new(0.0, 0.0, (maxs.z - mins.z) / 2.0);
     let feet = Vec3::new(0.0, 0.0, mins.z + 5.0);
     if info.headshot {
-        // Between the eyes and the top of the box, Amalgam's huntsman lerp
+        // Between the eyes and the top of the box
         let eye = target.view_offset().z.clamp(mins.z + 5.0, maxs.z - 5.0);
         [
             Some(Vec3::new(0.0, 0.0, eye + (maxs.z - eye) * 0.5)),

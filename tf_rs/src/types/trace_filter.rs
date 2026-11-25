@@ -94,7 +94,7 @@ static TRACE_FILTER_VTABLE: TraceFilterVTable = TraceFilterVTable {
     get_trace_type: TraceFilter::get_trace_type,
 };
 
-/// Whether a projectile from `team` collides with `entity`, Amalgam's CTraceFilterCollideable.
+/// Whether a projectile from `team` collides with `entity`.
 /// Static props and the world aren't passed to the filter, they're always hit.
 fn projectile_hits(team: i32, entity: *const c_void) -> bool {
     let entity = Entity::from_raw(entity as *mut c_void);
