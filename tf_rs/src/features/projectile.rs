@@ -901,16 +901,8 @@ fn find_target(
     let solver = Solver::new(localplayer, eye, info, max_ticks as f32 * tick);
 
     // Closest to the crosshair first, simulating everyone would be too slow
-    let mut targets: Vec<(f32, Player)> = (1..=Interfaces::engine_client().get_max_clients())
-        .filter_map(|i| Interfaces::entity_list().get_client_entity::<Player>(i))
-        .filter(|p| {
-            *p != *localplayer
-                && !p.is_dormant()
-                && !p.is_dead()
-                && p.team() != localplayer.team()
-                && !(aim.ignore_invis && p.is_invisible())
-        })
-        .map(|p| {
+    let mut targets: Vec<(f32, Player)> = helpers::enemies(localplayer, aim.ignore_invis)
+        .map(|(_, p)| {
             let center = p.origin() + Vec3::new(0.0, 0.0, p.maxs().z / 2.0);
             (
                 cmd.view_angles

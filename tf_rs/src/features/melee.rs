@@ -305,18 +305,7 @@ fn find_target(
     let lookup = backtrack::Lookup::new(config);
     let mut best: Option<Found> = None;
 
-    for i in 1..=Interfaces::engine_client().get_max_clients() {
-        let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i) else {
-            continue;
-        };
-        if player == *localplayer
-            || player.is_dormant()
-            || player.is_dead()
-            || player.team() == localplayer.team()
-            || (aim.ignore_invis && player.is_invisible())
-        {
-            continue;
-        }
+    for (i, player) in helpers::enemies(localplayer, aim.ignore_invis) {
         // Out of reach even running at each other
         if player.origin().distance_to(&eye) > 600.0 {
             continue;

@@ -85,25 +85,15 @@ pub fn sample(localplayer: &Player, config: &Config) {
     let now = Interfaces::global_vars().realtime;
     let tick = Interfaces::global_vars().interval_per_tick;
     let strafe = Strafe::from(&config.aimbot);
-    let due: Vec<i32> = {
-        let state = STATE.lock().unwrap();
-        (1..=Interfaces::engine_client().get_max_clients().min(64))
-            .filter(|&i| now - state.last_sample[i as usize] >= SAMPLE_INTERVAL)
-            .collect()
-    };
+    let last_sample = STATE.lock().unwrap().last_sample.clone();
+    let due = helpers::enemies(localplayer, false).filter(|(i, _)| {
+        last_sample
+            .get(*i as usize)
+            .is_some_and(|t| now - t >= SAMPLE_INTERVAL)
+    });
 
     let mut new = Vec::new();
-    for i in due {
-        let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i) else {
-            continue;
-        };
-        if player == *localplayer
-            || player.is_dormant()
-            || player.is_dead()
-            || player.team() == localplayer.team()
-        {
-            continue;
-        }
+    for (i, player) in due {
         let start_time = player.simulation_time();
         let start_ground = player.is_on_ground();
         let velocity = player.velocity();

@@ -11,6 +11,23 @@ use crate::{
 pub mod macros;
 pub mod module;
 
+/// Index and player of each enemy of `localplayer` that's alive and not dormant, leaving out
+/// invisible ones with `ignore_invis`
+pub fn enemies(localplayer: &Player, ignore_invis: bool) -> impl Iterator<Item = (i32, Player)> {
+    let team = localplayer.team();
+    let local = localplayer.index();
+    let list = Interfaces::entity_list();
+    (1..=Interfaces::engine_client().get_max_clients())
+        .filter(move |&i| i != local)
+        .filter_map(move |i| Some((i, list.get_client_entity::<Player>(i)?)))
+        .filter(move |(_, p)| {
+            !p.is_dormant()
+                && !p.is_dead()
+                && p.team() != team
+                && !(ignore_invis && p.is_invisible())
+        })
+}
+
 /// Total real latency, how long until the server runs our command plus how old what we see is
 pub fn round_trip() -> f32 {
     Interfaces::engine_client()

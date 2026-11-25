@@ -126,18 +126,7 @@ pub fn run(localplayer: &Player, cmd: &mut UserCmd, config: &Config) {
     let latency_ticks = (helpers::round_trip() / tick).round() as i32;
     let strafe = Strafe::from(aim);
 
-    for i in 1..=Interfaces::engine_client().get_max_clients() {
-        let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i) else {
-            continue;
-        };
-        if player == *localplayer
-            || player.is_dormant()
-            || player.is_dead()
-            || player.team() == localplayer.team()
-            || (aim.ignore_invis && player.is_invisible())
-        {
-            continue;
-        }
+    for (_, player) in helpers::enemies(localplayer, aim.ignore_invis) {
         let current = player.origin();
         // Nowhere near any of them, even after moving for a while
         if stickies
