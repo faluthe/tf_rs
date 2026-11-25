@@ -11,6 +11,8 @@ pub mod mask {
 
     pub const SOLID: u32 = 0x200400B;
     pub const PLAYER_SOLID: u32 = 0x201400B;
+    /// Brushes only, what a launch point is pulled back out of walls with
+    pub const SOLID_BRUSH_ONLY: u32 = 0x400B;
     /// CONTENTS_TEAM1 and CONTENTS_TEAM2, which players on red and blue are solid to
     pub const RED_TEAM: u32 = 0x800;
     pub const BLUE_TEAM: u32 = 0x1000;

@@ -173,6 +173,18 @@ fn landings() -> Vec<(i32, f32)> {
         .collect()
 }
 
+/// How the launch point is pulled back towards the eye when there's a wall in the way
+#[derive(Clone, Copy, PartialEq)]
+enum Clip {
+    /// It isn't, flares and arrows start where they're put
+    None,
+    /// To where a line from the eye hits a brush, rockets and energy shots
+    Line,
+    /// To where a box 8 units each way from the eye hits a brush, pipes. Starting stuck in one
+    /// stops the shot.
+    Hull,
+}
+
 /// How a weapon's projectile leaves it
 #[derive(Clone, Copy)]
 struct ProjectileInfo {
@@ -180,6 +192,7 @@ struct ProjectileInfo {
     offset: Vec3,
     /// Fired straight along the view instead of angled in to meet the crosshair
     pipes: bool,
+    clip: Clip,
     /// How far the launch point drops straight down after the angle is worked out, lining the
     /// Pomson's shot up with its muzzle
     drop: f32,
@@ -234,6 +247,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
     let mut info = ProjectileInfo {
         offset: Vec3::new(23.5, 8.0, if ducking { 8.0 } else { -3.0 }),
         pipes: false,
+        clip: Clip::None,
         drop: 0.0,
         speed: 0.0,
         up_speed: 0.0,
@@ -258,6 +272,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             let center = attrib(0.0, c"centerfire_projectile") as i32 == 1;
             info.offset.y = if center { 0.0 } else { 12.0 };
             info.speed = attrib(1100.0, c"mult_projectile_speed");
+            info.clip = Clip::Line;
             info.splash = true;
             info.splash_radius = attrib(146.0, c"mult_explosion_radius");
         }
@@ -269,12 +284,14 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             info.speed = if mangler { 1100.0 } else { 1200.0 };
             info.hull = if mangler { 0.0 } else { 1.0 };
             info.hits_players = mangler;
+            info.clip = Clip::Line;
             info.splash = mangler;
             info.splash_radius = if mangler { 146.0 } else { 0.0 };
         }
         WeaponClass::Grenadelauncher | WeaponClass::Cannon => {
             info.offset = Vec3::new(16.0, 8.0, -6.0);
             info.pipes = true;
+            info.clip = Clip::Hull;
             info.speed = attrib(
                 attrib(1200.0, c"mult_projectile_speed"),
                 c"mult_projectile_range",
@@ -298,6 +315,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
         WeaponClass::Pipebomblauncher => {
             info.offset = Vec3::new(16.0, 8.0, -6.0);
             info.pipes = true;
+            info.clip = Clip::Hull;
             let rate = attrib(4.0, c"stickybomb_charge_rate");
             let speed = remap(charge_time(weapon, now), (0.0, rate), (900.0, 2400.0));
             info.speed = attrib(speed, c"mult_projectile_range");
@@ -539,6 +557,8 @@ struct Solver<'a> {
     offset_time: f32,
     /// For projectiles with drag
     arcs: Option<Arc<ArcTable>>,
+    /// A wall is close enough to the eye to pull launch points back
+    near_wall: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -566,6 +586,19 @@ impl Solver<'_> {
         let v = launch_velocity(&Vec3::default(), &info);
         let (pos, _) = fire_setup(localplayer, &eye, &Vec3::default(), &info);
         let speed = v.length();
+        // Nothing to clip launch points against if there are no brushes anywhere they could be
+        let near_wall = info.clip != Clip::None && {
+            let r = (pos - eye).length() + info.drop + 8.0;
+            let trace = Interfaces::engine_trace().trace_hull(
+                &eye,
+                &eye,
+                &Vec3::new(-r, -r, -r),
+                &Vec3::new(r, r, r),
+                mask::SOLID_BRUSH_ONLY,
+                &TraceFilter::simple(localplayer, group::NONE, None),
+            );
+            trace.start_solid || trace.did_hit()
+        };
         // Splash can land the blast radius short of a target, so flights that much longer count
         let max_time = (max_time + info.splash_radius / speed).min(info.lifetime);
         let arcs = (info.drag > 0.0).then(|| ArcTable::cached(&info, speed, max_time));
@@ -577,6 +610,7 @@ impl Solver<'_> {
             ang_fix: v.to_angles(),
             offset_time: (pos - eye).length() / speed,
             arcs,
+            near_wall,
         }
     }
 
@@ -620,7 +654,9 @@ impl Solver<'_> {
         );
 
         // Again from where the projectile really starts and heads when fired along the guess
-        let (pos, heading) = fire_setup(self.localplayer, &self.eye, &guess, &self.info);
+        let Some((pos, heading)) = self.fire(&guess) else {
+            return Solve::Bad;
+        };
         let Some((launch_pitch, time)) = self.trajectory(&pos, target) else {
             return Solve::Bad;
         };
@@ -686,16 +722,44 @@ impl Solver<'_> {
         pitch - ((-reach.z).atan2(reach.x).to_degrees() - pitch)
     }
 
-    /// Where the projectile fired along `angles` starts and how fast it's going
-    fn launch(&self, angles: &Vec3) -> (Vec3, Vec3) {
-        let (pos, ang) = fire_setup(self.localplayer, &self.eye, angles, &self.info);
-        (pos, launch_velocity(&ang, &self.info))
+    /// Where the projectile fired along `angles` starts and which way it heads, pulled back out
+    /// of any wall in the way. None when the game wouldn't fire it.
+    fn fire(&self, angles: &Vec3) -> Option<(Vec3, Vec3)> {
+        let (pos, heading) = fire_setup(self.localplayer, &self.eye, angles, &self.info);
+        if !self.near_wall {
+            return Some((pos, heading));
+        }
+        let h = if self.info.clip == Clip::Hull {
+            8.0
+        } else {
+            0.0
+        };
+        count_trace();
+        let trace = Interfaces::engine_trace().trace_hull(
+            &self.eye,
+            &pos,
+            &Vec3::new(-h, -h, -h),
+            &Vec3::new(h, h, h),
+            mask::SOLID_BRUSH_ONLY,
+            &TraceFilter::simple(self.localplayer, group::NONE, None),
+        );
+        if self.info.clip == Clip::Hull && trace.start_solid {
+            return None;
+        }
+        Some((trace.end_pos, heading))
     }
 
-    /// Positions of the projectile fired along `angles`, every tick for `time` seconds
-    fn path(&self, angles: &Vec3, time: f32) -> Vec<Vec3> {
+    /// Where the projectile fired along `angles` starts and how fast it's going
+    fn launch(&self, angles: &Vec3) -> Option<(Vec3, Vec3)> {
+        let (pos, ang) = self.fire(angles)?;
+        Some((pos, launch_velocity(&ang, &self.info)))
+    }
+
+    /// Positions of the projectile fired along `angles`, every tick for `time` seconds. None
+    /// when the game wouldn't fire it.
+    fn path(&self, angles: &Vec3, time: f32) -> Option<Vec<Vec3>> {
         let tick = Interfaces::global_vars().interval_per_tick;
-        let (pos, ang) = fire_setup(self.localplayer, &self.eye, angles, &self.info);
+        let (pos, ang) = self.fire(angles)?;
         let v = launch_velocity(&ang, &self.info);
         let mut out = Vec::new();
         if self.info.drag > 0.0 {
@@ -711,7 +775,7 @@ impl Solver<'_> {
                 out.push(pos);
                 t += dt;
             }
-            return out;
+            return Some(out);
         }
         let mut t = 0.0;
         loop {
@@ -722,7 +786,7 @@ impl Solver<'_> {
             }
             t = (t + tick).min(time);
         }
-        out
+        Some(out)
     }
 
     /// Whether the projectile flying along `path` hits `target` before the world, and not so long
@@ -1260,7 +1324,7 @@ impl Search<'_> {
                     point,
                     splash,
                     target_on_ground: sim.on_ground(),
-                    launch: self.solver.launch(&solution.angles),
+                    launch: self.solver.launch(&solution.angles).unwrap_or_default(),
                     gravity: info.gravity,
                     drag: info.drag,
                 },
@@ -1285,22 +1349,21 @@ impl Search<'_> {
         let reject = match solver.solve(point, ticks) {
             Solve::Good(solution) => {
                 let fov = self.cmd.view_angles.fov_to(&solution.angles);
+                let tick = Interfaces::global_vars().interval_per_tick;
                 let shot = match predicted {
-                    Some(predicted) => {
-                        let tick = Interfaces::global_vars().interval_per_tick;
-                        let mut path = solver.path(&solution.angles, ticks as f32 * tick);
-                        solver
-                            .hits(&mut path, target, predicted, point, tolerance, ticks)
-                            .map(|()| path)
-                    }
-                    None => {
-                        let path = solver.path(&solution.angles, solution.time);
-                        if solver.clear(&path, target, point, tolerance) {
-                            Ok(path)
-                        } else {
-                            Err(Reject::Blocked)
-                        }
-                    }
+                    Some(predicted) => solver
+                        .path(&solution.angles, ticks as f32 * tick)
+                        .ok_or(Reject::Bad)
+                        .and_then(|mut path| {
+                            solver
+                                .hits(&mut path, target, predicted, point, tolerance, ticks)
+                                .map(|()| path)
+                        }),
+                    None => match solver.path(&solution.angles, solution.time) {
+                        None => Err(Reject::Bad),
+                        Some(path) if solver.clear(&path, target, point, tolerance) => Ok(path),
+                        Some(_) => Err(Reject::Blocked),
+                    },
                 };
                 match shot {
                     Ok(path) => return Some((solution, path, fov)),
