@@ -19,7 +19,7 @@ use crate::{
     features::projectile::{self, Reject},
     helpers,
     interfaces::Interfaces,
-    types::{Player, Vec3},
+    types::{Hull, Player, Vec3},
 };
 
 const OFFSETS: i32 = 4;
@@ -249,13 +249,11 @@ pub fn shot(localplayer: &Player, p: &Prediction, path: &[Vec3], flight_time: f3
 }
 
 fn nearest_distance(point: &Vec3, player: &Player) -> f32 {
-    let (o, mins, maxs) = (player.network_origin(), player.mins(), player.maxs());
-    let nearest = Vec3::new(
-        point.x.clamp(o.x + mins.x, o.x + maxs.x),
-        point.y.clamp(o.y + mins.y, o.y + maxs.y),
-        point.z.clamp(o.z + mins.z, o.z + maxs.z),
-    );
-    point.distance_to(&nearest)
+    let hull = Hull {
+        origin: player.network_origin(),
+        ..player.hull()
+    };
+    point.distance_to(&hull.nearest_point(point))
 }
 
 /// Match new projectiles to shots and compare what came in with the predictions, every update

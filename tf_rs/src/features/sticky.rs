@@ -17,7 +17,7 @@ use crate::{
     },
     helpers,
     interfaces::{Interfaces, mask},
-    types::{ClassId, ConVar, Entity, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon},
+    types::{ClassId, ConVar, Entity, Hull, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon},
 };
 
 const IN_ATTACK2: i32 = 1 << 11;
@@ -88,25 +88,15 @@ fn armed_stickies(localplayer: &Player, now: f32) -> Vec<Sticky> {
     out
 }
 
-/// Point of the box `origin + mins..maxs` closest to `point`
-fn nearest_point(point: &Vec3, origin: &Vec3, mins: &Vec3, maxs: &Vec3) -> Vec3 {
-    Vec3::new(
-        point.x.clamp(origin.x + mins.x, origin.x + maxs.x),
-        point.y.clamp(origin.y + mins.y, origin.y + maxs.y),
-        point.z.clamp(origin.z + mins.z, origin.z + maxs.z),
-    )
-}
-
-/// Whether a blast at `sticky` reaches a player standing at `origin`, the way the server's
+/// Whether a blast at `sticky` reaches a player with collision box `hull`, the way the server's
 /// radius damage checks it
-fn reaches(sticky: &Sticky, origin: &Vec3, mins: &Vec3, maxs: &Vec3) -> bool {
-    let point = nearest_point(&sticky.origin, origin, mins, maxs);
+fn reaches(sticky: &Sticky, hull: &Hull) -> bool {
+    let point = hull.nearest_point(&sticky.origin);
     if sticky.origin.distance_to(&point) > sticky.radius * 0.95 {
         return false;
     }
     let filter = TraceFilter::world_only();
-    let center = *origin + Vec3::new(0.0, 0.0, (mins.z + maxs.z) / 2.0);
-    [point, center].iter().any(|to| {
+    [point, hull.center()].iter().any(|to| {
         let trace =
             Interfaces::engine_trace().trace(&Ray::init(&sticky.origin, to), mask::SOLID, &filter);
         trace.fraction >= 1.0
@@ -146,9 +136,12 @@ pub fn run(localplayer: &Player, cmd: &mut UserCmd, config: &Config) {
             }
             None => current,
         };
-        let (mins, maxs) = (player.mins(), player.maxs());
+        let hull = Hull {
+            origin,
+            ..player.hull()
+        };
 
-        if let Some(sticky) = stickies.iter().find(|s| reaches(s, &origin, &mins, &maxs)) {
+        if let Some(sticky) = stickies.iter().find(|s| reaches(s, &hull)) {
             if sticky.needs_aim {
                 cmd.view_angles = helpers::calculate_angle(&localplayer.eye_pos(), &sticky.origin);
             }
