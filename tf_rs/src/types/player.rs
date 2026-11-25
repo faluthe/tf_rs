@@ -74,7 +74,7 @@ impl Player {
 
     /// Server time of the command being built, from our tick base
     pub fn curtime(&self) -> f32 {
-        self.tick_base() as f32 * Interfaces::global_vars().interval_per_tick
+        Interfaces::global_vars().ticks_to_time(self.tick_base())
     }
 
     pub fn can_attack(&self) -> bool {
@@ -84,9 +84,8 @@ impl Player {
         };
 
         let next_attack = weapon.next_attack();
-        let cur_time = self.tick_base() as f32 * Interfaces::global_vars().interval_per_tick;
 
-        if next_attack > cur_time {
+        if next_attack > self.curtime() {
             return false;
         }
 

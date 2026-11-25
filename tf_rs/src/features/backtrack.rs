@@ -108,14 +108,6 @@ fn lerp() -> f32 {
     interp.max(ratio / rate.max(1.0))
 }
 
-fn time_to_ticks(time: f32) -> i32 {
-    (0.5 + time / Interfaces::global_vars().interval_per_tick) as i32
-}
-
-fn ticks_to_time(ticks: i32) -> f32 {
-    Interfaces::global_vars().interval_per_tick * ticks as f32
-}
-
 /// Clock used to check records against the window the server will accept
 struct Timing {
     // How far back the server expects to rewind
@@ -139,7 +131,7 @@ impl Timing {
         let correct = (outgoing + incoming + fake_ping::latency() + lerp).clamp(0.0, maxunlag);
         Some(Timing {
             correct,
-            server_tick: globals.tickcount + time_to_ticks(outgoing),
+            server_tick: globals.tickcount + globals.time_to_ticks(outgoing),
             render_time: if config.disable_interpolation {
                 f32::MAX
             } else {
@@ -151,7 +143,8 @@ impl Timing {
 
     /// How long before the tick the server runs our command on `sim_time` was
     fn age(&self, sim_time: f32) -> f32 {
-        ticks_to_time(self.server_tick - time_to_ticks(sim_time))
+        let globals = Interfaces::global_vars();
+        globals.ticks_to_time(self.server_tick - globals.time_to_ticks(sim_time))
     }
 
     /// How far the record at `sim_time` is from what the server expects, negative when too old
@@ -303,7 +296,7 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config, choice: Cho
     };
     // Melee hits land a few ticks after the swing starts, using whichever command is running then
     if melee || (cmd.buttons & Buttons::InAttack as i32) != 0 {
-        cmd.tick_count = time_to_ticks(sim_time + lerp());
+        cmd.tick_count = Interfaces::global_vars().time_to_ticks(sim_time + lerp());
     }
 }
 
