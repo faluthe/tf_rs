@@ -179,6 +179,9 @@ struct ProjectileInfo {
     offset: Vec3,
     /// Fired straight along the view instead of angled in to meet the crosshair
     pipes: bool,
+    /// How far the launch point drops straight down after the angle is worked out, lining the
+    /// Pomson's shot up with its muzzle
+    drop: f32,
     speed: f32,
     /// Extra upwards launch speed, pipes and stickies get 200
     up_speed: f32,
@@ -223,6 +226,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
     let mut info = ProjectileInfo {
         offset: Vec3::new(23.5, 8.0, if ducking { 8.0 } else { -3.0 }),
         pipes: false,
+        drop: 0.0,
         speed: 0.0,
         up_speed: 0.0,
         gravity: 0.0,
@@ -247,7 +251,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
         WeaponClass::ParticleCannon | WeaponClass::Raygun | WeaponClass::DrgPomson => {
             let mangler = matches!(class, WeaponClass::ParticleCannon);
             if matches!(class, WeaponClass::DrgPomson) {
-                info.offset.z -= 13.0;
+                info.drop = 13.0;
             }
             info.speed = if mangler { 1100.0 } else { 1200.0 };
             info.hull = if mangler { 0.0 } else { 1.0 };
@@ -312,11 +316,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             info.offset = Vec3::new(23.5, 8.0, -3.0);
             info.speed = 2400.0;
             info.gravity = 0.2 * gravity;
-            info.hull = if matches!(class, WeaponClass::Crossbow) {
-                3.0
-            } else {
-                1.0
-            };
+            info.hull = 1.0;
         }
         _ => return None,
     }
@@ -371,7 +371,8 @@ fn fire_setup(
     if trace.did_hit() && trace.fraction > 0.1 {
         end = trace.end_pos;
     }
-    (pos, (end - pos).to_angles())
+    let angles = (end - pos).to_angles();
+    (pos - Vec3::new(0.0, 0.0, info.drop), angles)
 }
 
 /// Launch velocity for a projectile heading along `angles`
