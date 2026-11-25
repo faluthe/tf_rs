@@ -282,6 +282,8 @@ fn find_target(
     // Only the angles change between swings, the rest is worked out once
     let swing = Swing::new(localplayer, weapon, &cmd.view_angles, lead);
     let eye = swing.start;
+    // Locked once for every player rather than for each of them
+    let lookup = backtrack::Lookup::new(config);
     let mut best: Option<Found> = None;
 
     for i in 1..=Interfaces::engine_client().get_max_clients() {
@@ -299,17 +301,17 @@ fn find_target(
 
         // Where the server will check: backtrack records still usable when the swing lands,
         // otherwise where the player is, moved along with how they've been moving
-        let mut candidates: Vec<(Hull, Option<f32>)> = backtrack::candidates(i, lead, config)
-            .into_iter()
+        let mut records = lookup
+            .candidates(i, lead)
             .map(|(hull, sim_time)| (hull, Some(sim_time)))
-            .collect();
-        if candidates.is_empty() {
-            let velocity = backtrack::velocity(i).unwrap_or_default();
-            candidates.push((player.hull().moved(&velocity, lead), None));
-        }
+            .peekable();
+        let now = records.peek().is_none().then(|| {
+            let velocity = lookup.velocity(i).unwrap_or_default();
+            (player.hull().moved(&velocity, lead), None)
+        });
 
         let target_yaw = player.eye_yaw();
-        for (hull, sim_time) in candidates {
+        for (hull, sim_time) in records.chain(now) {
             if swing.out_of_reach(&hull) {
                 continue;
             }
