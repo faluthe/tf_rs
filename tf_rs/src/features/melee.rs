@@ -273,7 +273,9 @@ fn find_target(
                 continue;
             }
             let stab = knife
-                .then(|| backstab_angles(localplayer, weapon, lead, &eye, &angles, &hull, target_yaw))
+                .then(|| {
+                    backstab_angles(localplayer, weapon, lead, &eye, &angles, &hull, target_yaw)
+                })
                 .flatten();
             let (angles, backstab) = match stab {
                 Some(stab) => (stab, true),
