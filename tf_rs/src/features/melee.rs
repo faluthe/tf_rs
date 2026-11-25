@@ -14,26 +14,10 @@ use crate::{
     globals::{Globals, Target},
     helpers,
     interfaces::Interfaces,
-    types::{Player, UserCmd, Vec3, Weapon, user_cmd::Buttons},
+    types::{Hull, Player, UserCmd, Vec3, Weapon, user_cmd::Buttons},
 };
 
-/// A collision box at a position
-#[derive(Clone, Copy)]
-pub struct Hull {
-    pub origin: Vec3,
-    pub mins: Vec3,
-    pub maxs: Vec3,
-}
-
 impl Hull {
-    pub fn of(player: &Player) -> Self {
-        Hull {
-            origin: player.origin(),
-            mins: player.mins(),
-            maxs: player.maxs(),
-        }
-    }
-
     /// The point of the box to aim at from `eye`, its axis at the eye's height where it can be
     fn aim_point(&self, eye: &Vec3) -> Vec3 {
         let z = (eye.z - self.origin.z).clamp(self.mins.z, self.maxs.z);
@@ -278,7 +262,7 @@ fn find_target(
             .collect();
         if candidates.is_empty() {
             let velocity = backtrack::velocity(i).unwrap_or_default();
-            candidates.push((Hull::of(&player).moved(&velocity, lead), None));
+            candidates.push((player.hull().moved(&velocity, lead), None));
         }
 
         let target_yaw = player.eye_yaw();

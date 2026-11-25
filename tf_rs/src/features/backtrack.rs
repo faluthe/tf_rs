@@ -17,12 +17,12 @@ use crate::{
     config::{BacktrackConfig, Config},
     features::{
         fake_ping,
-        melee::{self, Hull, Swing},
+        melee::{self, Swing},
     },
     helpers,
     interfaces::Interfaces,
     types::{
-        ConVar, Flow, Matrix3x4, Player, UserCmd, Vec3,
+        ConVar, Flow, Hull, Matrix3x4, Player, UserCmd, Vec3,
         player::{BONE_USED_BY_ANYTHING, MAX_BONES},
         user_cmd::Buttons,
     },
@@ -259,7 +259,7 @@ pub fn update_records() {
             sim_time,
             head: bones[player.head_bone_id()].position(),
             body: bones[1].position(),
-            hull: Hull::of(&player),
+            hull: player.hull(),
             bones,
         });
 

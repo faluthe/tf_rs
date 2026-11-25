@@ -1,6 +1,7 @@
 pub mod bbox;
 pub mod convar;
 pub mod entity;
+pub mod hull;
 pub mod material;
 pub mod matrix3x4;
 pub mod model_render_info;
@@ -22,6 +23,7 @@ pub use bbox::BBox;
 pub use convar::ConVar;
 pub use entity::ClassId;
 pub use entity::Entity;
+pub use hull::Hull;
 pub use material::Material;
 pub use matrix3x4::Matrix3x4;
 pub use model_render_info::ModelRenderInfo;
