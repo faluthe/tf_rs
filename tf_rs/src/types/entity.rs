@@ -58,7 +58,7 @@ impl Entity {
         handle_index(unsafe { *self.field::<u32>(0xC44) })
     }
 
-    /// Pointer to the member at `offset`, for fields that get written
+    /// Pointer to the member at `offset`
     pub fn field<T>(&self, offset: usize) -> *mut T {
         (self.this as usize + offset) as *mut T
     }
@@ -76,11 +76,11 @@ impl Entity {
     }
 
     fn get_networkable(&self) -> *mut c_void {
-        (self.this as usize + 0x10) as *mut c_void
+        self.field(0x10)
     }
 
     fn get_collideable(&self) -> *mut c_void {
-        (self.this as usize + 0x240) as *mut c_void
+        self.field(0x240)
     }
 
     fn client_class(&self) -> *mut c_void {

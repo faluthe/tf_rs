@@ -1,4 +1,4 @@
-use std::{ffi::c_void, ops::Deref, ptr};
+use std::{ffi::c_void, ops::Deref};
 
 use crate::{
     interfaces::Interfaces,
@@ -85,7 +85,7 @@ impl Player {
     }
 
     pub fn set_max_speed(&self, speed: f32) {
-        unsafe { *self.ent.field::<f32>(0x1680) = speed };
+        unsafe { *self.field::<f32>(0x1680) = speed };
     }
 
     pub fn set_velocity(&self, velocity: Vec3) {
@@ -165,10 +165,10 @@ impl Player {
     pub fn invalidate_bone_cache(&self) {
         unsafe {
             // m_iMostRecentModelBoneCounter, anything but the current g_iModelBoneCounter
-            let counter = (self.this as *mut u8).add(0x820) as *mut u64;
+            let counter = self.field::<u64>(0x820);
             *counter = (*counter).wrapping_sub(1);
             // m_flLastBoneSetupTime
-            *((self.this as *mut u8).add(0xBA0) as *mut f32) = -f32::MAX;
+            *self.field::<f32>(0xBA0) = -f32::MAX;
         }
     }
 
@@ -176,8 +176,8 @@ impl Player {
     pub fn disable_interpolation(&self) {
         unsafe {
             // m_VarMap: entries of { u16 type, u16 m_bNeedsToInterpolate, data, watcher }
-            let entries = *((self.this as usize + 0x28) as *const *mut u8);
-            let interpolated = *((self.this as usize + 0x48) as *const i32);
+            let entries = *self.field::<*mut u8>(0x28);
+            let interpolated = *self.field::<i32>(0x48);
             if entries.is_null() {
                 return;
             }
@@ -233,10 +233,7 @@ impl Player {
     }
 
     pub fn set_thirdperson(&self, enabled: i32) {
-        unsafe {
-            let p = (self.this as *const u8).add(0x240C as usize) as *mut i32;
-            ptr::write(p, enabled);
-        }
+        unsafe { *self.field::<i32>(0x240C) = enabled }
     }
 
     pub fn observer_target(&self) -> Option<Entity> {
