@@ -21,7 +21,7 @@ use crate::{
     interfaces::{Interfaces, mask},
     types::{
         ConVar, Cond, Entity, MoveData, Player, TraceFilter, UserCmd, Vec3, datamap::Snapshot,
-        entity::handle_index, user_cmd::Buttons, vec3::normalize_angle,
+        entity::handle_index, player::FL_DUCKING, user_cmd::Buttons, vec3::normalize_angle,
     },
 };
 
@@ -215,65 +215,90 @@ fn record_origin(h: &mut History, player: &Player, sim_time: f32) {
     }
 
     let grounded = player.is_on_ground();
-    let g = gravity();
-    let axis = |v: &Vec3, i: usize| [v.x, v.y, v.z][i];
-    let mut out = [0.0f32; 3];
-    for (i, o) in out.iter_mut().enumerate() {
-        let (mut old_value, mut old_time) = (axis(&old.0, i), old.1);
-        let new_value = axis(&new.0, i);
-        if !(i == 2 && grounded) {
-            // The range of velocities the rounding allows between the two newest
-            let sign = |v: f32| if v < 0.0 { -1.0 } else { 1.0 };
-            let (o1, o2) = if old_value == 0.0 {
-                (-0.125, 0.125)
-            } else {
-                (old_value, old_value + 0.125 * sign(old_value))
-            };
-            let (n1, n2) = if new_value == 0.0 {
-                (-0.125, 0.125)
-            } else {
-                (new_value, new_value + 0.125 * sign(new_value))
-            };
-            let deltas = [n1 - o1, n2 - o1, n1 - o2, n2 - o2];
-            let min = deltas.iter().cloned().fold(f32::MAX, f32::min) / dt;
-            let max = deltas.iter().cloned().fold(f32::MIN, f32::max) / dt;
-
-            // Go back while older origins fit that range
-            for &(origin, time) in h.origins.iter() {
-                if old_time <= time {
-                    continue;
-                }
-                let rewind = -((new.1 - time) / tick_interval()).round() * tick_interval();
-                let (mut lo, mut hi) = (new_value + max * rewind, new_value + min * rewind);
-                if i == 2 {
-                    let correction = g * (rewind + tick_interval() / 2.0).powi(2) / 2.0;
-                    lo -= correction;
-                    hi -= correction;
-                }
-                let value = axis(&origin, i);
-                if lo > value || value > hi {
-                    break;
-                }
-                old_value = value;
-                old_time = time;
-            }
-        }
-
-        let ticks = time_to_ticks(new.1 - old_time).max(1);
-        let mut correction = 0.0;
-        if i == 2 && !grounded {
-            let t = ticks as f32 + 0.5;
-            correction = (t * t - t) / 2.0 * g * tick_interval().powi(2);
-        }
-        let delta = new_value - old_value;
-        let sign = if new_value < 0.0 { -1.0 } else { 1.0 };
-        let tick_delta = delta + if delta != 0.0 { 0.0625 * sign } else { 0.0 } - correction;
-        *o = tick_delta / (ticks as f32 * tick_interval());
-    }
-    h.avg_velocity = Some(Vec3::new(out[0], out[1], out[2]));
+    let v = [0, 1, 2].map(|i| axis_velocity(&h.origins, new, old, i, grounded, dt));
+    h.avg_velocity = Some(Vec3::new(v[0], v[1], v[2]));
 
     h.origins.push_front(new);
     h.origins.truncate(MAX_ORIGINS);
+}
+
+/// Component `i` of `v`
+fn component(v: &Vec3, i: usize) -> f32 {
+    [v.x, v.y, v.z][i]
+}
+
+/// Like signum, but zero counts as positive either way
+fn sign(v: f32) -> f32 {
+    if v < 0.0 { -1.0 } else { 1.0 }
+}
+
+/// Lowest and highest velocity between two values of a coordinate networked `dt` apart, each
+/// rounded towards zero to 1/8th of a unit
+fn rounding_range(old: f32, new: f32, dt: f32) -> (f32, f32) {
+    let bounds = |v: f32| {
+        if v == 0.0 {
+            (-0.125, 0.125)
+        } else {
+            (v, v + 0.125 * sign(v))
+        }
+    };
+    let ((o1, o2), (n1, n2)) = (bounds(old), bounds(new));
+    let deltas = [n1 - o1, n2 - o1, n1 - o2, n2 - o2];
+    let min = deltas.iter().copied().fold(f32::MAX, f32::min);
+    let max = deltas.iter().copied().fold(f32::MIN, f32::max);
+    (min / dt, max / dt)
+}
+
+/// Velocity on axis `i` from the `new` origin back to the oldest of `origins` still in line with
+/// moving steadily, by the range the newest two allow. `old` is the one before `new`, `dt` before
+/// it, and gravity counts on the vertical axis unless `grounded`.
+fn axis_velocity(
+    origins: &VecDeque<(Vec3, f32)>,
+    new: (Vec3, f32),
+    old: (Vec3, f32),
+    i: usize,
+    grounded: bool,
+    dt: f32,
+) -> f32 {
+    let (g, tick) = (gravity(), tick_interval());
+    let (mut old_value, mut old_time) = (component(&old.0, i), old.1);
+    let new_value = component(&new.0, i);
+    if !(i == 2 && grounded) {
+        let (min, max) = rounding_range(old_value, new_value, dt);
+        // Go back while older origins fit that range
+        for &(origin, time) in origins {
+            if old_time <= time {
+                continue;
+            }
+            let rewind = -((new.1 - time) / tick).round() * tick;
+            let (mut lo, mut hi) = (new_value + max * rewind, new_value + min * rewind);
+            if i == 2 {
+                let correction = g * (rewind + tick / 2.0).powi(2) / 2.0;
+                lo -= correction;
+                hi -= correction;
+            }
+            let value = component(&origin, i);
+            if lo > value || value > hi {
+                break;
+            }
+            old_value = value;
+            old_time = time;
+        }
+    }
+
+    let ticks = time_to_ticks(new.1 - old_time).max(1);
+    let mut correction = 0.0;
+    if i == 2 && !grounded {
+        let t = ticks as f32 + 0.5;
+        correction = (t * t - t) / 2.0 * g * tick.powi(2);
+    }
+    let delta = new_value - old_value;
+    let rounding = if delta != 0.0 {
+        0.0625 * sign(new_value)
+    } else {
+        0.0
+    };
+    (delta + rounding - correction) / (ticks as f32 * tick)
 }
 
 fn record_move(h: &mut History, player: &Player, sim_time: f32) {
@@ -378,6 +403,7 @@ fn friction_scale(velocity_xy: f32, turn: f32, velocity_z: f32, min: f32, max: f
 }
 
 /// Turn between two records per tick, scaled by how much of the turn the speed allows
+#[derive(Default)]
 struct YawTracker {
     changes: i32,
     start: i32,
@@ -439,14 +465,10 @@ impl YawTracker {
 
 /// Average turn per tick over the recent records, zero when they aren't turning steadily
 fn average_yaw(records: &VecDeque<MoveRecord>, ground: bool, max_speed: f32, distance: f32) -> f32 {
-    let tuning = if ground { &GROUND } else { &AIR };
-    let samples = tuning.samples.min(records.len());
-    let mut tracker = YawTracker {
-        changes: 0,
-        start: 0,
-        sign: 0,
-        zero: false,
-    };
+    // Tuning for how they're moving now, each pair of records uses the one for how they moved
+    let current = if ground { &GROUND } else { &AIR };
+    let samples = current.samples.min(records.len());
+    let mut tracker = YawTracker::default();
 
     let (mut total, mut ticks, mut skips) = (0.0f32, 0i32, 0usize);
     let mut min_strafes = 4;
@@ -458,9 +480,9 @@ fn average_yaw(records: &VecDeque<MoveRecord>, ground: bool, max_speed: f32, dis
             i += 1;
             continue;
         }
-        let tuning = if r1.mode != Mode::Air { &GROUND } else { &AIR };
-        min_strafes = 4 + tuning.max_changes as usize;
-        let Some(yaw) = tracker.difference(r1, r2, ticks == 0, tuning, max_speed) else {
+        let pair = if r1.mode != Mode::Air { &GROUND } else { &AIR };
+        min_strafes = 4 + pair.max_changes as usize;
+        let Some(yaw) = tracker.difference(r1, r2, ticks == 0, pair, max_speed) else {
             break;
         };
         total += yaw;
@@ -471,26 +493,28 @@ fn average_yaw(records: &VecDeque<MoveRecord>, ground: bool, max_speed: f32, dis
         return 0.0;
     }
 
-    let minimum = if distance < tuning.low_min_distance {
-        tuning.low_min_samples
+    let minimum = if distance < current.low_min_distance {
+        current.low_min_samples
     } else {
-        let t = (distance - tuning.low_min_distance)
-            / (tuning.high_min_distance - tuning.low_min_distance).max(1.0);
-        let lo = tuning.low_min_samples + 1.0;
-        (lo + t.clamp(0.0, 1.0) * (tuning.high_min_samples - lo)).max(1.0)
+        let t = (distance - current.low_min_distance)
+            / (current.high_min_distance - current.low_min_distance).max(1.0);
+        let lo = current.low_min_samples + 1.0;
+        (lo + t.clamp(0.0, 1.0) * (current.high_min_samples - lo)).max(1.0)
     };
     let average = total / (ticks as f32).max(minimum);
     if average.abs() < 0.36 { 0.0 } else { average }
 }
 
-/// The game's hull sizes, shrunk while simulating to allow for origin rounding
+/// The game's standing and ducked hull mins and maxs
+const HULLS: [f32; 12] = [
+    -24.0, -24.0, 0.0, 24.0, 24.0, 82.0, -24.0, -24.0, 0.0, 24.0, 24.0, 62.0,
+];
+
+/// Where the game keeps `HULLS`, shrunk while simulating to allow for origin rounding
 fn view_vectors() -> Option<*mut [f32; 12]> {
     static VECTORS: OnceLock<usize> = OnceLock::new();
     let addr = *VECTORS.get_or_init(|| {
-        let floats: [f32; 12] = [
-            -24.0, -24.0, 0.0, 24.0, 24.0, 82.0, -24.0, -24.0, 0.0, 24.0, 24.0, 62.0,
-        ];
-        let bytes: Vec<u8> = floats.iter().flat_map(|f| f.to_ne_bytes()).collect();
+        let bytes: Vec<u8> = HULLS.iter().flat_map(|f| f.to_ne_bytes()).collect();
         let found = module::find_bytes_writable(&module::segments("client.so"), &bytes);
         if found.is_none() {
             log::warn!("Hull view vectors not found, simulated players keep their full size");
@@ -499,10 +523,6 @@ fn view_vectors() -> Option<*mut [f32; 12]> {
     });
     (addr != 0).then_some(addr as *mut [f32; 12])
 }
-
-const HULLS: [f32; 12] = [
-    -24.0, -24.0, 0.0, 24.0, 24.0, 82.0, -24.0, -24.0, 0.0, 24.0, 24.0, 62.0,
-];
 
 fn set_hulls(shrink: f32) {
     if let Some(v) = view_vectors() {
@@ -558,7 +578,7 @@ impl MoveSim {
         };
 
         let mut sim = MoveSim {
-            player: Player { ent: player.ent },
+            player: *player,
             local: local.is_some(),
             data: MoveData::default(),
             snapshot,
@@ -587,7 +607,7 @@ impl MoveSim {
         let ducking = player.is_ducking();
         player.set_ducked(ducking);
         if ducking {
-            player.set_flags(player.flags() & !crate::types::player::FL_DUCKING);
+            player.set_flags(player.flags() & !FL_DUCKING);
             player.reset_duck_transition();
         }
         if let Some((cmd, bhop)) = local {
@@ -691,9 +711,7 @@ impl MoveSim {
     pub fn run_tick(&mut self) {
         self.path.push(self.data.abs_origin);
         let tick = tick_interval();
-        let p = Player {
-            ent: self.player.ent,
-        };
+        let p = self.player;
 
         let mut correction = 0.0;
         if self.average_yaw != 0.0 {

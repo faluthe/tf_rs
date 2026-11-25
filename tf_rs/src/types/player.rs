@@ -17,7 +17,7 @@ pub const BONE_USED_BY_ANYTHING: i32 = 0x7FF00;
 /// Bone to world transforms, as set up by `setup_bones`
 pub type Bones = [Matrix3x4; MAX_BONES];
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Player {
     pub ent: Entity,
 }
