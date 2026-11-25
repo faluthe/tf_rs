@@ -287,7 +287,7 @@ fn chams_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig) {
     });
 }
 
-// Viewmodels are never behind anything, so only the visible pass applies
+/// Viewmodels are never behind anything, so only the visible pass applies
 fn first_person_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig) {
     let swatches = [Swatch::new(group.visible, group.visible_color)];
     field(nk, title, |nk| {

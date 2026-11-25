@@ -26,7 +26,7 @@ struct Sequence {
 }
 
 struct State {
-    // Newest first
+    /// Newest first
     sequences: VecDeque<Sequence>,
     net_chan: usize,
 }

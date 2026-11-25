@@ -10,7 +10,7 @@ use crate::{
     types::UserCmd,
 };
 
-// Thirdperson toggle state
+/// Thirdperson toggle state
 static mut TP: i32 = 0;
 static mut LAST_TP: bool = false;
 

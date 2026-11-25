@@ -1,5 +1,5 @@
 //! Lag compensation abuse: shoot at where enemies were a few ticks ago.
-//! See https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking#Lag_compensation
+//! See <https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking#Lag_compensation>
 //!
 //! The server rewinds every player to `cmd.tick_count - lerp` before running a shot, as long as
 //! that tick is within 200ms of what it expects from our latency. Each enemy update is recorded
@@ -39,7 +39,7 @@ struct Cvars {
     interp_ratio: Option<ConVar>,
     min_interp_ratio: Option<ConVar>,
     max_interp_ratio: Option<ConVar>,
-    // Only exists while hosting, the server's default is used otherwise
+    /// Only exists while hosting, the server's default is used otherwise
     maxunlag: Option<ConVar>,
 }
 
@@ -79,13 +79,13 @@ fn lerp() -> f32 {
 
 /// Clock used to check records against the window the server will accept
 struct Timing {
-    // How far back the server expects to rewind
+    /// How far back the server expects to rewind
     correct: f32,
-    // Tick the server will be on when it runs our command
+    /// Tick the server will be on when it runs our command
     server_tick: i32,
-    // Time enemies are drawn at, interpolation keeps them this far behind the newest update
+    /// Time enemies are drawn at, interpolation keeps them this far behind the newest update
     render_time: f32,
-    // Oldest age a record may have, from the configured length
+    /// Oldest age a record may have, from the configured length
     max_age: f32,
 }
 
@@ -139,7 +139,7 @@ pub struct Record {
     pub bones: Box<Bones>,
     head: Vec3,
     body: Vec3,
-    // Collision box, what melee swings trace against
+    /// Collision box, what melee swings trace against
     hull: Hull,
 }
 

@@ -41,8 +41,8 @@ struct_with_serialize! {
     }
 }
 
-// theme indexes `features::theme::THEMES`, font indexes `nuklear::Font::ALL`
 struct_with_serialize! {
+    /// theme indexes `features::theme::THEMES`, font indexes `nuklear::Font::ALL`
     #[derive(Default, Clone)]
     pub struct MenuConfig {
         pub theme: usize,
@@ -235,11 +235,11 @@ impl Default for ChamsConfig {
 struct_with_serialize! {
     #[derive(Clone, Copy)]
     pub struct ChamsGroupConfig {
-        // Index into chams::MATERIALS
+        /// Index into chams::MATERIALS
         pub material: usize,
-        // Draw chams where the entity can be seen, otherwise draw the normal model there
+        /// Draw chams where the entity can be seen, otherwise draw the normal model there
         pub visible: bool,
-        // Draw chams through walls
+        /// Draw chams through walls
         pub occluded: bool,
         pub visible_color: Color,
         pub occluded_color: Color,
