@@ -558,77 +558,86 @@ impl Solver<'_> {
     /// projectile gets there within `ticks`
     fn solve(&self, target: &Vec3, ticks: i32) -> Solve {
         let tick = Interfaces::global_vars().interval_per_tick;
+        let late = |time: f32| (time / tick) as i32 + 1 > ticks;
+
+        // A first guess as if the projectile left from the eye
         let Some((pitch, time)) = self.trajectory(&self.eye, target) else {
             return Solve::Bad;
         };
-        let angle_to = helpers::calculate_angle(&self.eye, target);
-        let mut out_pitch = -pitch.to_degrees() - self.ang_fix.x;
-        let mut out_yaw = angle_to.y - self.ang_fix.y;
-        let mut time = time - self.offset_time;
-        let mut yaw = out_yaw;
-        let mut pitch_deg = out_pitch;
-
-        if (time / tick) as i32 + 1 > ticks {
+        if late(time - self.offset_time) {
             return Solve::Late;
         }
-
-        // Again from where the projectile actually starts and heads
-        let (pos, ang) = fire_setup(
-            self.localplayer,
-            &self.eye,
-            &Vec3::new(pitch_deg, yaw, 0.0),
-            &self.info,
+        let guess = Vec3::new(
+            -pitch.to_degrees() - self.ang_fix.x,
+            helpers::calculate_angle(&self.eye, target).y - self.ang_fix.y,
+            0.0,
         );
-        let Some((proj_pitch, proj_time)) = self.trajectory(&pos, target) else {
+
+        // Again from where the projectile really starts and heads when fired along the guess
+        let (pos, heading) = fire_setup(self.localplayer, &self.eye, &guess, &self.info);
+        let Some((launch_pitch, time)) = self.trajectory(&pos, target) else {
             return Solve::Bad;
         };
-        time = proj_time;
-
-        // Yaw: turn so the projectile's line from its start passes over the target
-        {
-            let shoot = (pos - self.eye).to_2d();
-            let to = *target - self.eye;
-            let forward = ang.angle_vectors().0.to_2d().normalized();
-            let b = 2.0 * (shoot.x * forward.x + shoot.y * forward.y);
-            let c = shoot.length_2d().powi(2) - to.length_2d().powi(2);
-            if let Some(t) = quadratic_larger(b, c) {
-                let reach = shoot + forward * t;
-                let reach_yaw = reach.y.atan2(reach.x).to_degrees();
-                out_yaw = yaw - (reach_yaw - yaw);
-                yaw = reach_yaw;
-            }
-        }
-
-        // Pitch
-        if self.info.gravity != 0.0 {
-            pitch_deg -= ang.x;
-            out_pitch = -proj_pitch.to_degrees() + pitch_deg - self.ang_fix.x;
-        } else {
-            let rotate = |v: Vec3| {
-                let (s, c) = (-yaw).to_radians().sin_cos();
-                Vec3::new(v.x * c - v.y * s, v.x * s + v.y * c, v.z)
-            };
-            let mut shoot = rotate(pos - self.eye);
-            shoot.y = 0.0;
-            let to = rotate(*target - self.eye);
-            let mut forward = (ang - Vec3::new(0.0, yaw, 0.0)).angle_vectors().0;
-            forward.y = 0.0;
-            let forward = forward.normalized();
-            let b = 2.0 * (shoot.x * forward.x + shoot.z * forward.z);
-            let c = (shoot.x * shoot.x + shoot.z * shoot.z) - (to.x * to.x + to.z * to.z);
-            if let Some(t) = quadratic_larger(b, c) {
-                let reach = shoot + forward * t;
-                out_pitch = pitch_deg - ((-reach.z).atan2(reach.x).to_degrees() - pitch_deg);
-            }
-        }
-
-        if (time / tick) as i32 + 1 > ticks {
+        if late(time) {
             return Solve::Late;
         }
+        let (yaw, reach_yaw) = self.correct_yaw(&pos, &heading, target, guess.y);
+        let pitch = if self.info.gravity != 0.0 {
+            // The arc from where it starts, less the tilt its heading already has from the view
+            -launch_pitch.to_degrees() + guess.x - heading.x - self.ang_fix.x
+        } else {
+            self.correct_pitch(&pos, &heading, target, guess.x, reach_yaw)
+        };
         Solve::Good(Solution {
-            angles: Vec3::new(out_pitch, out_yaw, 0.0),
+            angles: Vec3::new(pitch, yaw, 0.0),
             time,
         })
+    }
+
+    /// Yaw that turns the projectile's line from `pos` along `heading` to pass over `target`,
+    /// from aiming at `yaw`. Also the yaw that line reaches the target's distance at.
+    fn correct_yaw(&self, pos: &Vec3, heading: &Vec3, target: &Vec3, yaw: f32) -> (f32, f32) {
+        let shoot = (*pos - self.eye).to_2d();
+        let to = *target - self.eye;
+        let forward = heading.angle_vectors().0.to_2d().normalized();
+        let b = 2.0 * (shoot.x * forward.x + shoot.y * forward.y);
+        let c = shoot.length_2d().powi(2) - to.length_2d().powi(2);
+        let Some(t) = quadratic_larger(b, c) else {
+            return (yaw, yaw);
+        };
+        let reach = shoot + forward * t;
+        let reach_yaw = reach.y.atan2(reach.x).to_degrees();
+        // It lands off by the difference, turn the same amount the other way
+        (yaw - (reach_yaw - yaw), reach_yaw)
+    }
+
+    /// The same for pitch with projectiles that fly straight, looking along `yaw`
+    fn correct_pitch(
+        &self,
+        pos: &Vec3,
+        heading: &Vec3,
+        target: &Vec3,
+        pitch: f32,
+        yaw: f32,
+    ) -> f32 {
+        // Into the vertical plane along `yaw`
+        let rotate = |v: Vec3| {
+            let (s, c) = (-yaw).to_radians().sin_cos();
+            Vec3::new(v.x * c - v.y * s, v.x * s + v.y * c, v.z)
+        };
+        let mut shoot = rotate(*pos - self.eye);
+        shoot.y = 0.0;
+        let to = rotate(*target - self.eye);
+        let mut forward = (*heading - Vec3::new(0.0, yaw, 0.0)).angle_vectors().0;
+        forward.y = 0.0;
+        let forward = forward.normalized();
+        let b = 2.0 * (shoot.x * forward.x + shoot.z * forward.z);
+        let c = (shoot.x * shoot.x + shoot.z * shoot.z) - (to.x * to.x + to.z * to.z);
+        let Some(t) = quadratic_larger(b, c) else {
+            return pitch;
+        };
+        let reach = shoot + forward * t;
+        pitch - ((-reach.z).atan2(reach.x).to_degrees() - pitch)
     }
 
     /// Positions of the projectile fired along `angles`, every tick for `time` seconds
