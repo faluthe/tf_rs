@@ -820,7 +820,7 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
 
     let logging = aim.log_prediction;
     let started = std::time::Instant::now();
-    let (found, diagnostics) = find_target(localplayer, cmd, config, info, logging);
+    let (found, diagnostics) = find_target(localplayer, cmd, config, info);
     if logging {
         shot_log::search_time(started.elapsed().as_secs_f32() * 1000.0);
     }
@@ -889,14 +889,10 @@ fn find_target(
     cmd: &UserCmd,
     config: &Config,
     info: ProjectileInfo,
-    logging: bool,
 ) -> (Option<Found>, Vec<shot_log::TargetDiagnostics>) {
     let aim = &config.aimbot;
-    let mut diagnostics = Vec::new();
     let tick = Interfaces::global_vars().interval_per_tick;
     let eye = localplayer.eye_pos();
-    let strafe = Strafe::from(aim);
-    let latency_ticks = (helpers::round_trip() / tick).round() as i32;
     let max_ticks = ((aim.max_sim_time as f32 / 1000.0).min(info.lifetime) / tick) as i32;
     let solver = Solver::new(localplayer, eye, info, max_ticks as f32 * tick);
 
@@ -915,17 +911,25 @@ fn find_target(
     targets.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
     targets.truncate(MAX_TARGETS);
 
-    let use_splash = aim.splash && info.splash_radius > 0.0;
-    let splash_slack = info.splash_radius / solver.speed;
-
     // Read once rather than for each target
     let landings = if aim.wait_for_shot {
         landings()
     } else {
         Vec::new()
     };
+    let search = Search {
+        cmd,
+        strafe: Strafe::from(aim),
+        tick,
+        latency_ticks: (helpers::round_trip() / tick).round() as i32,
+        max_ticks,
+        use_splash: aim.splash && info.splash_radius > 0.0,
+        splash_slack: info.splash_radius / solver.speed,
+        solver,
+    };
 
     let mut best: Option<Found> = None;
+    let mut diagnostics = Vec::new();
     for (center_fov, target) in targets {
         let mut diag = shot_log::TargetDiagnostics {
             index: target.index(),
@@ -934,72 +938,90 @@ fn find_target(
             on_ground: target.is_on_ground(),
             ..Default::default()
         };
-        let Some(mut sim) = MoveSim::new(&target, None, strafe) else {
-            diag.no_sim = true;
-            diagnostics.push(diag);
-            continue;
-        };
-        let start_time = target.simulation_time();
-        let choke = sim.choke();
         let wait_for = landings
             .iter()
             .filter(|(t, _)| *t == target.index())
             .map(|(_, land_time)| *land_time)
             .min_by(f32::total_cmp);
-        let mut waiting = false;
-        let mut count = |r: Result<_, Reject>| match r {
-            Ok(v) => Some(v),
-            Err(reject) => {
-                if logging {
-                    diag.count(reject);
-                }
-                None
-            }
+        if let Some(found) = search.target(&target, wait_for, &mut diag)
+            && best.as_ref().is_none_or(|b| found.fov < b.fov)
+        {
+            best = Some(found);
+        }
+        diagnostics.push(diag);
+    }
+    (best, diagnostics)
+}
+
+/// What the search of each target shares
+struct Search<'a> {
+    solver: Solver<'a>,
+    cmd: &'a UserCmd,
+    strafe: Strafe,
+    tick: f32,
+    /// Ticks until the server fires the projectile, counting how far behind what we see is
+    latency_ticks: i32,
+    max_ticks: i32,
+    use_splash: bool,
+    /// How much sooner than the target a shot at a spot near them can land
+    splash_slack: f32,
+}
+
+impl Search<'_> {
+    /// A shot at the first tick `target` can be hit on, with why other shots were turned down
+    /// in `diag`. Shots landing at or after `wait_for` aren't taken.
+    fn target(
+        &self,
+        target: &Player,
+        wait_for: Option<f32>,
+        diag: &mut shot_log::TargetDiagnostics,
+    ) -> Option<Found> {
+        let (info, eye, tick) = (&self.solver.info, self.solver.eye, self.tick);
+        let Some(mut sim) = MoveSim::new(target, None, self.strafe) else {
+            diag.no_sim = true;
+            return None;
         };
+        let start_time = target.simulation_time();
+        let choke = sim.choke();
         // The projectile leaves once the server gets the command, and what we see is behind
-        for _ in 0..latency_ticks {
+        for _ in 0..self.latency_ticks {
             sim.run_tick();
         }
 
+        let direct_tolerance = info.hull.max(4.0) + 8.0;
+        let splash_tolerance = info.hull.max(4.0) + 12.0;
         let mut splash_ticks = 0;
-        for ticks in 1..=max_ticks {
-            let land_time = start_time + (choke + latency_ticks + ticks) as f32 * tick;
+        for ticks in 1..=self.max_ticks {
+            let land_time = start_time + (choke + self.latency_ticks + ticks) as f32 * tick;
             if wait_for.is_some_and(|w| land_time >= w) {
-                waiting = true;
-                break;
+                diag.waiting = true;
+                return None;
             }
             sim.run_tick();
             let origin = sim.predicted_origin();
-            let direct_tolerance = info.hull.max(4.0) + 8.0;
-            let mut hit = aim_points(&target, &info, sim.on_ground())
+            let mut hit = aim_points(target, info, sim.on_ground())
                 .enumerate()
                 .find_map(|(n, offset)| {
                     let extra = if n == 0 && info.splash { 8.0 } else { 0.0 };
                     let point = origin + offset;
-                    count(attempt(
-                        &solver,
-                        cmd,
-                        &point,
-                        ticks,
-                        direct_tolerance + extra,
-                    ))
-                    .map(|hit| (hit, point, false))
+                    self.attempt(&point, ticks, direct_tolerance + extra, diag)
+                        .map(|hit| (hit, point, false))
                 });
 
             // Spots near the target are at most the blast radius closer than it, so there's
             // no point looking before the projectile could nearly make it to the target
-            if hit.is_none() && use_splash && splash_ticks < SPLASH_TICKS {
+            if hit.is_none() && self.use_splash && splash_ticks < SPLASH_TICKS {
                 let center = origin + Vec3::new(0.0, 0.0, target.maxs().z / 2.0);
-                let in_window = solver
+                let in_window = self
+                    .solver
                     .trajectory(&eye, &center)
-                    .is_some_and(|(_, time)| time - splash_slack <= ticks as f32 * tick);
+                    .is_some_and(|(_, time)| time - self.splash_slack <= ticks as f32 * tick);
                 if in_window {
                     splash_ticks += 1;
-                    let tolerance = info.hull.max(4.0) + 12.0;
-                    hit = splash_points(origin, &target, &info, &eye)
+                    hit = splash_points(origin, target, info, &eye)
                         .iter()
                         .find_map(|point| {
-                            count(attempt(&solver, cmd, point, ticks, tolerance))
+                            self.attempt(point, ticks, splash_tolerance, diag)
                                 .map(|hit| (hit, *point, true))
                         });
                 }
@@ -1008,58 +1030,57 @@ fn find_target(
             let Some(((solution, path, fov), point, splash)) = hit else {
                 continue;
             };
-            if best.as_ref().is_none_or(|b| fov < b.fov) {
-                let mut player_path = sim.path.clone();
-                player_path.push(sim.origin());
-                best = Some(Found {
-                    index: target.index(),
-                    angles: solution.angles,
-                    time: solution.time,
-                    fov,
-                    paths: PredictionPaths {
-                        player: player_path,
-                        projectile: path,
-                        until: 0.0,
-                    },
-                    shot: shot_log::Prediction {
-                        target: target.index(),
-                        start_time,
-                        choke,
-                        latency_ticks,
-                        ticks,
-                        origin,
-                        point,
-                        splash,
-                        target_on_ground: sim.on_ground(),
-                    },
-                });
-            }
-            break;
+            let mut player_path = sim.path.clone();
+            player_path.push(sim.origin());
+            return Some(Found {
+                index: target.index(),
+                angles: solution.angles,
+                time: solution.time,
+                fov,
+                paths: PredictionPaths {
+                    player: player_path,
+                    projectile: path,
+                    until: 0.0,
+                },
+                shot: shot_log::Prediction {
+                    target: target.index(),
+                    start_time,
+                    choke,
+                    latency_ticks: self.latency_ticks,
+                    ticks,
+                    origin,
+                    point,
+                    splash,
+                    target_on_ground: sim.on_ground(),
+                },
+            });
         }
-        drop(count);
-        diag.waiting = waiting;
-        diagnostics.push(diag);
+        None
     }
-    (best, diagnostics)
-}
 
-/// A shot landing on `point` within `ticks` that gets there unobstructed
-fn attempt(
-    solver: &Solver,
-    cmd: &UserCmd,
-    point: &Vec3,
-    ticks: i32,
-    tolerance: f32,
-) -> Result<(Solution, Vec<Vec3>, f32), Reject> {
-    let solution = match solver.solve(point, ticks) {
-        Solve::Good(s) => s,
-        Solve::Late => return Err(Reject::Late),
-        Solve::Bad => return Err(Reject::Bad),
-    };
-    let fov = cmd.view_angles.fov_to(&solution.angles);
-    let path = solver.path(&solution.angles, solution.time);
-    if !solver.clear(&path, point, tolerance) {
-        return Err(Reject::Blocked);
+    /// A shot landing on `point` within `ticks` that gets there unobstructed, counting why in
+    /// `diag` when there isn't one
+    fn attempt(
+        &self,
+        point: &Vec3,
+        ticks: i32,
+        tolerance: f32,
+        diag: &mut shot_log::TargetDiagnostics,
+    ) -> Option<(Solution, Vec<Vec3>, f32)> {
+        let solver = &self.solver;
+        let reject = match solver.solve(point, ticks) {
+            Solve::Good(solution) => {
+                let path = solver.path(&solution.angles, solution.time);
+                if solver.clear(&path, point, tolerance) {
+                    let fov = self.cmd.view_angles.fov_to(&solution.angles);
+                    return Some((solution, path, fov));
+                }
+                Reject::Blocked
+            }
+            Solve::Late => Reject::Late,
+            Solve::Bad => Reject::Bad,
+        };
+        diag.count(reject);
+        None
     }
-    Ok((solution, path, fov))
 }
