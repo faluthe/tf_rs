@@ -60,24 +60,20 @@ fn cvars() -> &'static Cvars {
     })
 }
 
-fn value(cvar: Option<ConVar>, default: f32) -> f32 {
-    cvar.map_or(default, |c| c.float())
-}
-
 /// Interpolation the server lag compensates for, computed like it does from our cvars
 fn lerp() -> f32 {
     let c = cvars();
-    let mut rate = value(c.updaterate, 66.0);
+    let mut rate = c.updaterate.map_or(66.0, |c| c.float());
     if let (Some(min), Some(max)) = (c.min_updaterate, c.max_updaterate) {
         rate = rate.clamp(min.float(), max.float().max(min.float()));
     }
-    let mut ratio = value(c.interp_ratio, 1.0);
+    let mut ratio = c.interp_ratio.map_or(1.0, |c| c.float());
     if let (Some(min), Some(max)) = (c.min_interp_ratio, c.max_interp_ratio)
         && min.float() != -1.0
     {
         ratio = ratio.clamp(min.float(), max.float().max(min.float()));
     }
-    let interp = value(c.interp, 0.1).clamp(0.0, 0.5);
+    let interp = c.interp.map_or(0.1, |c| c.float()).clamp(0.0, 0.5);
     interp.max(ratio / rate.max(1.0))
 }
 
@@ -98,7 +94,7 @@ impl Timing {
         let nci = Interfaces::engine_client().get_net_channel_info()?;
         let outgoing = nci.latency(Flow::Outgoing);
         let incoming = nci.latency(Flow::Incoming);
-        let maxunlag = value(cvars().maxunlag, 1.0);
+        let maxunlag = cvars().maxunlag.map_or(1.0, |c| c.float());
         let lerp = lerp();
         let globals = Interfaces::global_vars();
         let correct = (outgoing + incoming + fake_ping::latency() + lerp).clamp(0.0, maxunlag);
