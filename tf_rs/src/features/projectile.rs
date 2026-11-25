@@ -8,7 +8,10 @@
 //! Explosives that can't reach a target directly look for a surface near it to hit instead,
 //! close enough for the blast to reach them with nothing in between.
 
-use std::cmp::Ordering;
+use std::{
+    cmp::Ordering,
+    sync::{Arc, Mutex},
+};
 
 use crate::{
     config::Config,
@@ -389,6 +392,23 @@ impl ArcTable {
         ArcTable { pitches, arcs }
     }
 
+    /// The table for these flights, reusing the last one built when nothing changed. Building one
+    /// is a few hundred ticks for each of 179 pitches, too slow to do every command.
+    fn cached(info: &ProjectileInfo, speed: f32, max_time: f32) -> Arc<Self> {
+        static LAST: Mutex<Option<([u32; 4], Arc<ArcTable>)>> = Mutex::new(None);
+        let tick = Interfaces::global_vars().interval_per_tick;
+        let key = [speed, info.drag, info.gravity, (max_time / tick).ceil()].map(f32::to_bits);
+        let mut last = LAST.lock().unwrap();
+        if let Some((k, table)) = last.as_ref()
+            && *k == key
+        {
+            return table.clone();
+        }
+        let table = Arc::new(ArcTable::new(info, speed, max_time));
+        *last = Some((key, table.clone()));
+        table
+    }
+
     /// Height and time an arc is at when it's `distance` out, if it gets that far
     fn at(arc: &[(f32, f32)], distance: f32, tick: f32) -> Option<(f32, f32)> {
         if arc.last()?.0 < distance {
@@ -445,7 +465,7 @@ struct Solver<'a> {
     ang_fix: Vec3,
     offset_time: f32,
     /// For projectiles with drag
-    arcs: Option<ArcTable>,
+    arcs: Option<Arc<ArcTable>>,
 }
 
 #[derive(Clone, Copy)]
@@ -463,11 +483,19 @@ enum Solve {
 }
 
 impl Solver<'_> {
-    fn new<'a>(localplayer: &'a Player, eye: Vec3, info: ProjectileInfo) -> Solver<'a> {
+    /// A solver for flights up to `max_time` long
+    fn new<'a>(
+        localplayer: &'a Player,
+        eye: Vec3,
+        info: ProjectileInfo,
+        max_time: f32,
+    ) -> Solver<'a> {
         let v = launch_velocity(&Vec3::default(), &info);
         let (pos, _) = fire_setup(localplayer, &eye, &Vec3::default(), &info);
         let speed = v.length();
-        let arcs = (info.drag > 0.0).then(|| ArcTable::new(&info, speed, info.lifetime.min(5.0)));
+        // Splash can land the blast radius short of a target, so flights that much longer count
+        let max_time = (max_time + info.splash_radius / speed).min(info.lifetime);
+        let arcs = (info.drag > 0.0).then(|| ArcTable::cached(&info, speed, max_time));
         Solver {
             localplayer,
             eye,
@@ -833,13 +861,13 @@ fn find_target(
     let mut diagnostics = Vec::new();
     let tick = Interfaces::global_vars().interval_per_tick;
     let eye = localplayer.eye_pos();
-    let solver = Solver::new(localplayer, eye, info);
     let strafe = Strafe {
         ground: aim.strafe_ground,
         air: aim.strafe_air,
     };
     let latency_ticks = (latency() / tick).round() as i32;
     let max_ticks = ((aim.max_sim_time as f32 / 1000.0).min(info.lifetime) / tick) as i32;
+    let solver = Solver::new(localplayer, eye, info, max_ticks as f32 * tick);
 
     // Closest to the crosshair first, simulating everyone would be too slow
     let mut targets: Vec<(f32, Player)> = (1..=Interfaces::engine_client().get_max_clients())
