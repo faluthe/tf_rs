@@ -48,7 +48,7 @@ impl Player {
     offset_get!(pub fn tick_base: i32, 0x1718);
     offset_get!(fn next_attack: f32, 0x1088);
     offset_get!(fn eye_z_diff: f32, 0x14C);
-    offset_get!(fn player_class: PlayerClass, 0x1BA0);
+    offset_get!(pub fn player_class: PlayerClass, 0x1BA0);
     offset_get!(fn conds_0: u32, 0x1F64);
     offset_get!(fn conds_1: u32, 0x1F68);
     offset_get!(fn conds_2: u32, 0x1F6C);
@@ -248,8 +248,8 @@ impl Player {
 // Warns for unconstructed variants since we always use it through ffi
 #[allow(dead_code)]
 #[repr(i32)]
-#[derive(PartialEq)]
-enum PlayerClass {
+#[derive(PartialEq, Clone, Copy)]
+pub enum PlayerClass {
     Undefined = 0,
     Scout = 1,
     Sniper = 2,

@@ -65,10 +65,6 @@ static STATE: Lazy<Mutex<State>> = Lazy::new(|| {
     })
 });
 
-fn class_of(player: &Player) -> i32 {
-    unsafe { *player.ent.field::<i32>(0x1BA0) }
-}
-
 fn simulate(player: &Player, strafe: Strafe) -> Option<(Vec<Vec3>, f32, i32, f32)> {
     let mut sim = MoveSim::new(player, None, strafe)?;
     while sim.path.len() < TICKS {
@@ -145,7 +141,7 @@ pub fn sample(localplayer: &Player, config: &Config) {
                 variant,
                 start_time,
                 positions,
-                class: class_of(&player),
+                class: player.player_class() as i32,
                 start_ground,
                 speed: velocity.length_2d(),
                 average_yaw,

@@ -209,9 +209,7 @@ pub fn shot(localplayer: &Player, p: &Prediction, path: &[Vec3], flight_time: f3
     // Where the sim put the projectile leaving against when the server will really fire it
     let assumed = p.start_time + (p.choke + p.latency_ticks) as f32 * tick;
     let target = Interfaces::entity_list().get_client_entity::<Player>(p.target);
-    let class = target
-        .as_ref()
-        .map_or(0, |t| unsafe { *t.ent.field::<i32>(0x1BA0) });
+    let class = target.as_ref().map_or(0, |t| t.player_class() as i32);
     let distance = target
         .as_ref()
         .map_or(0.0, |t| t.origin().distance_to(&localplayer.eye_pos()));
