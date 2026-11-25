@@ -11,7 +11,7 @@ use std::{
     sync::{Mutex, MutexGuard},
 };
 
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::OnceCell;
 
 use crate::{
     config::{BacktrackConfig, Config},
@@ -33,20 +33,28 @@ const WINDOW: f32 = 0.2;
 
 pub struct Record {
     pub sim_time: f32,
-    pub bones: Box<[Matrix3x4; MAX_BONES]>,
+    pub bones: Bones,
     head: Vec3,
     body: Vec3,
     // Collision box, what melee swings trace against
     hull: Hull,
 }
 
-/// Records of each player by entity index, newest first
-static RECORDS: Lazy<Mutex<Vec<VecDeque<Record>>>> = Lazy::new(|| Mutex::new(Vec::new()));
+type Bones = Box<[Matrix3x4; MAX_BONES]>;
+
+/// Records of one player, newest first
+type History = VecDeque<Record>;
+
+/// Records of each player by entity index
+static RECORDS: Mutex<Vec<History>> = Mutex::new(Vec::new());
+
+/// Bone buffers of dropped records, reused for new ones instead of allocating every tick
+static SPARE_BONES: Mutex<Vec<Bones>> = Mutex::new(Vec::new());
 
 /// Entity index and simulation time of the record we would shoot at
 static TARGET: Mutex<Option<(i32, f32)>> = Mutex::new(None);
 
-pub fn records() -> MutexGuard<'static, Vec<VecDeque<Record>>> {
+fn records() -> MutexGuard<'static, Vec<History>> {
     RECORDS.lock().unwrap()
 }
 
@@ -186,9 +194,15 @@ pub fn disable_interpolation() {
     }
 }
 
+/// Drop all of a player's records, keeping their bones to reuse
+fn clear(history: &mut History, spare: &mut Vec<Bones>) {
+    spare.extend(history.drain(..).map(|r| r.bones));
+}
+
 /// Record every enemy that got a new update, run once the frame's packets are processed
 pub fn update_records() {
     let mut records = records();
+    let mut spare = SPARE_BONES.lock().unwrap();
 
     let (config, melee_aimbot) = {
         let c = Config::read();
@@ -197,7 +211,7 @@ pub fn update_records() {
     let localplayer = helpers::get_localplayer().filter(|p| !p.is_dead());
     // The melee aimbot uses records to tell how enemies are moving
     let (Some(localplayer), true) = (localplayer, config.enabled || melee_aimbot) else {
-        records.iter_mut().for_each(VecDeque::clear);
+        records.iter_mut().for_each(|h| clear(h, &mut spare));
         return;
     };
     let Some(timing) = Timing::now(&config) else {
@@ -205,7 +219,7 @@ pub fn update_records() {
     };
 
     let max_clients = Interfaces::engine_client().get_max_clients();
-    records.resize_with(max_clients as usize + 1, VecDeque::new);
+    records.resize_with(max_clients as usize + 1, History::new);
 
     for i in 1..=max_clients {
         let player_records = &mut records[i as usize];
@@ -219,7 +233,7 @@ pub fn update_records() {
                     && p.team() != localplayer.team()
             });
         let Some(player) = player else {
-            player_records.clear();
+            clear(player_records, &mut spare);
             continue;
         };
 
@@ -233,8 +247,11 @@ pub fn update_records() {
 
         // The bones cached this frame are from the interpolated position, not the one just received
         player.invalidate_bone_cache();
-        let mut bones = Box::new([Matrix3x4::default(); MAX_BONES]);
+        let mut bones = spare
+            .pop()
+            .unwrap_or_else(|| Box::new([Matrix3x4::default(); MAX_BONES]));
         if !player.setup_bones(&mut bones, BONE_USED_BY_ANYTHING, sim_time) {
+            spare.push(bones);
             continue;
         }
 
@@ -251,7 +268,7 @@ pub fn update_records() {
             .back()
             .is_some_and(|r| timing.delta(r.sim_time) <= -WINDOW)
         {
-            player_records.pop_back();
+            spare.extend(player_records.pop_back().map(|r| r.bones));
         }
     }
 }
