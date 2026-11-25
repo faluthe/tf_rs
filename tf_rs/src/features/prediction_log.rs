@@ -6,15 +6,9 @@
 //! prediction.csv next to the library. Errors at a few ticks either side are checked too, a best
 //! offset away from zero means the prediction runs early or late rather than going the wrong way.
 
-use std::{
-    ffi::OsStr,
-    io::Write,
-    os::unix::ffi::OsStrExt,
-    path::{Path, PathBuf},
-    sync::{
-        Mutex,
-        atomic::{AtomicU32, Ordering},
-    },
+use std::sync::{
+    Mutex,
+    atomic::{AtomicU32, Ordering},
 };
 
 use once_cell::sync::Lazy;
@@ -211,37 +205,6 @@ pub fn observe() {
         state.last_flush = now;
         let rows = std::mem::take(&mut state.rows);
         drop(state);
-        write_rows(&rows);
-    }
-}
-
-fn path() -> Option<PathBuf> {
-    let lib = helpers::lib_path()?;
-    Some(
-        Path::new(OsStr::from_bytes(lib.as_bytes()))
-            .parent()?
-            .join(FILE),
-    )
-}
-
-fn write_rows(rows: &str) {
-    let Some(path) = path() else {
-        return;
-    };
-    let file = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path);
-    match file {
-        Ok(mut f) => {
-            let empty = f.metadata().is_ok_and(|m| m.len() == 0);
-            let _ = if empty {
-                f.write_all(HEADER.as_bytes())
-            } else {
-                Ok(())
-            }
-            .and_then(|_| f.write_all(rows.as_bytes()));
-        }
-        Err(e) => log::warn!("Could not write {}: {e}", path.display()),
+        helpers::append_csv(FILE, HEADER, &rows);
     }
 }

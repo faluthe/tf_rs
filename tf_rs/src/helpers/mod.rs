@@ -1,6 +1,9 @@
 use std::{
-    ffi::{CStr, CString, c_void},
+    ffi::{CStr, CString, OsStr, c_void},
+    io::Write,
     mem,
+    os::unix::ffi::OsStrExt,
+    path::Path,
 };
 
 use crate::{
@@ -35,6 +38,30 @@ pub fn round_trip() -> f32 {
         .map_or(0.0, |nci| {
             nci.latency(Flow::Outgoing) + nci.latency(Flow::Incoming)
         })
+}
+
+/// Append `rows` to the CSV file `name` next to this library, starting it with `header` when
+/// it's new
+pub fn append_csv(name: &str, header: &str, rows: &str) {
+    let Some(lib) = lib_path() else {
+        return;
+    };
+    let Some(dir) = Path::new(OsStr::from_bytes(lib.as_bytes())).parent() else {
+        return;
+    };
+    let path = dir.join(name);
+    match std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
+        Ok(mut f) => {
+            let empty = f.metadata().is_ok_and(|m| m.len() == 0);
+            let header = if empty { header } else { "" };
+            let _ = f.write_all(format!("{header}{rows}").as_bytes());
+        }
+        Err(e) => log::warn!("Could not write {}: {e}", path.display()),
+    }
 }
 
 /// Path this library was loaded from, as passed to dlopen.

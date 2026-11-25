@@ -9,9 +9,7 @@
 //! Everything is lined up by server time. The shot fires at our tick base, our projectiles and the
 //! target carry the simulation time the server had them at.
 
-use std::{
-    collections::HashSet, ffi::OsStr, io::Write, os::unix::ffi::OsStrExt, path::Path, sync::Mutex,
-};
+use std::{collections::HashSet, sync::Mutex};
 
 use once_cell::sync::Lazy;
 
@@ -377,30 +375,8 @@ pub fn observe() {
         drop(state);
         for (i, rows) in files.iter().enumerate() {
             if !rows.is_empty() {
-                write_rows(FILES[i].0, FILES[i].1, rows);
+                helpers::append_csv(FILES[i].0, FILES[i].1, rows);
             }
         }
-    }
-}
-
-fn write_rows(name: &str, header: &str, rows: &str) {
-    let Some(lib) = helpers::lib_path() else {
-        return;
-    };
-    let Some(dir) = Path::new(OsStr::from_bytes(lib.as_bytes())).parent() else {
-        return;
-    };
-    let path = dir.join(name);
-    match std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-    {
-        Ok(mut f) => {
-            let empty = f.metadata().is_ok_and(|m| m.len() == 0);
-            let header = if empty { header } else { "" };
-            let _ = f.write_all(format!("{header}{rows}").as_bytes());
-        }
-        Err(e) => log::warn!("Could not write {}: {e}", path.display()),
     }
 }
