@@ -124,10 +124,7 @@ pub fn run(localplayer: &Player, cmd: &mut UserCmd, config: &Config) {
 
     let tick = Interfaces::global_vars().interval_per_tick;
     let latency_ticks = (helpers::round_trip() / tick).round() as i32;
-    let strafe = Strafe {
-        ground: aim.strafe_ground,
-        air: aim.strafe_air,
-    };
+    let strafe = Strafe::from(aim);
 
     for i in 1..=Interfaces::engine_client().get_max_clients() {
         let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i) else {

@@ -16,6 +16,7 @@ use std::{
 use once_cell::sync::{Lazy, OnceCell};
 
 use crate::{
+    config::AimbotConfig,
     helpers::{self, module},
     interfaces::{Interfaces, mask},
     types::{
@@ -100,6 +101,23 @@ static HISTORY: Lazy<Mutex<Vec<History>>> =
 pub struct Strafe {
     pub ground: bool,
     pub air: bool,
+}
+
+impl Strafe {
+    pub const NONE: Strafe = Strafe {
+        ground: false,
+        air: false,
+    };
+}
+
+/// The ones turned on in the aimbot's settings
+impl From<&AimbotConfig> for Strafe {
+    fn from(aim: &AimbotConfig) -> Self {
+        Strafe {
+            ground: aim.strafe_ground,
+            air: aim.strafe_air,
+        }
+    }
 }
 
 struct Cvars {

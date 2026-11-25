@@ -84,10 +84,7 @@ fn simulate(player: &Player, strafe: Strafe) -> Option<(Vec<Vec3>, f32, i32, f32
 pub fn sample(localplayer: &Player, config: &Config) {
     let now = Interfaces::global_vars().realtime;
     let tick = Interfaces::global_vars().interval_per_tick;
-    let strafe = Strafe {
-        ground: config.aimbot.strafe_ground,
-        air: config.aimbot.strafe_air,
-    };
+    let strafe = Strafe::from(&config.aimbot);
     let due: Vec<i32> = {
         let state = STATE.lock().unwrap();
         (1..=Interfaces::engine_client().get_max_clients().min(64))
@@ -113,13 +110,7 @@ pub fn sample(localplayer: &Player, config: &Config) {
         let origin = player.network_origin();
 
         let full = simulate(&player, strafe);
-        let plain = simulate(
-            &player,
-            Strafe {
-                ground: false,
-                air: false,
-            },
-        );
+        let plain = simulate(&player, Strafe::NONE);
         let gravity = movesim::gravity();
         let linear: Vec<Vec3> = (0..=TICKS)
             .map(|j| {

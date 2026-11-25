@@ -895,10 +895,7 @@ fn find_target(
     let mut diagnostics = Vec::new();
     let tick = Interfaces::global_vars().interval_per_tick;
     let eye = localplayer.eye_pos();
-    let strafe = Strafe {
-        ground: aim.strafe_ground,
-        air: aim.strafe_air,
-    };
+    let strafe = Strafe::from(aim);
     let latency_ticks = (helpers::round_trip() / tick).round() as i32;
     let max_ticks = ((aim.max_sim_time as f32 / 1000.0).min(info.lifetime) / tick) as i32;
     let solver = Solver::new(localplayer, eye, info, max_ticks as f32 * tick);

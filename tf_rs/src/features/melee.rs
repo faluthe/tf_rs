@@ -98,11 +98,7 @@ fn ticks(time: f32) -> i32 {
 /// Where our eye will be `lead` seconds after this command, which the server moves us by before
 /// the weapon runs, keeping the command's movement
 pub fn eye_at(localplayer: &Player, cmd: &UserCmd, lead: f32, config: &Config) -> Vec3 {
-    let no_strafe = Strafe {
-        ground: false,
-        air: false,
-    };
-    if let Some(mut sim) = MoveSim::new(localplayer, Some((cmd, config.bunnyhop)), no_strafe) {
+    if let Some(mut sim) = MoveSim::new(localplayer, Some((cmd, config.bunnyhop)), Strafe::NONE) {
         for _ in 0..1 + ticks(lead) {
             sim.run_tick();
         }
@@ -304,10 +300,7 @@ fn find_target(
     // Only the angles change between swings, the rest is worked out once
     let eye = eye_at(localplayer, cmd, lead, config);
     let swing = Swing::new(weapon, eye, &cmd.view_angles);
-    let strafe = Strafe {
-        ground: aim.strafe_ground,
-        air: aim.strafe_air,
-    };
+    let strafe = Strafe::from(aim);
     // Locked once for every player rather than for each of them
     let lookup = backtrack::Lookup::new(config);
     let mut best: Option<Found> = None;
