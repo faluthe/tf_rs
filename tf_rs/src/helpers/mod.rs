@@ -5,11 +5,20 @@ use std::{
 
 use crate::{
     interfaces::{Interfaces, mask},
-    types::{BBox, Entity, Player, Vec2, Vec3},
+    types::{BBox, Entity, Flow, Player, Vec2, Vec3},
 };
 
 pub mod macros;
 pub mod module;
+
+/// Total real latency, how long until the server runs our command plus how old what we see is
+pub fn round_trip() -> f32 {
+    Interfaces::engine_client()
+        .get_net_channel_info()
+        .map_or(0.0, |nci| {
+            nci.latency(Flow::Outgoing) + nci.latency(Flow::Incoming)
+        })
+}
 
 /// Path this library was loaded from, as passed to dlopen.
 pub fn lib_path() -> Option<CString> {

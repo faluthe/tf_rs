@@ -23,9 +23,7 @@ use crate::{
     helpers,
     interfaces::{Interfaces, mask},
     types::weapon::WeaponClass,
-    types::{
-        ClassId, Entity, Flow, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon, user_cmd::Buttons,
-    },
+    types::{ClassId, Entity, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon, user_cmd::Buttons},
 };
 
 const MAX_TARGETS: usize = 3;
@@ -786,15 +784,6 @@ pub enum Reject {
     Blocked,
 }
 
-/// Total real latency, how long until the server fires our projectile plus how old what we see is
-fn latency() -> f32 {
-    Interfaces::engine_client()
-        .get_net_channel_info()
-        .map_or(0.0, |nci| {
-            nci.latency(Flow::Outgoing) + nci.latency(Flow::Incoming)
-        })
-}
-
 pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Config) {
     track_in_flight(localplayer);
     let aim = &config.aimbot;
@@ -873,7 +862,7 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
             land_time: s.start_time + (s.choke + s.latency_ticks + s.ticks) as f32 * tick,
             fired: Interfaces::global_vars().realtime,
             projectile: None,
-            expires: Interfaces::global_vars().realtime + found.time + latency() + 0.1,
+            expires: Interfaces::global_vars().realtime + found.time + helpers::round_trip() + 0.1,
         });
     }
     if logging && fires {
@@ -890,7 +879,7 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
     if aim.draw_prediction && fires {
         let now = Interfaces::global_vars().realtime;
         let mut paths = found.paths;
-        paths.until = now + found.time + latency();
+        paths.until = now + found.time + helpers::round_trip();
         Globals::write().prediction = Some(paths);
     }
 }
@@ -910,7 +899,7 @@ fn find_target(
         ground: aim.strafe_ground,
         air: aim.strafe_air,
     };
-    let latency_ticks = (latency() / tick).round() as i32;
+    let latency_ticks = (helpers::round_trip() / tick).round() as i32;
     let max_ticks = ((aim.max_sim_time as f32 / 1000.0).min(info.lifetime) / tick) as i32;
     let solver = Solver::new(localplayer, eye, info, max_ticks as f32 * tick);
 

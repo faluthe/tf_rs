@@ -17,7 +17,7 @@ use crate::{
     },
     helpers,
     interfaces::{Interfaces, mask},
-    types::{ClassId, ConVar, Entity, Flow, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon},
+    types::{ClassId, ConVar, Entity, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon},
 };
 
 const IN_ATTACK2: i32 = 1 << 11;
@@ -123,12 +123,7 @@ pub fn run(localplayer: &Player, cmd: &mut UserCmd, config: &Config) {
     let reach = stickies.iter().map(|s| s.radius).fold(0.0, f32::max);
 
     let tick = Interfaces::global_vars().interval_per_tick;
-    let latency = Interfaces::engine_client()
-        .get_net_channel_info()
-        .map_or(0.0, |nci| {
-            nci.latency(Flow::Outgoing) + nci.latency(Flow::Incoming)
-        });
-    let latency_ticks = (latency / tick).round() as i32;
+    let latency_ticks = (helpers::round_trip() / tick).round() as i32;
     let strafe = Strafe {
         ground: aim.strafe_ground,
         air: aim.strafe_air,
