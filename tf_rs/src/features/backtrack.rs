@@ -1,10 +1,33 @@
 //! Lag compensation abuse: shoot at where enemies were a few ticks ago.
 //! See <https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking#Lag_compensation>
 //!
-//! The server rewinds every player to `cmd.tick_count - lerp` before running a shot, as long as
-//! that tick is within 200ms of what it expects from our latency. Each enemy update is recorded
-//! with its bones, and when shooting the record closest to the crosshair is picked as the tick.
-//! Fake ping delays our acknowledgements so the server thinks we lag more and rewinds further.
+//! # How the server lag compensates
+//!
+//! What we see of other players is always in the past. An update takes our latency to reach us,
+//! and the client then draws players `lerp` behind the newest update so it always has two updates
+//! to interpolate between. When we aim at someone we're aiming at where they were about
+//! `latency + lerp` ago, and they've moved on by the time the shot reaches the server.
+//!
+//! To make that hit anyway, every command carries `tick_count`, the tick the client was on when it
+//! made the command. Before running a shot the server:
+//!
+//! 1. Takes `tick_count - lerp` as the tick we were looking at. It knows our lerp from the
+//!    interpolation cvars we send it.
+//! 2. Works out how far back it expected that to be, `latency + lerp` from its own measurement of
+//!    our connection, capped at `sv_maxunlag`.
+//! 3. Uses its own estimate instead if our tick is more than 200ms off from it.
+//! 4. Moves every player to where they were on that tick, runs the shot and moves them back.
+//!
+//! # How we abuse it
+//!
+//! `tick_count` is just a number we send, so any tick inside that 200ms window is accepted. Each
+//! enemy update is recorded with its bones, and when shooting `tick_count` is set to the tick of
+//! the record closest to the crosshair plus lerp, so the server rewinds exactly to that record.
+//! The server keeps its own history, ours is only to know where enemies were and which ticks are
+//! still in the window.
+//!
+//! Fake ping delays our acknowledgements so the server measures more latency, which moves the
+//! window further back.
 
 use std::{
     collections::VecDeque,
@@ -60,7 +83,9 @@ fn cvars() -> &'static Cvars {
     })
 }
 
-/// Interpolation the server lag compensates for, computed like it does from our cvars
+/// How far behind the newest update enemies are drawn, which the server subtracts from our
+/// `tick_count` to get the tick we were looking at. The cvars are clamped like the server clamps
+/// them, otherwise our record's tick would be off by the difference
 fn lerp() -> f32 {
     let c = cvars();
     let mut rate = c.updaterate.map_or(66.0, |c| c.float());
