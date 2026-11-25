@@ -1,3 +1,8 @@
+//! Hooks an object's virtual functions by giving it its own copy of its vtable rather
+//! than patching the game's. No `mprotect` is needed, the game's read only vtable is
+//! never written, only that one object is affected, and restoring is a single write of
+//! the original vptr.
+
 use std::{ffi::c_void, fs, ptr};
 
 use anyhow::{Result, anyhow};

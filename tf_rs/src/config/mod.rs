@@ -1,3 +1,12 @@
+//! Feature settings, saved to `~/.<name>.tf_rs.cfg`. Nested structs are indented blocks:
+//!
+//! ```text
+//! esp:
+//!     master: true
+//!     player_enemy:
+//!         boxes: true
+//! ```
+
 use std::{
     env, fs,
     path::PathBuf,
