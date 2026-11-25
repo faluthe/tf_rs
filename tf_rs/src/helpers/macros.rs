@@ -35,13 +35,14 @@ macro_rules! struct_with_serialize {
         $(#[$meta:meta])*
         $vis:vis struct $name:ident {
             $(
+                $(#[$field_meta:meta])*
                 $field_vis:vis $field:ident : $ty:ty
             ),* $(,)?
         }
     ) => {
         $(#[$meta])*
         $vis struct $name {
-            $($field_vis $field : $ty),*
+            $($(#[$field_meta])* $field_vis $field : $ty),*
         }
 
         impl std::fmt::Display for $name {
