@@ -9,8 +9,12 @@ use crate::{
 };
 
 pub const MAX_BONES: usize = 128;
+
 pub const BONE_USED_BY_HITBOX: i32 = 0x100;
 pub const BONE_USED_BY_ANYTHING: i32 = 0x7FF00;
+
+/// Bone to world transforms, as set up by `setup_bones`
+pub type Bones = [Matrix3x4; MAX_BONES];
 
 #[derive(PartialEq, Eq)]
 pub struct Player {
@@ -93,7 +97,7 @@ impl Player {
     }
 
     /// Fill `out` with the bone to world matrices of every bone in `mask`
-    pub fn setup_bones(&self, out: &mut [Matrix3x4; MAX_BONES], mask: i32, time: f32) -> bool {
+    pub fn setup_bones(&self, out: &mut Bones, mask: i32, time: f32) -> bool {
         let f = vfunc!(
             self.vtable,
             96,

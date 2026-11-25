@@ -23,7 +23,7 @@ use crate::{
     interfaces::Interfaces,
     types::{
         ConVar, Flow, Hull, Matrix3x4, Player, UserCmd, Vec3,
-        player::{BONE_USED_BY_ANYTHING, MAX_BONES},
+        player::{BONE_USED_BY_ANYTHING, Bones, MAX_BONES},
         user_cmd::Buttons,
     },
 };
@@ -33,14 +33,12 @@ const WINDOW: f32 = 0.2;
 
 pub struct Record {
     pub sim_time: f32,
-    pub bones: Bones,
+    pub bones: Box<Bones>,
     head: Vec3,
     body: Vec3,
     // Collision box, what melee swings trace against
     hull: Hull,
 }
-
-type Bones = Box<[Matrix3x4; MAX_BONES]>;
 
 /// Records of one player, newest first
 type History = VecDeque<Record>;
@@ -49,7 +47,7 @@ type History = VecDeque<Record>;
 static RECORDS: Mutex<Vec<History>> = Mutex::new(Vec::new());
 
 /// Bone buffers of dropped records, reused for new ones instead of allocating every tick
-static SPARE_BONES: Mutex<Vec<Bones>> = Mutex::new(Vec::new());
+static SPARE_BONES: Mutex<Vec<Box<Bones>>> = Mutex::new(Vec::new());
 
 /// Entity index and simulation time of the record we would shoot at
 static TARGET: Mutex<Option<(i32, f32)>> = Mutex::new(None);
@@ -188,7 +186,7 @@ pub fn disable_interpolation() {
 }
 
 /// Drop all of a player's records, keeping their bones to reuse
-fn clear(history: &mut History, spare: &mut Vec<Bones>) {
+fn clear(history: &mut History, spare: &mut Vec<Box<Bones>>) {
     spare.extend(history.drain(..).map(|r| r.bones));
 }
 
@@ -389,7 +387,7 @@ pub fn velocity(index: i32) -> Option<Vec3> {
 pub fn valid_bones(
     index: i32,
     config: &BacktrackConfig,
-    mut f: impl FnMut(&[Matrix3x4; MAX_BONES], bool),
+    mut f: impl FnMut(&Bones, bool),
 ) {
     let Some(timing) = Timing::now(config) else {
         return;
