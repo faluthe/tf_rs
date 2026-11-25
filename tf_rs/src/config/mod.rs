@@ -339,11 +339,8 @@ struct_with_serialize! {
         pub disable_when_spectated: usize,
         pub ignore_invis: bool,
         pub melee: bool,
-        // Swing on its own whenever a target is in reach
         pub auto_swing: bool,
-        // Start swinging when the target will be in reach once the swing lands
         pub swing_prediction: bool,
-        // With a knife, only go for backstabs and stab on its own when one is possible
         pub auto_backstab: bool,
     }
 }
@@ -352,9 +349,7 @@ struct_with_serialize! {
     #[derive(Clone)]
     pub struct BacktrackConfig {
         pub enabled: bool,
-        // Milliseconds of history used past the newest tick the server accepts
         pub length: i32,
-        // Milliseconds of latency added on top of the real one
         pub fake_ping: i32,
         pub disable_interpolation: bool,
     }
