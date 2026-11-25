@@ -16,12 +16,6 @@ use crate::{
     types::{MoveData, Player, UserCmd, Vec3, datamap::Snapshot},
 };
 
-/// m_vecAbsOrigin, what `Entity::origin` reads
-const ABS_ORIGIN: usize = 0x328;
-/// m_vecNetworkOrigin, which prediction starts the next command's movement from
-const NETWORK_ORIGIN: usize = 0x448;
-const VELOCITY: usize = 0x168;
-
 /// SetupMove reads the last command's angles back out of the move data, so it's kept between runs
 static MOVE_DATA: Mutex<Option<MoveData>> = Mutex::new(None);
 
@@ -53,13 +47,8 @@ impl Prediction {
         let prediction = Prediction {
             player: Player { ent: player.ent },
             snapshot,
-            origins: unsafe {
-                (
-                    *player.field::<Vec3>(ABS_ORIGIN),
-                    *player.field::<Vec3>(NETWORK_ORIGIN),
-                )
-            },
-            velocity: unsafe { *player.field::<Vec3>(VELOCITY) },
+            origins: (player.origin(), player.network_origin()),
+            velocity: player.velocity(),
         };
 
         let game = Interfaces::prediction();
@@ -99,11 +88,9 @@ impl Prediction {
 
         // Where FinishMove would put us. Written straight to the fields we read, SetLocalOrigin
         // only marks the absolute origin dirty and ours are raw reads.
-        unsafe {
-            *player.field::<Vec3>(ABS_ORIGIN) = data.abs_origin;
-            *player.field::<Vec3>(NETWORK_ORIGIN) = data.abs_origin;
-            *player.field::<Vec3>(VELOCITY) = data.velocity;
-        }
+        player.set_origin(data.abs_origin);
+        player.set_network_origin(data.abs_origin);
+        player.set_velocity(data.velocity);
         ACTIVE.store(true, Ordering::Relaxed);
         Some(prediction)
     }
@@ -113,10 +100,8 @@ impl Drop for Prediction {
     fn drop(&mut self) {
         ACTIVE.store(false, Ordering::Relaxed);
         self.snapshot.restore();
-        unsafe {
-            *self.player.field::<Vec3>(ABS_ORIGIN) = self.origins.0;
-            *self.player.field::<Vec3>(NETWORK_ORIGIN) = self.origins.1;
-            *self.player.field::<Vec3>(VELOCITY) = self.velocity;
-        }
+        self.player.set_origin(self.origins.0);
+        self.player.set_network_origin(self.origins.1);
+        self.player.set_velocity(self.velocity);
     }
 }

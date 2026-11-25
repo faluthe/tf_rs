@@ -43,6 +43,16 @@ impl Entity {
         unsafe { *self.field::<Vec3>(0x448) }
     }
 
+    /// Writes m_vecAbsOrigin, what `origin` reads, without marking anything dirty
+    pub fn set_origin(&self, origin: Vec3) {
+        unsafe { *self.field::<Vec3>(0x328) = origin }
+    }
+
+    /// Writes m_vecNetworkOrigin, which prediction starts the next command's movement from
+    pub fn set_network_origin(&self, origin: Vec3) {
+        unsafe { *self.field::<Vec3>(0x448) = origin }
+    }
+
     /// Entity index of m_hOwnerEntity
     pub fn owner_index(&self) -> i32 {
         handle_index(unsafe { *self.field::<u32>(0x754) })
