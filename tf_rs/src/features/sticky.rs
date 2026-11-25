@@ -16,11 +16,10 @@ use crate::{
         projectile,
     },
     helpers,
-    interfaces::Interfaces,
+    interfaces::{Interfaces, mask},
     types::{ClassId, ConVar, Entity, Flow, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon},
 };
 
-const MASK_SOLID: u32 = 0x200400B;
 const IN_ATTACK2: i32 = 1 << 11;
 
 const THROWER: usize = 0xC30;
@@ -112,7 +111,7 @@ fn reaches(sticky: &Sticky, origin: &Vec3, mins: &Vec3, maxs: &Vec3) -> bool {
     let center = *origin + Vec3::new(0.0, 0.0, (mins.z + maxs.z) / 2.0);
     [point, center].iter().any(|to| {
         let trace =
-            Interfaces::engine_trace().trace(&Ray::init(&sticky.origin, to), MASK_SOLID, &filter);
+            Interfaces::engine_trace().trace(&Ray::init(&sticky.origin, to), mask::SOLID, &filter);
         trace.fraction >= 1.0
     })
 }

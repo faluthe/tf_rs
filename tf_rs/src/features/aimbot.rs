@@ -8,12 +8,10 @@ use crate::{
     },
     globals::{Globals, Target},
     helpers,
-    interfaces::Interfaces,
+    interfaces::{Interfaces, mask},
     player_db,
     types::{ClassId, Entity, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon, user_cmd::Buttons},
 };
-
-const MASK_SHOT: u32 = 0x4200400B;
 
 struct Candidate {
     target: Target,
@@ -28,7 +26,7 @@ struct Candidate {
 fn world_visible(from: &Vec3, to: &Vec3) -> bool {
     let filter = TraceFilter::world_only();
     Interfaces::engine_trace()
-        .trace(&Ray::init(from, to), MASK_SHOT, &filter)
+        .trace(&Ray::init(from, to), mask::BULLET, &filter)
         .fraction
         >= 1.0
 }

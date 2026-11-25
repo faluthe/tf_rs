@@ -21,15 +21,13 @@ use crate::{
     },
     globals::{Globals, PredictionPaths, Target},
     helpers,
-    interfaces::Interfaces,
+    interfaces::{Interfaces, mask},
     types::weapon::WeaponClass,
     types::{
         ClassId, Entity, Flow, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon, user_cmd::Buttons,
     },
 };
 
-const MASK_SOLID: u32 = 0x200400B;
-const MASK_SHOT: u32 = 0x4600400B;
 const MAX_TARGETS: usize = 3;
 /// Surface directions looked along around a target for splash
 const SPLASH_DIRECTIONS: usize = 32;
@@ -368,7 +366,7 @@ fn fire_setup(
     }
     // Rockets and arrows are angled to meet whatever the crosshair is on
     let mut end = *eye + forward * 2000.0;
-    let trace = Interfaces::engine_trace().trace_ray(eye, &end, MASK_SOLID, Some(localplayer));
+    let trace = Interfaces::engine_trace().trace_ray(eye, &end, mask::SOLID, Some(localplayer));
     if trace.did_hit() && trace.fraction > 0.1 {
         end = trace.end_pos;
     }
@@ -675,8 +673,14 @@ impl Solver<'_> {
         let (mins, maxs) = (Vec3::new(-hull, -hull, -hull), Vec3::new(hull, hull, hull));
         let filter = TraceFilter::world_only();
         for w in path.windows(2) {
-            let trace = Interfaces::engine_trace()
-                .trace_hull(&w[0], &w[1], &mins, &maxs, MASK_SHOT, &filter);
+            let trace = Interfaces::engine_trace().trace_hull(
+                &w[0],
+                &w[1],
+                &mins,
+                &maxs,
+                mask::SHOT,
+                &filter,
+            );
             if trace.did_hit() {
                 return trace.end_pos.distance_to(point) <= tolerance;
             }
@@ -750,7 +754,7 @@ fn splash_points(origin: Vec3, target: &Player, info: &ProjectileInfo, eye: &Vec
         .iter()
         .filter_map(|dir| {
             let ray = Ray::init(&center, &(center + *dir * reach));
-            let trace = Interfaces::engine_trace().trace(&ray, MASK_SOLID, &filter);
+            let trace = Interfaces::engine_trace().trace(&ray, mask::SOLID, &filter);
             if trace.start_solid || trace.fraction >= 1.0 {
                 return None;
             }

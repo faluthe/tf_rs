@@ -5,6 +5,17 @@ use crate::{
     vfunc,
 };
 
+/// What traces collide with
+pub mod mask {
+    const CONTENTS_HITBOX: u32 = 0x40000000;
+
+    pub const SOLID: u32 = 0x200400B;
+    pub const PLAYER_SOLID: u32 = 0x201400B;
+    pub const SHOT: u32 = 0x4600400B;
+    /// What TF2's hitscan weapons fire with, MASK_SOLID | CONTENTS_HITBOX
+    pub const BULLET: u32 = SOLID | CONTENTS_HITBOX;
+}
+
 #[derive(Default, Clone)]
 pub struct EngineTrace {
     this: *mut c_void,

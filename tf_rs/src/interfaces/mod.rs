@@ -21,6 +21,7 @@ pub use core::*;
 use cvar::*;
 use debug_overlay::*;
 use engine_client::*;
+pub use engine_trace::mask;
 use engine_trace::*;
 use entity_list::*;
 use factory::*;

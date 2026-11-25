@@ -17,7 +17,7 @@ use once_cell::sync::{Lazy, OnceCell};
 
 use crate::{
     helpers::{self, module},
-    interfaces::Interfaces,
+    interfaces::{Interfaces, mask},
     types::{
         ConVar, Cond, MoveData, Player, TraceFilter, UserCmd, Vec3, datamap::Snapshot,
         user_cmd::Buttons, vec3::normalize_angle,
@@ -27,7 +27,6 @@ use crate::{
 const MAX_RECORDS: usize = 66;
 const MAX_DELTAS: usize = 5;
 const MAX_ORIGINS: usize = 5;
-const MASK_PLAYERSOLID: u32 = 0x201400B;
 
 /// Strafe prediction tuning, Amalgam's defaults
 struct StrafeTuning {
@@ -282,7 +281,7 @@ fn record_move(h: &mut History, player: &Player, sim_time: f32) {
             &(last.origin + last.velocity * tick_interval()),
             &(player.mins() + shrink),
             &(player.maxs() - shrink),
-            MASK_PLAYERSOLID,
+            mask::PLAYER_SOLID,
             &TraceFilter::world_only(),
         );
         if trace.did_hit() && trace.plane_normal().z < 0.707 {
