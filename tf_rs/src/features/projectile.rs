@@ -229,7 +229,8 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
         charge: false,
     };
 
-    match weapon.weapon_class() {
+    let class = weapon.weapon_class();
+    match class {
         WeaponClass::Rocketlauncher | WeaponClass::RocketlauncherDirecthit => {
             let center = attrib(0.0, c"centerfire_projectile") as i32 == 1;
             info.offset.y = if center { 0.0 } else { 12.0 };
@@ -238,8 +239,8 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             info.splash_radius = attrib(146.0, c"mult_explosion_radius");
         }
         WeaponClass::ParticleCannon | WeaponClass::Raygun | WeaponClass::DrgPomson => {
-            let mangler = matches!(weapon.weapon_class(), WeaponClass::ParticleCannon);
-            if matches!(weapon.weapon_class(), WeaponClass::DrgPomson) {
+            let mangler = matches!(class, WeaponClass::ParticleCannon);
+            if matches!(class, WeaponClass::DrgPomson) {
                 info.offset.z -= 13.0;
             }
             info.speed = if mangler { 1100.0 } else { 1200.0 };
@@ -256,7 +257,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             );
             info.up_speed = 200.0;
             info.gravity = 800.0;
-            info.drag = if matches!(weapon.weapon_class(), WeaponClass::Cannon) {
+            info.drag = if matches!(class, WeaponClass::Cannon) {
                 0.385 / 1454.0
             } else if attrib(0.0, c"grenade_no_spin") != 0.0 {
                 // Loch-n-Load, a pipe that doesn't spin
@@ -305,7 +306,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             info.offset = Vec3::new(23.5, 8.0, -3.0);
             info.speed = 2400.0;
             info.gravity = 0.2 * gravity;
-            info.hull = if matches!(weapon.weapon_class(), WeaponClass::Crossbow) {
+            info.hull = if matches!(class, WeaponClass::Crossbow) {
                 3.0
             } else {
                 1.0
