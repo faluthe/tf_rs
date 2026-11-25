@@ -161,18 +161,18 @@ fn track_in_flight(localplayer: &Player) {
     *known = ours;
 }
 
-/// When the first of our explosives in the air at `target` lands. Only ones seen flying count,
+/// Target and landing time of each of our explosives in the air. Only ones seen flying count,
 /// several commands in a frame can each look like they fire before the weapon's next attack
 /// time catches up.
-fn landing_before(target: i32) -> Option<f32> {
+fn landings() -> Vec<(i32, f32)> {
     TRACKING
         .lock()
         .unwrap()
         .in_flight
         .iter()
-        .filter(|f| f.target == target && f.projectile.is_some())
-        .map(|f| f.land_time)
-        .min_by(f32::total_cmp)
+        .filter(|f| f.projectile.is_some())
+        .map(|f| (f.target, f.land_time))
+        .collect()
 }
 
 /// How a weapon's projectile leaves it
@@ -692,7 +692,11 @@ fn quadratic_larger(b: f32, c: f32) -> Option<f32> {
 }
 
 /// Points on a player to aim at, best first, relative to their origin
-fn aim_points(target: &Player, info: &ProjectileInfo, on_ground: bool) -> Vec<Vec3> {
+fn aim_points(
+    target: &Player,
+    info: &ProjectileInfo,
+    on_ground: bool,
+) -> impl Iterator<Item = Vec3> {
     let (mins, maxs) = (target.mins(), target.maxs());
     let head = Vec3::new(0.0, 0.0, maxs.z - 5.0);
     let body = Vec3::new(0.0, 0.0, (maxs.z - mins.z) / 2.0);
@@ -700,12 +704,18 @@ fn aim_points(target: &Player, info: &ProjectileInfo, on_ground: bool) -> Vec<Ve
     if info.headshot {
         // Between the eyes and the top of the box, Amalgam's huntsman lerp
         let eye = target.view_offset().z.clamp(mins.z + 5.0, maxs.z - 5.0);
-        return vec![Vec3::new(0.0, 0.0, eye + (maxs.z - eye) * 0.5), body];
+        [
+            Some(Vec3::new(0.0, 0.0, eye + (maxs.z - eye) * 0.5)),
+            Some(body),
+            None,
+        ]
+    } else if info.splash && on_ground {
+        [Some(feet), Some(body), None]
+    } else {
+        [Some(body), Some(head), Some(feet)]
     }
-    if info.splash && on_ground {
-        return vec![feet, body];
-    }
-    vec![body, head, feet]
+    .into_iter()
+    .flatten()
 }
 
 /// Directions spread evenly over a sphere
@@ -930,6 +940,13 @@ fn find_target(
     let use_splash = aim.splash && info.splash_radius > 0.0;
     let splash_slack = info.splash_radius / solver.speed;
 
+    // Read once rather than for each target
+    let landings = if aim.wait_for_shot {
+        landings()
+    } else {
+        Vec::new()
+    };
+
     let mut best: Option<Found> = None;
     for (center_fov, target) in targets {
         let mut diag = shot_log::TargetDiagnostics {
@@ -946,7 +963,11 @@ fn find_target(
         };
         let start_time = target.simulation_time();
         let choke = sim.choke();
-        let wait_for = landing_before(target.index()).filter(|_| aim.wait_for_shot);
+        let wait_for = landings
+            .iter()
+            .filter(|(t, _)| *t == target.index())
+            .map(|(_, land_time)| *land_time)
+            .min_by(f32::total_cmp);
         let mut waiting = false;
         let mut count = |r: Result<_, Reject>| match r {
             Ok(v) => Some(v),
@@ -973,7 +994,6 @@ fn find_target(
             let origin = sim.predicted_origin();
             let direct_tolerance = info.hull.max(4.0) + 8.0;
             let mut hit = aim_points(&target, &info, sim.on_ground())
-                .into_iter()
                 .enumerate()
                 .find_map(|(n, offset)| {
                     let extra = if n == 0 && info.splash { 8.0 } else { 0.0 };

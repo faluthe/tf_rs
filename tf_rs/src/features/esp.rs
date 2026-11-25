@@ -365,13 +365,16 @@ pub fn draw_prediction(surface: &Surface, config: &Config) {
     if !config.aimbot.master || !config.aimbot.draw_prediction {
         return;
     }
-    // A copy, nothing is drawn while holding the lock
-    let Some(paths) = Globals::read().prediction.clone() else {
+    // A copy, nothing is drawn while holding the lock, and only while it's still shown
+    let now = Interfaces::global_vars().realtime;
+    let Some(paths) = Globals::read()
+        .prediction
+        .as_ref()
+        .filter(|p| now <= p.until)
+        .cloned()
+    else {
         return;
     };
-    if Interfaces::global_vars().realtime > paths.until {
-        return;
-    }
     let overlay = Interfaces::debug_overlay();
     let draw = |points: &[Vec3]| {
         let screen: Vec<_> = points.iter().map(|p| overlay.screen_position(p)).collect();
