@@ -24,7 +24,8 @@ use crate::{
     interfaces::{Interfaces, mask},
     types::weapon::WeaponClass,
     types::{
-        ClassId, Entity, Hull, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon, user_cmd::Buttons,
+        ClassId, Entity, Hull, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon, entity::Team,
+        trace_filter::group, user_cmd::Buttons,
     },
 };
 
@@ -194,6 +195,13 @@ struct ProjectileInfo {
     drag: f32,
     /// Half size of the projectile's box
     hull: f32,
+    /// Collision group the game's rules decide what it runs into by
+    group: i32,
+    /// Runs into enemy players. Pipes and the Bison and Pomson's shots go through players and
+    /// only hit them by touching.
+    hits_players: bool,
+    /// Seconds into the flight it starts running into teammates too
+    teammates_after: f32,
     /// Seconds before it's gone, the simulation stops there
     lifetime: f32,
     /// Explodes, so aim at the feet of players on the ground
@@ -232,6 +240,11 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
         gravity: 0.0,
         drag: 0.0,
         hull: 0.0,
+        // Rockets, flares and the Mangler's shot, CTFBaseRocket. They pass through teammates
+        // for their first quarter second.
+        group: group::ROCKETS,
+        hits_players: true,
+        teammates_after: 0.25,
         lifetime: f32::MAX,
         splash: false,
         splash_radius: 0.0,
@@ -255,6 +268,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             }
             info.speed = if mangler { 1100.0 } else { 1200.0 };
             info.hull = if mangler { 0.0 } else { 1.0 };
+            info.hits_players = mangler;
             info.splash = mangler;
             info.splash_radius = if mangler { 146.0 } else { 0.0 };
         }
@@ -276,6 +290,8 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
                 0.12 / 1217.0
             };
             info.hull = 6.0;
+            info.group = group::GRENADES;
+            info.hits_players = false;
             let fuse = attrib(2.0, c"fuse_mult");
             info.lifetime = ((fuse / 0.195).floor() + 1.0) * 0.195;
         }
@@ -289,6 +305,8 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             info.gravity = 800.0;
             info.drag = 0.085 / 922.0;
             info.hull = 6.0;
+            info.group = group::GRENADES;
+            info.hits_players = false;
             info.splash = true;
             info.splash_radius = attrib(146.0, c"mult_explosion_radius");
             info.charge = true;
@@ -309,6 +327,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             info.speed = remap(charge, (0.0, 1.0), (1800.0, 2600.0));
             info.gravity = remap(charge, (0.0, 1.0), (0.5, 0.1)) * gravity;
             info.hull = 1.0;
+            info.teammates_after = f32::MAX;
             info.headshot = true;
             info.charge = true;
         }
@@ -317,6 +336,7 @@ fn weapon_info(localplayer: &Player, weapon: &Weapon) -> Option<ProjectileInfo> 
             info.speed = 2400.0;
             info.gravity = 0.2 * gravity;
             info.hull = 1.0;
+            info.teammates_after = f32::MAX;
         }
         _ => return None,
     }
@@ -367,7 +387,8 @@ fn fire_setup(
     }
     // Rockets and arrows are angled to meet whatever the crosshair is on
     let mut end = *eye + forward * 2000.0;
-    let trace = Interfaces::engine_trace().trace_ray(eye, &end, mask::SOLID, Some(localplayer));
+    let filter = TraceFilter::ignore_teammates(localplayer);
+    let trace = Interfaces::engine_trace().trace(&Ray::init(eye, &end), mask::SOLID, &filter);
     if trace.did_hit() && trace.fraction > 0.1 {
         end = trace.end_pos;
     }
@@ -722,7 +743,7 @@ impl Solver<'_> {
             predicted.origin + predicted.mins,
             predicted.origin + predicted.maxs,
         );
-        let filter = TraceFilter::projectile(self.localplayer, Some(target));
+        let filter = self.filter(target);
         for (a, b) in self.segments(path.len()) {
             let (from, to) = (path[a], path[b]);
             count_trace();
@@ -731,7 +752,7 @@ impl Solver<'_> {
                 &to,
                 &hull_mins,
                 &hull_maxs,
-                mask::SOLID,
+                self.mask(a),
                 &filter,
             );
             let world = trace.did_hit().then_some(trace.fraction);
@@ -759,19 +780,56 @@ impl Solver<'_> {
     }
 
     /// Stretches of a path of `len` points traced at once: all of it for projectiles that fly
-    /// straight, a few ticks at a time for ones that arc
+    /// straight, a few ticks at a time for ones that arc. Split where it starts running into
+    /// teammates, the stretches after trace with a different mask.
     fn segments(&self, len: usize) -> Vec<(usize, usize)> {
         if len < 2 {
             return Vec::new();
         }
         let last = len - 1;
-        if self.info.gravity == 0.0 {
-            return vec![(0, last)];
+        let stride = if self.info.gravity == 0.0 {
+            last
+        } else {
+            TRACE_STRIDE
+        };
+        let mut cuts: Vec<usize> = (0..last).step_by(stride).chain([last]).collect();
+        let teammates = self.teammates_tick();
+        if teammates > 0 && teammates < last {
+            if let Err(i) = cuts.binary_search(&teammates) {
+                cuts.insert(i, teammates);
+            }
         }
-        (0..last)
-            .step_by(TRACE_STRIDE)
-            .map(|a| (a, (a + TRACE_STRIDE).min(last)))
-            .collect()
+        cuts.windows(2).map(|w| (w[0], w[1])).collect()
+    }
+
+    /// The path point from which the projectile runs into teammates
+    fn teammates_tick(&self) -> usize {
+        let tick = Interfaces::global_vars().interval_per_tick;
+        (self.info.teammates_after / tick)
+            .ceil()
+            .min(usize::MAX as f32) as usize
+    }
+
+    /// What the projectile collides with from path point `n` on: solid things, plus the teams
+    /// whose players it runs into. CTFBaseRocket::PhysicsSolidMaskForEntity.
+    fn mask(&self, n: usize) -> u32 {
+        if !self.info.hits_players {
+            return mask::SOLID;
+        }
+        let red = self.localplayer.team() == Team::Red;
+        let (own, enemy) = if red {
+            (mask::RED_TEAM, mask::BLUE_TEAM)
+        } else {
+            (mask::BLUE_TEAM, mask::RED_TEAM)
+        };
+        let teammates = if n >= self.teammates_tick() { own } else { 0 };
+        mask::SOLID | enemy | teammates
+    }
+
+    /// The game's filter for the projectile, passing through `target` whose box is checked
+    /// separately where it's predicted to be
+    fn filter(&self, target: &Player) -> TraceFilter {
+        TraceFilter::simple(self.localplayer, self.info.group, Some(target))
     }
 
     /// The projectile's collision box
@@ -783,7 +841,7 @@ impl Solver<'_> {
     /// Whether the projectile reaches `point` without running into anything first
     fn clear(&self, path: &[Vec3], target: &Player, point: &Vec3, tolerance: f32) -> bool {
         let (mins, maxs) = self.hull();
-        let filter = TraceFilter::projectile(self.localplayer, Some(target));
+        let filter = self.filter(target);
         for (a, b) in self.segments(path.len()) {
             count_trace();
             let trace = Interfaces::engine_trace().trace_hull(
@@ -791,7 +849,7 @@ impl Solver<'_> {
                 &path[b],
                 &mins,
                 &maxs,
-                mask::SOLID,
+                self.mask(a),
                 &filter,
             );
             if trace.did_hit() {
@@ -867,7 +925,7 @@ fn splash_points(
     let reach = info.splash_radius * 0.9;
     // Off the surface by the projectile's size so it doesn't clip it on the way in
     let lift = info.hull + 1.0;
-    let filter = TraceFilter::projectile(shooter, Some(target));
+    let filter = TraceFilter::simple(shooter, info.group, Some(target));
 
     let mut points: Vec<(f32, Vec3)> = sphere_directions()
         .iter()
