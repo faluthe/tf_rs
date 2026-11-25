@@ -504,7 +504,8 @@ fn dummy_cmd() -> *mut c_void {
     *CMD.get_or_init(|| Box::into_raw(Box::new([0u8; 0x80])) as usize) as *mut c_void
 }
 
-/// A player being simulated. Their real state comes back when this is dropped.
+/// A player being simulated. Their real state comes back when this is dropped. Only one can be
+/// alive at a time, they share the game's hull sizes.
 pub struct MoveSim {
     player: Player,
     local: bool,
@@ -554,6 +555,11 @@ impl MoveSim {
             choke,
             path: Vec::new(),
         };
+        // Other players' origins are rounded, shrink them so they don't get stuck on walls. Put
+        // back when the sim is dropped
+        if !sim.local {
+            set_hulls(0.125);
+        }
 
         if local.is_none() {
             if let Some(v) = h.avg_velocity {
@@ -752,9 +758,6 @@ impl MoveSim {
                 Interfaces::global_vars().interval_per_tick
             }
         };
-        if !self.local {
-            set_hulls(0.125);
-        }
         let helper = Interfaces::move_helper();
         helper.set_host(self.player.this);
         self.player.set_current_command(dummy_cmd());
@@ -763,9 +766,6 @@ impl MoveSim {
 
         self.player.set_current_command(std::ptr::null_mut());
         helper.set_host(std::ptr::null_mut());
-        if !self.local {
-            set_hulls(0.0);
-        }
         prediction.set_in_prediction(in_prediction);
         prediction.set_first_time_predicted(first_time);
         unsafe { (*globals).frametime = frametime };
@@ -802,6 +802,9 @@ impl MoveSim {
 
 impl Drop for MoveSim {
     fn drop(&mut self) {
+        if !self.local {
+            set_hulls(0.0);
+        }
         self.snapshot.restore();
     }
 }
