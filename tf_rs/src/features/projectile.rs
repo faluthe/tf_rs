@@ -65,13 +65,45 @@ struct Tracking {
 
 /// Our explosives in the air. A blast throws its target, so a shot that lands after one of these
 /// is aimed at where the target would have been without it.
-static TRACKING: std::sync::Mutex<Tracking> = std::sync::Mutex::new(Tracking {
+static TRACKING: Mutex<Tracking> = Mutex::new(Tracking {
     in_flight: Vec::new(),
     known: Vec::new(),
 });
 
+/// One of our projectiles, found by a scan
+struct Scanned {
+    handle: u32,
+    index: i32,
+}
+
+/// The last scan for our projectiles and the local player it was for. They only come and go with
+/// network updates, so one scan serves every caller until `forget_projectiles` at the next one.
+static SCANNED: Mutex<Option<(i32, Vec<Scanned>)>> = Mutex::new(None);
+
+/// Projectiles may have come or gone, the next caller scans again
+pub fn forget_projectiles() {
+    *SCANNED.lock().unwrap() = None;
+}
+
 /// Our projectiles that are out, by entity handle
 pub fn our_projectiles(local: i32) -> Vec<(u32, Entity)> {
+    let list = Interfaces::entity_list();
+    let mut scanned = SCANNED.lock().unwrap();
+    if scanned.as_ref().is_none_or(|(l, _)| *l != local) {
+        *scanned = Some((local, scan_projectiles(local)));
+    }
+    let (_, found) = scanned.as_ref().unwrap();
+    // Looked up again by index, a handle that no longer matches is a different entity now
+    found
+        .iter()
+        .filter_map(|s| {
+            let ent = list.get_client_entity::<Entity>(s.index)?;
+            (ent.ref_handle() == s.handle).then_some((s.handle, ent))
+        })
+        .collect()
+}
+
+fn scan_projectiles(local: i32) -> Vec<Scanned> {
     let list = Interfaces::entity_list();
     let mut out = Vec::new();
     for i in 1..=list.max_entities() {
@@ -96,7 +128,10 @@ pub fn our_projectiles(local: i32) -> Vec<(u32, Entity)> {
         let thrower =
             matches!(class, Some(ClassId::PillOrSticky)) && handle_index(THROWER) == local;
         if handle_index(OWNER) == local || thrower {
-            out.push((ent.ref_handle(), ent));
+            out.push(Scanned {
+                handle: ent.ref_handle(),
+                index: i,
+            });
         }
     }
     out

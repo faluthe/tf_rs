@@ -11,7 +11,10 @@ use once_cell::sync::{Lazy, OnceCell};
 
 use crate::{
     config::Config,
-    features::movesim::{MoveSim, Strafe},
+    features::{
+        movesim::{MoveSim, Strafe},
+        projectile,
+    },
     helpers,
     interfaces::Interfaces,
     types::{ClassId, ConVar, Entity, Flow, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon},
@@ -57,19 +60,13 @@ fn armed_stickies(localplayer: &Player, now: f32) -> Vec<Sticky> {
     let mut seen = Vec::new();
     let mut out = Vec::new();
 
-    for i in 1..=list.max_entities() {
-        let Some(ent) = list.get_client_entity::<Entity>(i) else {
-            continue;
-        };
-        if ent.is_dormant() || !matches!(ent.class_id(), Some(ClassId::PillOrSticky)) {
-            continue;
-        }
-        if (read::<u32>(&ent, THROWER) & 0xFFF) as i32 != local
+    for (handle, ent) in projectile::our_projectiles(local) {
+        if !matches!(ent.class_id(), Some(ClassId::PillOrSticky))
+            || (read::<u32>(&ent, THROWER) & 0xFFF) as i32 != local
             || !REMOTE_DETONATE.contains(&read::<i32>(&ent, TYPE))
         {
             continue;
         }
-        let handle = ent.ref_handle();
         seen.push(handle);
         let fired = *first_seen.entry(handle).or_insert(now);
 
