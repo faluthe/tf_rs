@@ -31,31 +31,6 @@ use crate::{
 /// How far the server allows the rewound tick to be from the one it expects
 const WINDOW: f32 = 0.2;
 
-pub struct Record {
-    pub sim_time: f32,
-    pub bones: Box<Bones>,
-    head: Vec3,
-    body: Vec3,
-    // Collision box, what melee swings trace against
-    hull: Hull,
-}
-
-/// Records of one player, newest first
-type History = VecDeque<Record>;
-
-/// Records of each player by entity index
-static RECORDS: Mutex<Vec<History>> = Mutex::new(Vec::new());
-
-/// Bone buffers of dropped records, reused for new ones instead of allocating every tick
-static SPARE_BONES: Mutex<Vec<Box<Bones>>> = Mutex::new(Vec::new());
-
-/// Entity index and simulation time of the record we would shoot at
-static TARGET: Mutex<Option<(i32, f32)>> = Mutex::new(None);
-
-fn records() -> MutexGuard<'static, Vec<History>> {
-    RECORDS.lock().unwrap()
-}
-
 struct Cvars {
     updaterate: Option<ConVar>,
     min_updaterate: Option<ConVar>,
@@ -161,6 +136,31 @@ impl Timing {
         let age = self.age(sim_time) + lead;
         (self.correct - age).abs() < WINDOW && age <= self.max_age && sim_time <= self.render_time
     }
+}
+
+pub struct Record {
+    pub sim_time: f32,
+    pub bones: Box<Bones>,
+    head: Vec3,
+    body: Vec3,
+    // Collision box, what melee swings trace against
+    hull: Hull,
+}
+
+/// Records of one player, newest first
+type History = VecDeque<Record>;
+
+/// Records of each player by entity index
+static RECORDS: Mutex<Vec<History>> = Mutex::new(Vec::new());
+
+/// Bone buffers of dropped records, reused for new ones instead of allocating every tick
+static SPARE_BONES: Mutex<Vec<Box<Bones>>> = Mutex::new(Vec::new());
+
+/// Entity index and simulation time of the record we would shoot at
+static TARGET: Mutex<Option<(i32, f32)>> = Mutex::new(None);
+
+fn records() -> MutexGuard<'static, Vec<History>> {
+    RECORDS.lock().unwrap()
 }
 
 /// Stop enemies from being interpolated so they're drawn where the newest update put them,
@@ -384,11 +384,7 @@ pub fn velocity(index: i32) -> Option<Vec3> {
 
 /// Bones of each record of player `index` that can be shot at, oldest first with the record
 /// we would shoot at last, and whether it's that record
-pub fn valid_bones(
-    index: i32,
-    config: &BacktrackConfig,
-    mut f: impl FnMut(&Bones, bool),
-) {
+pub fn valid_bones(index: i32, config: &BacktrackConfig, mut f: impl FnMut(&Bones, bool)) {
     let Some(timing) = Timing::now(config) else {
         return;
     };
