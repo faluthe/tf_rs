@@ -1,8 +1,9 @@
 use std::ffi::c_void;
 
 use crate::{
-    config::{ChamsConfig, ChamsGroupConfig, Config},
+    config::{ChamsConfig, ChamsGroupConfig, ChamsLayerConfig, ChamsTargetConfig, Config},
     features::{backtrack, chams},
+    globals::Globals,
     helpers,
     hooks::Hooks,
     interfaces::Interfaces,
@@ -55,16 +56,18 @@ pub extern "C" fn hk_draw_model_execute(
     let Some(group) = chams_group(info_ref, &chams_config).filter(|g| g.active()) else {
         return call_original();
     };
+    draw_layers(&group.layers(), true, call_original);
+}
 
-    let Some((layers, materials)) = chams::layers(group.material) else {
-        return call_original();
-    };
-
+/// Draw the model once per pass of each layer with `draw`, every occluded pass first so the
+/// visible ones land on top of them. With `normal_fallback` the normal model is drawn where it
+/// can be seen when no layer has a visible pass
+fn draw_layers(layers: &[ChamsLayerConfig], normal_fallback: bool, draw: impl Fn()) {
     let render_view = Interfaces::render_view();
     let model_render = Interfaces::model_render();
-
     let old_color = render_view.get_color_modulation();
     let old_blend = render_view.get_blend();
+    let time = Interfaces::global_vars().realtime;
 
     let set_color = |color: Color| {
         render_view.set_color_modulation([
@@ -74,43 +77,52 @@ pub extern "C" fn hk_draw_model_execute(
         ]);
         render_view.set_blend(color.a as f32 / 255.0);
     };
-    let restore_color = || {
+    let draw_normal = || {
+        model_render.forced_material_override(None);
         render_view.set_color_modulation(old_color);
         render_view.set_blend(old_blend);
-    };
-    let call_original_normal = || {
-        model_render.forced_material_override(None);
-        call_original();
+        draw();
     };
 
-    // Every layer drawn on top of the last, each in its own drifting shade of `color`
-    let time = Interfaces::global_vars().realtime;
-    let draw_layers = |color: Color, ignore_z: bool| {
-        for (layer, material) in layers.iter().zip(materials) {
+    let mut used: Vec<&'static [Material]> = Vec::new();
+    // Each of the material's own layers in its drifting shade of `color`
+    let mut draw_pass = |material: usize, color: Color, ignore_z: bool| {
+        let Some((sublayers, materials)) = chams::layers(material) else {
+            return;
+        };
+        used.push(materials);
+        for (sublayer, material) in sublayers.iter().zip(materials) {
             model_render.forced_material_override(Some(material));
             material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, ignore_z);
-            set_color(layer.color(color, time));
-            call_original();
+            set_color(sublayer.color(color, time));
+            draw();
         }
     };
 
-    if group.occluded {
-        draw_layers(group.occluded_color, true);
+    // The model's own materials can't be drawn through walls
+    for layer in layers
+        .iter()
+        .filter(|l| l.occluded && !chams::is_original(l.material))
+    {
+        draw_pass(layer.material, layer.occluded_color, true);
     }
-
-    if group.visible {
-        draw_layers(group.visible_color, false);
-    } else {
-        // Normal model wherever the entity can be seen
-        restore_color();
-        call_original_normal();
+    if normal_fallback && !layers.iter().any(|l| l.visible) {
+        draw_normal();
+    }
+    for layer in layers.iter().filter(|l| l.visible) {
+        if chams::is_original(layer.material) {
+            draw_normal();
+        } else {
+            draw_pass(layer.material, layer.visible_color, false);
+        }
     }
 
     model_render.forced_material_override(None);
-    for material in materials {
+    for material in used.into_iter().flatten() {
         material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, false);
     }
-    restore_color();
+    render_view.set_color_modulation(old_color);
+    render_view.set_blend(old_blend);
 }
 
 /// Draw the model posed at each backtrack record of an enemy player, `draw` renders it with
@@ -130,61 +142,19 @@ fn draw_backtrack(info: &ModelRenderInfo, config: &ChamsConfig, draw: impl Fn(*m
         return;
     };
 
-    let render_view = Interfaces::render_view();
-    let model_render = Interfaces::model_render();
-    let old_color = render_view.get_color_modulation();
-    let old_blend = render_view.get_blend();
-    let time = Interfaces::global_vars().realtime;
-    let mut used: [Option<&'static [Material]>; 2] = [None; 2];
     // The engine only reads the bones, the cast is for the signature
     let draw = |bones: &Bones| draw(bones.as_ptr() as *mut Matrix3x4);
-
-    // The target last so it's drawn over the others
-    for (slot, group, is_target) in [(0, config.backtrack, false), (1, target_group, true)] {
-        let none = if is_target {
-            records.target().is_none()
-        } else {
-            records.others().next().is_none()
-        };
-        if none {
-            continue;
-        }
-        let Some((layers, materials)) = chams::layers(group.material) else {
-            continue;
-        };
-        used[slot] = Some(materials);
-
-        let passes = [
-            (group.occluded, group.occluded_color, true),
-            (group.visible, group.visible_color, false),
-        ];
-        for (_, color, ignore_z) in passes.into_iter().filter(|p| p.0) {
-            for (layer, material) in layers.iter().zip(materials) {
-                // Set once for every record drawn with this layer
-                let color = layer.color(color, time);
-                model_render.forced_material_override(Some(material));
-                material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, ignore_z);
-                render_view.set_color_modulation([
-                    color.r as f32 / 255.0,
-                    color.g as f32 / 255.0,
-                    color.b as f32 / 255.0,
-                ]);
-                render_view.set_blend(color.a as f32 / 255.0);
-                if is_target {
-                    records.target().into_iter().for_each(draw);
-                } else {
-                    records.others().for_each(draw);
-                }
-            }
-        }
+    // The target last so it's drawn over the others, each layer set once for all its records
+    if records.others().next().is_some() {
+        draw_layers(&config.backtrack.layers(), false, || {
+            records.others().for_each(draw)
+        });
     }
-
-    model_render.forced_material_override(None);
-    for material in used.into_iter().flatten().flatten() {
-        material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, false);
+    if records.target().is_some() {
+        draw_layers(&target_group.layers(), false, || {
+            records.target().into_iter().for_each(draw)
+        });
     }
-    render_view.set_color_modulation(old_color);
-    render_view.set_blend(old_blend);
 }
 
 fn is_enemy_player(index: i32) -> bool {
@@ -241,15 +211,15 @@ fn chams_group(info: &ModelRenderInfo, config: &ChamsConfig) -> Option<ChamsGrou
                 PlayerCategory::Category3 => Some(config.category3),
                 PlayerCategory::Category4 => Some(config.category4),
             };
-            if let Some(category) = category.filter(|c| c.active()) {
-                return Some(category);
-            }
-
             if player.team() == localplayer.team() {
-                Some(config.friendly)
-            } else {
-                Some(config.enemy)
+                return category.filter(|c| c.active()).or(Some(config.friendly));
             }
+            let group = category.filter(|c| c.active()).unwrap_or(config.enemy);
+            Some(if is_aimbot_target(info.entity_index) {
+                recolor(group, &config.aimbot_target)
+            } else {
+                group
+            })
         }
         Some(ClassId::Sentry | ClassId::Dispenser | ClassId::Teleporter) => {
             if entity.team() == localplayer.team() {
@@ -261,4 +231,27 @@ fn chams_group(info: &ModelRenderInfo, config: &ChamsConfig) -> Option<ChamsGrou
         _ if entity.class_name() == "CTFViewModel" => Some(config.hands),
         _ => None,
     }
+}
+
+fn is_aimbot_target(index: i32) -> bool {
+    // Never wait on the aimbot while drawing
+    Globals::try_read().is_some_and(|g| g.target.as_ref().is_some_and(|t| t.target_index == index))
+}
+
+/// `group` with its layers in the target's colors, each keeping its own transparency
+fn recolor(mut group: ChamsGroupConfig, target: &ChamsTargetConfig) -> ChamsGroupConfig {
+    let tint = |color: Color, layer: Color| Color {
+        a: (layer.a as u16 * color.a as u16 / 255) as u8,
+        ..color
+    };
+    for i in 0..ChamsGroupConfig::LAYERS {
+        let layer = group.layer_mut(i);
+        if target.visible {
+            *layer.visible_color = tint(target.visible_color, *layer.visible_color);
+        }
+        if target.occluded {
+            *layer.occluded_color = tint(target.occluded_color, *layer.occluded_color);
+        }
+    }
+    group
 }

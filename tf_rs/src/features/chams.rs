@@ -45,8 +45,8 @@ pub enum Source {
     Create(&'static str),
 }
 
-/// Menu label and the layers drawn on top of each other, indexed by ChamsGroupConfig::material
-/// Menu label and the layers drawn on top of each other, indexed by ChamsGroupConfig::material
+/// Menu label and the layers drawn on top of each other, indexed by ChamsLayerConfig::material.
+/// New ones go before Original so saved indexes keep pointing at the same material
 pub const MATERIALS: &[ChamsMaterial] = &[
     ChamsMaterial {
         label: "Debug",
@@ -216,7 +216,17 @@ pub const MATERIALS: &[ChamsMaterial] = &[
             },
         ],
     },
+    // The model's own materials, nothing to load
+    ChamsMaterial {
+        label: "Original",
+        layers: &[],
+    },
 ];
+
+/// Whether the material at `index` draws the model with its own materials
+pub fn is_original(index: usize) -> bool {
+    MATERIALS.get(index).is_some_and(|m| m.layers.is_empty())
+}
 
 /// Each material's layers, empty if any of them failed to load
 static LOADED: OnceLock<Vec<Vec<Material>>> = OnceLock::new();

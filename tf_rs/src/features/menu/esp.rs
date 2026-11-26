@@ -5,8 +5,8 @@ use nuklear::{Color, Nuklear, Swatch, ToggleColor};
 use super::{ROW, field};
 use crate::{
     config::{
-        BuildingsColorsConfig, ChamsConfig, ChamsGroupConfig, ColorsConfig, CondsDisplayConfig,
-        Config, EntityESPConfig, EspColorConfig,
+        BuildingsColorsConfig, ChamsConfig, ChamsGroupConfig, ChamsLayerConfig, ChamsTargetConfig,
+        ColorsConfig, CondsDisplayConfig, Config, EntityESPConfig, EspColorConfig,
     },
     features::chams,
     player_db,
@@ -250,6 +250,7 @@ fn chams_section(nk: &Nuklear, chams: &mut ChamsConfig) {
         }
         _ => {
             chams_group(nk, "Enemies", &mut chams.enemy);
+            target_group(nk, "Aimbot target", &mut chams.aimbot_target);
             chams_group(nk, "Teammates", &mut chams.friendly);
             chams_group(nk, "Local player", &mut chams.local);
             chams_group(nk, "Backtrack", &mut chams.backtrack);
@@ -261,51 +262,101 @@ fn chams_section(nk: &Nuklear, chams: &mut ChamsConfig) {
 /// Width of the popup a chams row opens
 const CHAMS_POPUP_W: f32 = 300.0;
 
-/// Row with a combo showing the group's material and its passes, the popup picks the material,
-/// toggles the passes and edits their colors
+/// Layer being edited in whichever chams popup is open
+static CHAMS_LAYER: AtomicUsize = AtomicUsize::new(0);
+const LAYER_TABS: [&str; ChamsGroupConfig::LAYERS] = ["Base", "Overlay 1", "Overlay 2"];
+
 fn chams_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig) {
-    let swatches = [
-        Swatch::new(group.visible, group.visible_color),
-        Swatch::new(group.occluded, group.occluded_color),
-    ];
+    layered_group(nk, title, group, true);
+}
+
+// Viewmodels are never behind anything, so only the visible pass applies
+fn first_person_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig) {
+    layered_group(nk, title, group, false);
+}
+
+/// Row with a combo showing the materials of the layers in use and their colors, the popup
+/// picks a layer, then its material and passes
+fn layered_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig, occluded: bool) {
+    let layers = group.layers();
+    let mut shown: Vec<&ChamsLayerConfig> = layers
+        .iter()
+        .filter(|l| l.visible || (occluded && l.occluded))
+        .collect();
+    if shown.is_empty() {
+        shown.push(&layers[0]);
+    }
+    let names: Vec<&str> = shown.iter().map(|l| material_label(l.material)).collect();
+    let swatches: Vec<Swatch> = shown
+        .iter()
+        .filter(|l| !chams::is_original(l.material))
+        .flat_map(|l| {
+            let mut s = vec![Swatch::new(l.visible, l.visible_color)];
+            if occluded {
+                s.push(Swatch::new(l.occluded, l.occluded_color));
+            }
+            s
+        })
+        .collect();
+
     field(nk, title, |nk| {
-        nk.summary_combo(&[material_label(group)], &swatches, CHAMS_POPUP_W, |nk| {
-            material_grid(nk, &mut group.material);
+        nk.summary_combo(&names, &swatches, CHAMS_POPUP_W, |nk| {
+            let mut index = CHAMS_LAYER.load(Ordering::Relaxed);
+            nk.tab_bar(&LAYER_TABS, &mut index);
+            CHAMS_LAYER.store(index, Ordering::Relaxed);
+
+            let layer = group.layer_mut(index);
+            material_grid(nk, layer.material);
+            if chams::is_original(*layer.material) {
+                // Drawn as is, there's nothing to color and it can't show through walls
+                nk.toggle_color_list(&mut [ToggleColor::new("Enabled", layer.visible, None)]);
+            } else if occluded {
+                nk.toggle_color_list(&mut [
+                    ToggleColor::new("Visible", layer.visible, Some(layer.visible_color)),
+                    ToggleColor::new("Occluded", layer.occluded, Some(layer.occluded_color)),
+                ]);
+            } else {
+                nk.toggle_color_list(&mut [ToggleColor::new(
+                    "Enabled",
+                    layer.visible,
+                    Some(layer.visible_color),
+                )]);
+            }
+        });
+    });
+}
+
+/// Colors the aimbot target is drawn in, with the materials of the group it's in
+fn target_group(nk: &Nuklear, title: &str, target: &mut ChamsTargetConfig) {
+    let swatches = [
+        Swatch::new(target.visible, target.visible_color),
+        Swatch::new(target.occluded, target.occluded_color),
+    ];
+    let name = if target.visible || target.occluded {
+        "On"
+    } else {
+        "Off"
+    };
+    field(nk, title, |nk| {
+        nk.summary_combo(&[name], &swatches, CHAMS_POPUP_W, |nk| {
             nk.toggle_color_list(&mut [
                 ToggleColor::new(
                     "Visible",
-                    &mut group.visible,
-                    Some(&mut group.visible_color),
+                    &mut target.visible,
+                    Some(&mut target.visible_color),
                 ),
                 ToggleColor::new(
                     "Occluded",
-                    &mut group.occluded,
-                    Some(&mut group.occluded_color),
+                    &mut target.occluded,
+                    Some(&mut target.occluded_color),
                 ),
             ]);
         });
     });
 }
 
-/// Viewmodels are never behind anything, so only the visible pass applies
-fn first_person_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig) {
-    let swatches = [Swatch::new(group.visible, group.visible_color)];
-    field(nk, title, |nk| {
-        nk.summary_combo(&[material_label(group)], &swatches, CHAMS_POPUP_W, |nk| {
-            material_grid(nk, &mut group.material);
-            nk.toggle_color_list(&mut [ToggleColor::new(
-                "Enabled",
-                &mut group.visible,
-                Some(&mut group.visible_color),
-            )]);
-        });
-    });
-}
-
-fn material_label(group: &ChamsGroupConfig) -> &'static str {
-    chams::MATERIALS
-        .get(group.material)
-        .map_or("None", |m| m.label)
+fn material_label(material: usize) -> &'static str {
+    chams::MATERIALS.get(material).map_or("None", |m| m.label)
 }
 
 fn material_grid(nk: &Nuklear, material: &mut usize) {
