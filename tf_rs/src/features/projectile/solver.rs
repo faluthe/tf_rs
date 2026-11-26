@@ -329,10 +329,11 @@ impl Solver<'_> {
         };
         let mut cuts: Vec<usize> = (0..last).step_by(stride).chain([last]).collect();
         let teammates = self.teammates_tick();
-        if teammates > 0 && teammates < last {
-            if let Err(i) = cuts.binary_search(&teammates) {
-                cuts.insert(i, teammates);
-            }
+        if teammates > 0
+            && teammates < last
+            && let Err(i) = cuts.binary_search(&teammates)
+        {
+            cuts.insert(i, teammates);
         }
         cuts.windows(2).map(|w| (w[0], w[1])).collect()
     }

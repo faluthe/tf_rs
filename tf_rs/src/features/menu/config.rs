@@ -36,10 +36,11 @@ pub(super) fn config_tab(nk: &Nuklear, config: &mut Config) {
 
                 nk.layout_row_push(0.22);
 
-                if selected != 0 && nk.button_label("Save") {
-                    if let Err(e) = config.save(cfg) {
-                        log::error!("Failed to save config {cfg}: {e:#}");
-                    }
+                if selected != 0
+                    && nk.button_label("Save")
+                    && let Err(e) = config.save(cfg)
+                {
+                    log::error!("Failed to save config {cfg}: {e:#}");
                 }
 
                 nk.layout_row_end();

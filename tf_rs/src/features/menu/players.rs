@@ -140,8 +140,8 @@ fn category_names(nk: &Nuklear, colors: &mut PlayerCategoryColors) {
     }
     nk.row_dynamic(ROW, 1);
     if nk.button_label("Save names") {
-        for i in 0..4 {
-            let buf = CAT_NAME_BUFS[i].read().unwrap();
+        for (i, buf) in CAT_NAME_BUFS.iter().enumerate() {
+            let buf = buf.read().unwrap();
             let end = buf.iter().position(|&c| c == 0).unwrap_or(64);
             let name = str::from_utf8(&buf[..end]).unwrap_or("");
             player_db::set_name(i, name);

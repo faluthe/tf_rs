@@ -262,9 +262,7 @@ fn building_esp(
     surface: &Surface,
     color: &Color,
 ) -> Option<BBox> {
-    let Some(bbox) = helpers::get_bounding_box(entity) else {
-        return None;
-    };
+    let bbox = helpers::get_bounding_box(entity)?;
 
     if cfg.boxes {
         draw_box(&bbox, color, surface);
@@ -346,8 +344,8 @@ pub(crate) fn draw_health_values(
     hp_pct = hp_pct.clamp(0.0, 1.0);
 
     // Color gradient
-    let green = (hp_pct * 2.0 * 255.0).min(255.0).max(0.0) as i32;
-    let red = ((1.0 - hp_pct) * 2.0 * 255.0).min(255.0).max(0.0) as i32;
+    let green = (hp_pct * 2.0 * 255.0).clamp(0.0, 255.0) as i32;
+    let red = ((1.0 - hp_pct) * 2.0 * 255.0).clamp(0.0, 255.0) as i32;
 
     if horizontal {
         let bar_width = (width as f32 * hp_pct).round().clamp(0.0, width as f32) as i32;

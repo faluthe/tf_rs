@@ -412,20 +412,14 @@ fn blend(a: &Local, b: &Local, s: f32) -> Local {
     let dot: f32 = a.quat.iter().zip(b.quat).map(|(x, y)| x * y).sum();
     // Take the short way round
     let sign = if dot < 0.0 { -1.0 } else { 1.0 };
-    let mut quat = [0.0; 4];
-    for i in 0..4 {
-        quat[i] = a.quat[i] * (1.0 - s) + b.quat[i] * s * sign;
-    }
+    let quat: [f32; 4] = std::array::from_fn(|i| a.quat[i] * (1.0 - s) + b.quat[i] * s * sign);
     let len = quat
         .iter()
         .map(|v| v * v)
         .sum::<f32>()
         .sqrt()
         .max(f32::EPSILON);
-    let mut pos = [0.0; 3];
-    for i in 0..3 {
-        pos[i] = a.pos[i] * (1.0 - s) + b.pos[i] * s;
-    }
+    let pos = std::array::from_fn(|i| a.pos[i] * (1.0 - s) + b.pos[i] * s);
     Local {
         pos,
         quat: quat.map(|v| v / len),

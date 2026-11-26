@@ -26,14 +26,14 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
         preview::set_placement(None);
     }
 
-    if Interfaces::engine_client().is_in_game() {
-        if let Some(localplayer) = helpers::get_localplayer() {
-            let is_spectated = {
-                let config = Config::read();
-                spectator_list::draw(&localplayer, &config, &nuklear)
-            };
-            Globals::write().is_spectated = is_spectated;
-        }
+    if Interfaces::engine_client().is_in_game()
+        && let Some(localplayer) = helpers::get_localplayer()
+    {
+        let is_spectated = {
+            let config = Config::read();
+            spectator_list::draw(&localplayer, &config, &nuklear)
+        };
+        Globals::write().is_spectated = is_spectated;
     }
 
     nuklear.render();

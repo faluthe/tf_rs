@@ -62,7 +62,10 @@ impl FnSig {
 
     pub fn call_override_view(&self, this: *mut c_void, setup: *mut ViewSetup) -> Result<()> {
         match self {
-            FnSig::OverrideView(f) => Ok(f(this, setup)),
+            FnSig::OverrideView(f) => {
+                f(this, setup);
+                Ok(())
+            }
             _ => Err(anyhow!("Invalid OverrideView function signature")),
         }
     }
@@ -75,14 +78,20 @@ impl FnSig {
         bone_to_world: *mut Matrix3x4,
     ) -> Result<()> {
         match self {
-            FnSig::DrawModelExecute(f) => Ok(f(this, state, info, bone_to_world)),
+            FnSig::DrawModelExecute(f) => {
+                f(this, state, info, bone_to_world);
+                Ok(())
+            }
             _ => Err(anyhow!("Invalid DrawModelExecute function signature")),
         }
     }
 
     pub fn call_frame_stage_notify(&self, this: *mut c_void, stage: i32) -> Result<()> {
         match self {
-            FnSig::FrameStageNotify(f) => Ok(f(this, stage)),
+            FnSig::FrameStageNotify(f) => {
+                f(this, stage);
+                Ok(())
+            }
             _ => Err(anyhow!("Invalid FrameStageNotify function signature")),
         }
     }

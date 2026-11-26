@@ -35,7 +35,9 @@ static DO_DRAW: AtomicBool = AtomicBool::new(false);
 static PALETTE: RwLock<Option<Palette>> = RwLock::new(None);
 /// Hue, saturation, value and alpha for each color picker, plus the color they last produced.
 /// Kept here because black and greys can't be converted back to their hue and saturation.
-static PICKERS: LazyLock<Mutex<HashMap<usize, (Color, [f32; 4])>>> =
+type Picker = (Color, [f32; 4]);
+
+static PICKERS: LazyLock<Mutex<HashMap<usize, Picker>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Color the picker of the open `toggle_color_list` edits, keyed by its address
@@ -311,7 +313,7 @@ impl Nuklear {
 
         for (i, &pressed) in state.iter().enumerate() {
             if pressed != 0 {
-                return Input::Key(unsafe { mem::transmute(i as u32) });
+                return Input::Key(unsafe { mem::transmute::<u32, SDL_Scancode>(i as u32) });
             }
         }
 

@@ -167,7 +167,7 @@ impl Entity {
             257 => Some(ClassId::Flare),
             258 => Some(ClassId::CrossbowBolt),
             264 => Some(ClassId::Rocket),
-            _ => return None,
+            _ => None,
         }
     }
 

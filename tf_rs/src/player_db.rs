@@ -163,19 +163,19 @@ pub fn load() {
             if line.is_empty() {
                 continue;
             }
-            if let Some(header) = line.strip_prefix('#') {
-                if let Some((key, val)) = header.split_once('=') {
-                    let idx = match key {
-                        "cat1" => Some(0),
-                        "cat2" => Some(1),
-                        "cat3" => Some(2),
-                        "cat4" => Some(3),
-                        _ => None,
-                    };
-                    match idx {
-                        Some(i) => names[i] = val.to_string(),
-                        None => log::warn!("Unknown player database header: {line}"),
-                    }
+            if let Some(header) = line.strip_prefix('#')
+                && let Some((key, val)) = header.split_once('=')
+            {
+                let idx = match key {
+                    "cat1" => Some(0),
+                    "cat2" => Some(1),
+                    "cat3" => Some(2),
+                    "cat4" => Some(3),
+                    _ => None,
+                };
+                match idx {
+                    Some(i) => names[i] = val.to_string(),
+                    None => log::warn!("Unknown player database header: {line}"),
                 }
             }
         }

@@ -44,7 +44,7 @@ impl MaterialSystem {
             (*mut c_void, *const c_char, *mut c_void) -> *mut c_void
         );
 
-        let kv = Interfaces::key_values().from_buffer(name, vmt)?;
+        let kv = Interfaces::key_values().parse_buffer(name, vmt)?;
         let ptr = f(self.this, name.as_ptr(), kv);
         if ptr.is_null() {
             return None;

@@ -81,7 +81,7 @@ impl Vec3 {
     }
 
     /// View angles pointing along the vector
-    pub fn to_angles(&self) -> Vec3 {
+    pub fn to_angles(self) -> Vec3 {
         let pitch = (-self.z).atan2(self.length_2d()).to_degrees();
         Vec3::new(pitch, self.yaw(), 0.0)
     }

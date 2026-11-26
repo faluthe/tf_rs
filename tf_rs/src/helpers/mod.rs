@@ -28,7 +28,7 @@ pub fn enemies(localplayer: &Player, ignore_invis: bool) -> impl Iterator<Item =
             !p.is_dormant()
                 && !p.is_dead()
                 && p.team() != team
-                && !(ignore_invis && p.is_invisible())
+                && (!ignore_invis || !p.is_invisible())
         })
 }
 

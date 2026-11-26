@@ -145,23 +145,12 @@ impl Default for PlayerCategoryColors {
 }
 
 struct_with_serialize! {
-    #[derive(Clone)]
+    #[derive(Default, Clone)]
     pub struct ColorsConfig {
         pub boxes: EspColorConfig,
         pub names: EspColorConfig,
         pub buildings: BuildingsColorsConfig,
         pub player_categories: PlayerCategoryColors,
-    }
-}
-
-impl Default for ColorsConfig {
-    fn default() -> Self {
-        ColorsConfig {
-            boxes: EspColorConfig::default(),
-            names: EspColorConfig::default(),
-            buildings: BuildingsColorsConfig::default(),
-            player_categories: PlayerCategoryColors::default(),
-        }
     }
 }
 
@@ -575,13 +564,11 @@ impl Config {
                 return Vec::new();
             }
         };
-        for entry in dir {
-            if let Ok(entry) = entry {
-                let file_name = entry.file_name();
-                let file_name = file_name.to_string_lossy();
-                if file_name.starts_with('.') && file_name.ends_with(".tf_rs.cfg") {
-                    configs.push(file_name.to_string());
-                }
+        for entry in dir.flatten() {
+            let file_name = entry.file_name();
+            let file_name = file_name.to_string_lossy();
+            if file_name.starts_with('.') && file_name.ends_with(".tf_rs.cfg") {
+                configs.push(file_name.to_string());
             }
         }
 

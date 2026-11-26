@@ -68,7 +68,7 @@ impl KeyValues {
     }
 
     /// Parses VMT style text into a new KeyValues tree, owned by whoever it is passed to
-    pub fn from_buffer(&self, resource_name: &CStr, text: &CStr) -> Option<*mut c_void> {
+    pub fn parse_buffer(&self, resource_name: &CStr, text: &CStr) -> Option<*mut c_void> {
         let load_from_buffer = self.load_from_buffer?;
         if self.system.is_null() {
             return None;

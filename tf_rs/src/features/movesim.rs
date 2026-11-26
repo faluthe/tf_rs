@@ -607,10 +607,10 @@ impl MoveSim {
             set_hulls(0.125);
         }
 
-        if local.is_none() {
-            if let Some(v) = h.avg_velocity {
-                player.set_velocity(v);
-            }
+        if local.is_none()
+            && let Some(v) = h.avg_velocity
+        {
+            player.set_velocity(v);
         }
         // Ducked players have FL_DUCKING without m_bDucked mid transition, which offsets the origin
         let ducking = player.is_ducking();

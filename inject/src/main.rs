@@ -116,14 +116,13 @@ fn get_lib_path(release: bool) -> String {
 
     let mut lib_path = None;
     for line in stdout.lines() {
-        if let Ok(msg) = serde_json::from_str::<Message>(line) {
-            if msg.reason == "compiler-artifact"
-                && !msg.filenames.is_empty()
-                && msg.filenames[0].ends_with(".so")
-            {
-                lib_path = Some(msg.filenames[0].clone());
-                break;
-            }
+        if let Ok(msg) = serde_json::from_str::<Message>(line)
+            && msg.reason == "compiler-artifact"
+            && !msg.filenames.is_empty()
+            && msg.filenames[0].ends_with(".so")
+        {
+            lib_path = Some(msg.filenames[0].clone());
+            break;
         }
     }
     lib_path.expect("Could not find compiler-artifact filename")
@@ -164,10 +163,10 @@ fn open_debug_terminal(lib_path: &str) {
      * by convention takes -e), the xdg-terminal-exec spec launcher, then
      * Debian's x-terminal-emulator alternative. */
     let mut candidates: Vec<(String, Option<&str>)> = Vec::new();
-    if let Ok(term) = std::env::var("TERMINAL") {
-        if !term.is_empty() {
-            candidates.push((term, Some("-e")));
-        }
+    if let Ok(term) = std::env::var("TERMINAL")
+        && !term.is_empty()
+    {
+        candidates.push((term, Some("-e")));
     }
     candidates.push(("xdg-terminal-exec".to_string(), None));
     candidates.push(("x-terminal-emulator".to_string(), Some("-e")));
