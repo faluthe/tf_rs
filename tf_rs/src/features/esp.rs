@@ -392,11 +392,18 @@ pub fn draw_prediction(localplayer: &Player, surface: &Surface, config: &Config)
             }
         }
     };
+    // Where it lands, a box about the size of a player's head
+    let land = |points: &[Vec3]| {
+        if let Some(end) = points.last() {
+            draw_cube(surface, end, 6.0);
+        }
+    };
     if config.aimbot.draw_prediction_always
         && let Some(path) = projectile::view_path(localplayer)
     {
-        surface.draw_set_color(255, 208, 0, 255);
+        surface.draw_set_color(0, 200, 255, 255);
         draw(&path);
+        land(&path);
     }
     // A copy, nothing is drawn while holding the lock, and only while it's still shown
     let now = Interfaces::global_vars().realtime;
@@ -412,6 +419,28 @@ pub fn draw_prediction(localplayer: &Player, surface: &Surface, config: &Config)
     draw(&paths.player);
     surface.draw_set_color(255, 208, 0, 255);
     draw(&paths.projectile);
+    land(&paths.projectile);
+}
+
+/// A wireframe cube `half` units out from `center` on each side, in the current color
+fn draw_cube(surface: &Surface, center: &Vec3, half: f32) {
+    let corners: Vec<_> = (0..8)
+        .map(|i| {
+            let side = |bit: i32| if i & bit != 0 { half } else { -half };
+            helpers::view::world_to_screen(&(*center + Vec3::new(side(1), side(2), side(4))))
+        })
+        .collect();
+    // Corners differing in one bit share an edge
+    for a in 0..8 {
+        for bit in [1, 2, 4] {
+            let b = a | bit;
+            if b != a
+                && let (Some(p), Some(q)) = (corners[a], corners[b])
+            {
+                surface.draw_line(p.x as i32, p.y as i32, q.x as i32, q.y as i32);
+            }
+        }
+    }
 }
 
 // TODO: Fix for scoped weapons
