@@ -54,6 +54,7 @@ use crate::{
     features::{
         fake_ping,
         melee::{self, Swing},
+        projectile,
     },
     helpers,
     interfaces::{GlobalVars, Interfaces},
@@ -188,8 +189,7 @@ pub struct Record {
     pub sim_time: f32,
     /// Collision box, what melee swings trace against
     hull: Hull,
-    /// None when only the melee aimbot wants records, it has no use for bones
-    pose: Option<Pose>,
+    pose: Pose,
 }
 
 /// Records of one player, newest first
@@ -244,7 +244,7 @@ pub fn start_frame() {
 
 /// Drop a record, keeping its bones to reuse
 fn recycle(record: Record, spare: &mut Vec<Box<Bones>>) {
-    spare.extend(record.pose.map(|p| p.bones));
+    spare.push(record.pose.bones);
 }
 
 /// Drop all of a player's records, keeping their bones to reuse
@@ -257,20 +257,18 @@ pub fn update_records() {
     let mut records = records();
     let mut spare = SPARE_BONES.lock().unwrap();
 
-    let (config, melee_aimbot, chams) = {
+    let (config, chams) = {
         let c = Config::read();
         let chams = &c.esp.chams;
         (
             c.backtrack.clone(),
-            c.aimbot.master && c.aimbot.melee,
             c.esp.master
                 && chams.enabled
                 && (chams.backtrack.active() || chams.backtrack_target.active()),
         )
     };
     let localplayer = helpers::get_localplayer().filter(|p| !p.is_dead());
-    // The melee aimbot uses records to tell how enemies are moving
-    let (Some(localplayer), true) = (localplayer, config.enabled || melee_aimbot) else {
+    let (Some(localplayer), true) = (localplayer, config.enabled) else {
         records.iter_mut().for_each(|h| clear(h, &mut spare));
         return;
     };
@@ -324,13 +322,8 @@ pub fn update_records() {
             continue;
         }
 
-        let pose = if config.enabled {
-            let Some(pose) = pose(&player, sim_time, bone_mask, &mut spare) else {
-                continue;
-            };
-            Some(pose)
-        } else {
-            None
+        let Some(pose) = pose(&player, sim_time, bone_mask, &mut spare) else {
+            continue;
         };
         player_records.push_front(Record {
             sim_time,
@@ -363,17 +356,25 @@ fn pose(player: &Player, sim_time: f32, mask: i32, spare: &mut Vec<Box<Bones>>) 
 pub enum Choice {
     /// Pick one from where we're aiming
     Auto,
-    /// Leave the tick alone, the melee aimbot is going for where the player is now
+    /// Leave the tick alone, the aimbot is going for where the target is now
     Keep,
-    /// The melee aimbot picked this entity index and simulation time
+    /// The aimbot picked this entity index and simulation time
     Record(i32, f32),
 }
 
+/// Whether lag compensation helps the weapon we're holding. The server only rewinds players for
+/// hitscan and melee, projectiles are simulated where everyone really is.
+pub fn weapon_is_lag_compensated(localplayer: &Player) -> bool {
+    localplayer
+        .active_weapon()
+        .is_none_or(|w| !projectile::is_projectile_weapon(&w))
+}
+
 /// Pick the record closest to where we're aiming, or with a melee weapon one the swing would
-/// connect with, and set the tick to it when shooting
+/// connect with, and set the tick to it when shooting. A record the aimbot picked is always used
 pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config, choice: Choice) {
     let cmd = unsafe { &mut *cmd };
-    let target = if !config.backtrack.enabled {
+    let target = if !config.backtrack.enabled || !weapon_is_lag_compensated(localplayer) {
         None
     } else {
         match choice {
@@ -384,11 +385,11 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config, choice: Cho
     };
     *TARGET.lock().unwrap() = target.map(|t| (t.0, t.1));
 
-    let Some((_, sim_time, melee)) = target else {
+    let Some((_, sim_time, picked)) = target else {
         return;
     };
     // Melee hits land a few ticks after the swing starts, using whichever command is running then
-    if melee || (cmd.buttons & Buttons::InAttack as i32) != 0 {
+    if picked || (cmd.buttons & Buttons::InAttack as i32) != 0 {
         cmd.tick_count = Interfaces::global_vars().time_to_ticks(sim_time + lerp());
     }
 }
@@ -400,8 +401,8 @@ fn select(localplayer: &Player, cmd: &UserCmd, config: &Config) -> Option<(i32, 
     let angles = cmd.view_angles;
 
     if let Some(weapon) = localplayer.active_weapon().filter(|w| w.is_melee()) {
-        let eye = melee::eye_at(localplayer, 0.0);
-        let swing = Swing::new(localplayer, &weapon, &angles, 0.0);
+        let eye = melee::eye_at(localplayer, cmd, 0.0, config);
+        let swing = Swing::new(&weapon, eye, &angles);
         let knife = weapon.is_knife();
         let entity_list = Interfaces::entity_list();
         // Any record the swing connects with works, one a knife backstabs first, then the
@@ -443,11 +444,10 @@ fn select(localplayer: &Player, cmd: &UserCmd, config: &Config) -> Option<(i32, 
         .enumerate()
         .flat_map(|(i, player_records)| player_records.iter().map(move |r| (i as i32, r)))
         .filter(|(_, r)| timing.usable(r.sim_time))
-        .filter_map(|(i, r)| Some((i, r.sim_time, r.pose.as_ref()?)))
-        .flat_map(|(i, sim_time, pose)| {
-            [pose.head, pose.body].map(|pos| {
+        .flat_map(|(i, r)| {
+            [r.pose.head, r.pose.body].map(|pos| {
                 let angle = helpers::calculate_angle(&shoot_pos, &pos);
-                (angles.fov_to(&angle), i, sim_time)
+                (angles.fov_to(&angle), i, r.sim_time)
             })
         })
         .min_by(|a, b| a.0.total_cmp(&b.0))
@@ -485,23 +485,25 @@ impl Lookup {
             .filter(move |r| timing.is_some_and(|t| t.usable_in(r.sim_time, lead)))
             .map(|r| (r.hull, r.sim_time))
     }
+}
 
-    /// How player `index` has been moving between their two newest updates
-    pub fn velocity(&self, index: i32) -> Option<Vec3> {
-        let mut player_records = self.records.get(index as usize)?.iter();
-        let (new, old) = (player_records.next()?, player_records.next()?);
-        let dt = new.sim_time - old.sim_time;
-        // Too far apart and it's not one movement anymore
-        if dt <= 0.0 || dt > 0.25 {
-            return None;
-        }
-        let (a, b) = (new.hull.origin, old.hull.origin);
-        Some(Vec3::new(
-            (a.x - b.x) / dt,
-            (a.y - b.y) / dt,
-            (a.z - b.z) / dt,
-        ))
+/// Simulation time, head and body of player `index`'s records that can be shot at now, none when
+/// backtrack is off
+pub fn aim_points(index: i32, config: &Config) -> Vec<(f32, Vec3, Vec3)> {
+    if !config.backtrack.enabled {
+        return Vec::new();
     }
+    let Some(timing) = Timing::now(&config.backtrack) else {
+        return Vec::new();
+    };
+    let records = records();
+    records
+        .get(index as usize)
+        .into_iter()
+        .flatten()
+        .filter(|r| timing.usable(r.sim_time))
+        .map(|r| (r.sim_time, r.pose.head, r.pose.body))
+        .collect()
 }
 
 /// Records closer together than this look the same, only one of them is drawn
@@ -547,7 +549,8 @@ impl Drawn {
             .iter()
             .rev()
             .filter(|r| self.timing.usable(r.sim_time))
-            .filter_map(|r| Some((r, &*r.pose.as_ref().filter(|p| p.drawable)?.bones)))
+            .filter(|r| r.pose.drawable)
+            .map(|r| (r, &*r.pose.bones))
     }
 
     /// Bones of every record but the target, oldest first, leaving out ones that would be

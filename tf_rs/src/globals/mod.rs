@@ -2,6 +2,8 @@ use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use once_cell::sync::Lazy;
 
+use crate::types::Vec3;
+
 #[derive(Default)]
 pub struct Globals {
     pub target: Option<Target>,
@@ -11,12 +13,22 @@ pub struct Globals {
     pub thirdperson_key_editing: bool,
     pub is_spectated: bool,
     pub unload_requested: bool,
+    pub prediction: Option<PredictionPaths>,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Target {
     pub target_index: i32,
     pub should_headshot: bool,
+}
+
+/// Where the projectile aimbot expected its last shot and target to go
+#[derive(Default, Clone)]
+pub struct PredictionPaths {
+    pub player: Vec<Vec3>,
+    pub projectile: Vec<Vec3>,
+    /// Realtime to stop drawing at
+    pub until: f32,
 }
 
 // TODO: Use arc swap?

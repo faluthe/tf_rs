@@ -1,4 +1,4 @@
-use std::{ffi::c_void, ops::Deref, ptr};
+use std::{ffi::c_void, ops::Deref};
 
 use crate::{
     interfaces::Interfaces,
@@ -9,14 +9,16 @@ use crate::{
 };
 
 pub const MAX_BONES: usize = 128;
-
+pub const FL_ONGROUND: i32 = 1 << 0;
+pub const FL_DUCKING: i32 = 1 << 1;
 pub const BONE_USED_BY_HITBOX: i32 = 0x100;
 pub const BONE_USED_BY_ANYTHING: i32 = 0x7FF00;
+const HITGROUP_HEAD: i32 = 1;
 
 /// Bone to world transforms, as set up by `setup_bones`
 pub type Bones = [Matrix3x4; MAX_BONES];
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Player {
     pub ent: Entity,
 }
@@ -44,9 +46,10 @@ impl Player {
     offset_get!(pub fn fov: i32, 0x15E4);
     offset_get!(fn lifestate: i8, 0x746);
     offset_get!(fn active_weapon_: i32, 0x11D0);
-    offset_get!(fn tick_base: i32, 0x1718);
+    offset_get!(pub fn tick_base: i32, 0x1718);
+    offset_get!(fn next_attack: f32, 0x1088);
     offset_get!(fn eye_z_diff: f32, 0x14C);
-    offset_get!(fn player_class: PlayerClass, 0x1BA0);
+    offset_get!(pub fn player_class: PlayerClass, 0x1BA0);
     offset_get!(fn conds_0: u32, 0x1F64);
     offset_get!(fn conds_1: u32, 0x1F68);
     offset_get!(fn conds_2: u32, 0x1F6C);
@@ -55,9 +58,66 @@ impl Player {
     offset_get!(fn invisibility: f32, 0x1FE8);
     offset_get!(fn observer_target_: i32, 0x1648);
     offset_get!(pub fn eye_yaw: f32, 0x23F0);
+    offset_get!(pub fn eye_pitch: f32, 0x23EC);
+    offset_get!(pub fn view_offset: Vec3, 0x144);
+    offset_get!(pub fn max_speed: f32, 0x1680);
+    offset_get!(pub fn water_level: u8, 0x218);
+    offset_get!(pub fn ducked: bool, 0x1288);
+    offset_get!(pub fn constraint_entity: u32, 0x1628);
+    offset_get!(pub fn constraint_center: Vec3, 0x162C);
+    offset_get!(pub fn constraint_radius: f32, 0x1638);
+    offset_get!(pub fn constraint_width: f32, 0x163C);
+    offset_get!(pub fn constraint_speed_factor: f32, 0x1640);
 
     pub fn is_on_ground(&self) -> bool {
-        (self.flags() & 1) != 0
+        (self.flags() & FL_ONGROUND) != 0
+    }
+
+    pub fn is_ducking(&self) -> bool {
+        (self.flags() & FL_DUCKING) != 0
+    }
+
+    pub fn is_swimming(&self) -> bool {
+        self.water_level() >= 2
+    }
+
+    pub fn set_flags(&self, flags: i32) {
+        unsafe { *self.field::<i32>(0x460) = flags }
+    }
+
+    pub fn set_max_speed(&self, speed: f32) {
+        unsafe { *self.field::<f32>(0x1680) = speed };
+    }
+
+    pub fn set_velocity(&self, velocity: Vec3) {
+        unsafe { *self.field::<Vec3>(0x168) = velocity }
+    }
+
+    pub fn set_base_velocity(&self, velocity: Vec3) {
+        unsafe { *self.field::<Vec3>(0x1F0) = velocity }
+    }
+
+    pub fn clear_ground_entity(&self) {
+        unsafe { *self.field::<u32>(0x31C) = u32::MAX }
+    }
+
+    pub fn set_ducked(&self, ducked: bool) {
+        unsafe { *self.field::<bool>(0x1288) = ducked }
+    }
+
+    /// Clear m_bDucking, m_bInDuckJump, m_flDucktime and m_flDuckJumpTime
+    pub fn reset_duck_transition(&self) {
+        unsafe {
+            *self.field::<bool>(0x1289) = false;
+            *self.field::<bool>(0x128A) = false;
+            *self.field::<f32>(0x128C) = 0.0;
+            *self.field::<f32>(0x1290) = 0.0;
+        }
+    }
+
+    /// m_pCurrentCommand, what game movement reads the command being run from
+    pub fn set_current_command(&self, cmd: *mut c_void) {
+        unsafe { *self.field::<*mut c_void>(0x1620) = cmd }
     }
 
     pub fn is_dead(&self) -> bool {
@@ -87,13 +147,9 @@ impl Player {
             None => return false,
         };
 
-        let next_attack = weapon.next_attack();
-
-        if next_attack > self.curtime() {
-            return false;
-        }
-
-        true
+        // The weapon's own delay, and the player's, which reloads and switching weapons set
+        let cur_time = self.curtime();
+        weapon.next_attack() <= cur_time && self.next_attack() <= cur_time
     }
 
     /// Fill `out` with the bone to world matrices of every bone in `mask`
@@ -110,10 +166,10 @@ impl Player {
     pub fn invalidate_bone_cache(&self) {
         unsafe {
             // m_iMostRecentModelBoneCounter, anything but the current g_iModelBoneCounter
-            let counter = (self.this as *mut u8).add(0x820) as *mut u64;
+            let counter = self.field::<u64>(0x820);
             *counter = (*counter).wrapping_sub(1);
             // m_flLastBoneSetupTime
-            *((self.this as *mut u8).add(0xBA0) as *mut f32) = -f32::MAX;
+            *self.field::<f32>(0xBA0) = -f32::MAX;
         }
     }
 
@@ -121,8 +177,8 @@ impl Player {
     pub fn disable_interpolation(&self) {
         unsafe {
             // m_VarMap: entries of { u16 type, u16 m_bNeedsToInterpolate, data, watcher }
-            let entries = *((self.this as usize + 0x28) as *const *mut u8);
-            let interpolated = *((self.this as usize + 0x48) as *const i32);
+            let entries = *self.field::<*mut u8>(0x28);
+            let interpolated = *self.field::<i32>(0x48);
             if entries.is_null() {
                 return;
             }
@@ -138,6 +194,49 @@ impl Player {
             return None;
         }
         Some(bones[bone_id].position())
+    }
+
+    /// The model being drawn, through IClientRenderable::GetModel
+    pub fn model(&self) -> *const c_void {
+        let renderable = (self.this as usize + 8) as *mut c_void;
+        let vtable = unsafe { *(renderable as *mut *mut *mut c_void) };
+        let f = vfunc!(vtable, 9, (*mut c_void) -> *const c_void);
+        f(renderable)
+    }
+
+    /// Middle of the head hitbox, from the first hitbox in the model's hitbox set that's in
+    /// HITGROUP_HEAD, placed by its bone
+    pub fn head_center(&self) -> Option<Vec3> {
+        let model = self.model();
+        if model.is_null() {
+            return None;
+        }
+        let hdr = Interfaces::model_info().get_studio_model(model);
+        if hdr.is_null() {
+            return None;
+        }
+        let read = |p: *const u8, offset: usize| unsafe { *(p.add(offset) as *const i32) };
+        let read_vec = |p: *const u8, offset: usize| unsafe { *(p.add(offset) as *const Vec3) };
+        // studiohdr_t numhitboxsets and hitboxsetindex, the first set is the one players use
+        if read(hdr, 172) < 1 {
+            return None;
+        }
+        let set = unsafe { hdr.add(read(hdr, 176) as usize) };
+        // mstudiohitboxset_t numhitboxes and hitboxindex, then 68 byte mstudiobbox_ts
+        let (count, first) = (read(set, 4), read(set, 8) as usize);
+        let head = (0..count.max(0) as usize)
+            .map(|i| unsafe { set.add(first + i * 68) })
+            .find(|hitbox| read(*hitbox, 4) == HITGROUP_HEAD)?;
+        let bone = read(head, 0) as usize;
+        if bone >= MAX_BONES {
+            return None;
+        }
+        let center = (read_vec(head, 8) + read_vec(head, 20)) * 0.5;
+        let mut bones = [Matrix3x4::default(); MAX_BONES];
+        if !self.setup_bones(&mut bones, BONE_USED_BY_HITBOX, 0.0) {
+            return None;
+        }
+        Some(bones[bone].transform(&center))
     }
 
     pub fn head_bone_id(&self) -> usize {
@@ -178,10 +277,7 @@ impl Player {
     }
 
     pub fn set_thirdperson(&self, enabled: i32) {
-        unsafe {
-            let p = (self.this as *const u8).add(0x240C as usize) as *mut i32;
-            ptr::write(p, enabled);
-        }
+        unsafe { *self.field::<i32>(0x240C) = enabled }
     }
 
     pub fn observer_target(&self) -> Option<Entity> {
@@ -193,8 +289,8 @@ impl Player {
 // Warns for unconstructed variants since we always use it through ffi
 #[allow(dead_code)]
 #[repr(i32)]
-#[derive(PartialEq)]
-enum PlayerClass {
+#[derive(PartialEq, Clone, Copy)]
+pub enum PlayerClass {
     Undefined = 0,
     Scout = 1,
     Sniper = 2,
@@ -213,6 +309,7 @@ pub enum Cond {
     Zoomed = 1,
     Disguised = 3,
     Taunting = 7,
+    ShieldCharge = 17,
     Burning = 22,
     Urine = 24,
     MadMilk = 27,

@@ -92,19 +92,12 @@ macro_rules! struct_with_serialize {
             fn from_str(s: &str) -> Result<Self, Self::Err> {
                 let mut value = $name::default();
 
-                fn is_top_field(name: &str) -> bool {
-                    match name {
-                        $(
-                            stringify!($field) => true,
-                        )*
-                        _ => false,
-                    }
-                }
-
                 let mut lines = s.lines().peekable();
 
-                while let Some(line) = lines.next() {
-                    let line = line.trim();
+                let indent = |l: &str| l.len() - l.trim_start().len();
+
+                while let Some(raw) = lines.next() {
+                    let line = raw.trim();
                     if line.is_empty() {
                         continue;
                     }
@@ -122,18 +115,17 @@ macro_rules! struct_with_serialize {
                                 let field_text = if !rest_trimmed.is_empty() {
                                     rest_trimmed.to_string()
                                 } else {
-                                    // Collect indented lines until next top-level field or end
+                                    // The lines indented deeper than this one, nested structs can
+                                    // have fields named like ours
+                                    let own_indent = indent(raw);
                                     let mut buf = String::new();
                                     let mut first = true;
 
                                     while let Some(&next_line) = lines.peek() {
-                                        let next_trimmed = next_line.trim();
-
-                                        if let Some((next_key, _)) = next_trimmed.split_once(':') {
-                                            let next_key = next_key.trim();
-                                            if is_top_field(next_key) {
-                                                break;
-                                            }
+                                        if !next_line.trim().is_empty()
+                                            && indent(next_line) <= own_indent
+                                        {
+                                            break;
                                         }
 
                                         let consumed = lines.next().unwrap();
@@ -157,7 +149,15 @@ macro_rules! struct_with_serialize {
 
                             }
                         )*
-                        _ => {},
+                        // A field we no longer have, skip anything nested under it too
+                        _ => {
+                            let own_indent = indent(raw);
+                            while lines.peek().is_some_and(|l| {
+                                l.trim().is_empty() || indent(l) > own_indent
+                            }) {
+                                lines.next();
+                            }
+                        }
                     }
                 }
 

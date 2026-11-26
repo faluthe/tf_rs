@@ -76,6 +76,30 @@ fn aimbot_settings(nk: &Nuklear, config: &mut Config) {
             .checkbox("Auto backstab", &mut aim.auto_backstab);
     }
 
+    nk.section("Projectile", false)
+        .row_dynamic(ROW, 1)
+        .checkbox("Enabled", &mut aim.projectile);
+    if aim.projectile {
+        field(
+            nk,
+            &format!("Max simulation time ({} ms)", aim.max_sim_time),
+            |nk| {
+                nk.slider_int(100, &mut aim.max_sim_time, 2500, 50);
+            },
+        );
+        nk.row_dynamic(ROW, 1)
+            .checkbox("Splash", &mut aim.splash)
+            .checkbox("Wait for previous shot", &mut aim.wait_for_shot)
+            .checkbox("Auto detonate", &mut aim.auto_detonate)
+            .checkbox("Draw prediction", &mut aim.draw_prediction)
+            .checkbox("Log prediction accuracy", &mut aim.log_prediction);
+    }
+
+    nk.section("Movement prediction", false)
+        .row_dynamic(ROW, 1)
+        .checkbox("Ground strafing", &mut aim.strafe_ground)
+        .checkbox("Air strafing", &mut aim.strafe_air);
+
     nk.section("Player categories", false);
     let cat_names = player_db::get_names();
     let items = [

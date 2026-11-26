@@ -5,6 +5,21 @@ use crate::{
     vfunc,
 };
 
+/// What traces collide with
+pub mod mask {
+    const CONTENTS_HITBOX: u32 = 0x40000000;
+
+    pub const SOLID: u32 = 0x200400B;
+    pub const PLAYER_SOLID: u32 = 0x201400B;
+    /// Brushes only, what a launch point is pulled back out of walls with
+    pub const SOLID_BRUSH_ONLY: u32 = 0x400B;
+    /// CONTENTS_TEAM1 and CONTENTS_TEAM2, which players on red and blue are solid to
+    pub const RED_TEAM: u32 = 0x800;
+    pub const BLUE_TEAM: u32 = 0x1000;
+    /// What TF2's hitscan weapons fire with, MASK_SOLID | CONTENTS_HITBOX
+    pub const BULLET: u32 = SOLID | CONTENTS_HITBOX;
+}
+
 #[derive(Default, Clone)]
 pub struct EngineTrace {
     this: *mut c_void,
@@ -24,8 +39,23 @@ impl EngineTrace {
         mask: u32,
         ignore: Option<&Player>,
     ) -> TraceResult {
-        let ray = Ray::init(from, to);
-        let filter = TraceFilter::init(ignore);
+        self.trace(&Ray::init(from, to), mask, &TraceFilter::init(ignore))
+    }
+
+    /// Sweep a box with bounds `mins`..`maxs` from `from` to `to`
+    pub fn trace_hull(
+        &self,
+        from: &Vec3,
+        to: &Vec3,
+        mins: &Vec3,
+        maxs: &Vec3,
+        mask: u32,
+        filter: &TraceFilter,
+    ) -> TraceResult {
+        self.trace(&Ray::hull(from, to, mins, maxs), mask, filter)
+    }
+
+    pub fn trace(&self, ray: &Ray, mask: u32, filter: &TraceFilter) -> TraceResult {
         let mut result = TraceResult::default();
 
         let f = vfunc!(
@@ -36,9 +66,9 @@ impl EngineTrace {
 
         f(
             self.this,
-            &ray as *const _ as *mut c_void,
+            ray as *const _ as *mut c_void,
             mask,
-            &filter as *const _ as *mut c_void,
+            filter as *const _ as *mut c_void,
             &mut result,
         );
         result

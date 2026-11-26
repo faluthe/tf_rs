@@ -10,7 +10,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
     config::Config,
-    features::backtrack::{self, Choice},
+    features::{
+        backtrack::{self, Choice},
+        engine_prediction,
+        movesim::{MoveSim, Strafe},
+    },
     globals::{Globals, Target},
     helpers,
     interfaces::Interfaces,
@@ -22,13 +26,6 @@ impl Hull {
     fn aim_point(&self, eye: &Vec3) -> Vec3 {
         let z = (eye.z - self.origin.z).clamp(self.mins.z, self.maxs.z);
         Vec3::new(self.origin.x, self.origin.y, self.origin.z + z)
-    }
-
-    fn moved(&self, velocity: &Vec3, time: f32) -> Self {
-        Hull {
-            origin: add_scaled(&self.origin, velocity, time),
-            ..*self
-        }
     }
 }
 
@@ -44,12 +41,10 @@ pub struct Swing {
 impl Swing {
     const HULL: f32 = 18.0;
 
-    /// The swing a melee `weapon` would trace along `angles` if it landed `lead` seconds from
-    /// now, with us moving at our current velocity until then
-    pub fn new(localplayer: &Player, weapon: &Weapon, angles: &Vec3, lead: f32) -> Self {
+    /// The swing a melee `weapon` would trace from `start` along `angles`
+    pub fn new(weapon: &Weapon, start: Vec3, angles: &Vec3) -> Self {
         let range = weapon.attrib_float(weapon.swing_range(), c"melee_range_multiplier");
         let hull = weapon.attrib_float(Self::HULL, c"melee_bounds_multiplier");
-        let start = eye_at(localplayer, lead);
         Swing {
             start,
             end: add_scaled(&start, &forward(angles), range),
@@ -68,7 +63,7 @@ impl Swing {
 
     pub fn hits(&self, target: &Hull) -> bool {
         let (mins, maxs) = self.reach_box(target);
-        segment_hits_box(&self.start, &self.end, &mins, &maxs)
+        helpers::segment_box_entry(&self.start, &self.end, &mins, &maxs, 0.0).is_some()
     }
 
     /// Whether no swing from where this one starts can hit `target`, whatever its angles
@@ -97,11 +92,41 @@ impl Swing {
     }
 }
 
-/// Where our eye will be `lead` seconds from now, plus the command's own tick of movement that
-/// the server applies before the weapon runs
-pub fn eye_at(localplayer: &Player, lead: f32) -> Vec3 {
+fn ticks(time: f32) -> i32 {
+    (time / Interfaces::global_vars().interval_per_tick).round() as i32
+}
+
+/// Where our eye will be `lead` seconds after this command, which the server moves us by before
+/// the weapon runs, keeping the command's movement
+pub fn eye_at(localplayer: &Player, cmd: &UserCmd, lead: f32, config: &Config) -> Vec3 {
+    // The command's own tick, unless engine prediction has already run it
+    let own = if engine_prediction::active() { 0 } else { 1 };
+    if let Some(mut sim) = MoveSim::new(localplayer, Some((cmd, config.bunnyhop)), Strafe::NONE) {
+        for _ in 0..own + ticks(lead) {
+            sim.run_tick();
+        }
+        // Read before the sim restores it, ducking moves the view
+        return sim.origin() + localplayer.view_offset();
+    }
     let tick = Interfaces::global_vars().interval_per_tick;
-    add_scaled(&localplayer.eye_pos(), &localplayer.velocity(), lead + tick)
+    add_scaled(
+        &localplayer.eye_pos(),
+        &localplayer.velocity(),
+        lead + own as f32 * tick,
+    )
+}
+
+/// Where the server will have `player` when a swing lands `lead` seconds from now
+fn predicted_hull(player: &Player, lead: f32, strafe: Strafe) -> Option<Hull> {
+    let mut sim = MoveSim::new(player, None, strafe)?;
+    for _ in 0..ticks(lead) {
+        sim.run_tick();
+    }
+    Some(Hull {
+        origin: sim.predicted_origin(),
+        mins: player.mins(),
+        maxs: player.maxs(),
+    })
 }
 
 /// CTFKnife::IsBehindAndFacingTarget from `eye` looking along `angles`, at a target standing at
@@ -280,34 +305,28 @@ fn find_target(
 ) -> Option<Found> {
     let aim = &config.aimbot;
     // Only the angles change between swings, the rest is worked out once
-    let swing = Swing::new(localplayer, weapon, &cmd.view_angles, lead);
-    let eye = swing.start;
+    let eye = eye_at(localplayer, cmd, lead, config);
+    let swing = Swing::new(weapon, eye, &cmd.view_angles);
+    let strafe = Strafe::from(aim);
     // Locked once for every player rather than for each of them
     let lookup = backtrack::Lookup::new(config);
     let mut best: Option<Found> = None;
 
-    for i in 1..=Interfaces::engine_client().get_max_clients() {
-        let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i) else {
-            continue;
-        };
-        if player == *localplayer
-            || player.is_dormant()
-            || player.is_dead()
-            || player.team() == localplayer.team()
-            || (aim.ignore_invis && player.is_invisible())
-        {
+    for (i, player) in helpers::enemies(localplayer, aim.ignore_invis) {
+        // Out of reach even running at each other
+        if player.origin().distance_to(&eye) > 600.0 {
             continue;
         }
 
         // Where the server will check: backtrack records still usable when the swing lands,
-        // otherwise where the player is, moved along with how they've been moving
+        // otherwise where they'll have moved to by then
         let mut records = lookup
             .candidates(i, lead)
             .map(|(hull, sim_time)| (hull, Some(sim_time)))
             .peekable();
         let now = records.peek().is_none().then(|| {
-            let velocity = lookup.velocity(i).unwrap_or_default();
-            (player.hull().moved(&velocity, lead), None)
+            let hull = predicted_hull(&player, lead, strafe).unwrap_or_else(|| player.hull());
+            (hull, None)
         });
 
         let target_yaw = player.eye_yaw();
@@ -366,30 +385,4 @@ pub fn forward(angles: &Vec3) -> Vec3 {
 
 fn add_scaled(a: &Vec3, b: &Vec3, scale: f32) -> Vec3 {
     Vec3::new(a.x + b.x * scale, a.y + b.y * scale, a.z + b.z * scale)
-}
-
-/// Whether the segment from `start` to `end` passes through the box from `mins` to `maxs`
-fn segment_hits_box(start: &Vec3, end: &Vec3, mins: &Vec3, maxs: &Vec3) -> bool {
-    let axes = [
-        (start.x, end.x, mins.x, maxs.x),
-        (start.y, end.y, mins.y, maxs.y),
-        (start.z, end.z, mins.z, maxs.z),
-    ];
-    let (mut enter, mut exit) = (0.0f32, 1.0f32);
-    for (s, e, lo, hi) in axes {
-        let d = e - s;
-        if d.abs() < f32::EPSILON {
-            if s < lo || s > hi {
-                return false;
-            }
-            continue;
-        }
-        let (t0, t1) = ((lo - s) / d, (hi - s) / d);
-        enter = enter.max(t0.min(t1));
-        exit = exit.min(t0.max(t1));
-        if enter > exit {
-            return false;
-        }
-    }
-    true
 }

@@ -20,18 +20,77 @@ impl FromRaw for Entity {
     }
 }
 
+/// Entity index a handle points at
+pub fn handle_index(handle: u32) -> i32 {
+    (handle & 0xFFF) as i32
+}
+
 impl Entity {
     offset_get!(pub fn team: Team, 0xDC);
     offset_get!(pub fn origin: Vec3, 0x328);
     offset_get!(pub fn simulation_time: f32, 0x98);
     offset_get!(pub fn velocity: Vec3, 0x168);
 
+    pub fn index(&self) -> i32 {
+        let networkable = self.get_networkable();
+        let vtable = unsafe { *(networkable as *mut *mut *mut c_void) };
+        let f = vfunc!(vtable, 9, extern "C" fn(*mut c_void) -> i32);
+        f(networkable)
+    }
+
+    /// m_vecOrigin as last networked, without interpolation
+    pub fn network_origin(&self) -> Vec3 {
+        unsafe { *self.field::<Vec3>(0x448) }
+    }
+
+    /// Writes m_vecAbsOrigin, what `origin` reads, without marking anything dirty
+    pub fn set_origin(&self, origin: Vec3) {
+        unsafe { *self.field::<Vec3>(0x328) = origin }
+    }
+
+    /// Writes m_vecNetworkOrigin, which prediction starts the next command's movement from
+    pub fn set_network_origin(&self, origin: Vec3) {
+        unsafe { *self.field::<Vec3>(0x448) = origin }
+    }
+
+    /// Entity index of m_hOwnerEntity
+    pub fn owner_index(&self) -> i32 {
+        handle_index(unsafe { *self.field::<u32>(0x754) })
+    }
+
+    /// Entity index of whoever threw a pipe or sticky
+    pub fn thrower_index(&self) -> i32 {
+        handle_index(unsafe { *self.field::<u32>(0xC30) })
+    }
+
+    /// Entity index of the launcher that fired a pipe or sticky
+    pub fn launcher_index(&self) -> i32 {
+        handle_index(unsafe { *self.field::<u32>(0xC44) })
+    }
+
+    /// Pointer to the member at `offset`
+    pub fn field<T>(&self, offset: usize) -> *mut T {
+        (self.this as usize + offset) as *mut T
+    }
+
+    /// Prediction datamap, the fields prediction saves and restores
+    pub fn pred_desc_map(&self) -> *const c_void {
+        let f = vfunc!(self.vtable, 18, extern "C" fn(*mut c_void) -> *const c_void);
+        f(self.this)
+    }
+
+    /// The entity's own handle
+    pub fn ref_handle(&self) -> u32 {
+        let f = vfunc!(self.vtable, 3, extern "C" fn(*mut c_void) -> *const u32);
+        unsafe { *f(self.this) }
+    }
+
     fn get_networkable(&self) -> *mut c_void {
-        (self.this as usize + 0x10) as *mut c_void
+        self.field(0x10)
     }
 
     fn get_collideable(&self) -> *mut c_void {
-        (self.this as usize + 0x240) as *mut c_void
+        self.field(0x240)
     }
 
     fn client_class(&self) -> *mut c_void {

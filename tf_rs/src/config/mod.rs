@@ -51,10 +51,11 @@ struct_with_serialize! {
 }
 
 struct_with_serialize! {
-    /// theme indexes `features::theme::THEMES`, font indexes `nuklear::Font::ALL`
     #[derive(Default, Clone)]
     pub struct MenuConfig {
+        /// Index into `features::theme::THEMES`
         pub theme: usize,
+        /// Index into `nuklear::Font::ALL`
         pub font: usize,
     }
 }
@@ -244,11 +245,10 @@ impl Default for ChamsConfig {
 struct_with_serialize! {
     #[derive(Clone, Copy)]
     pub struct ChamsGroupConfig {
-        /// Index into chams::MATERIALS
+        /// Index into `chams::MATERIALS`
         pub material: usize,
         /// Draw chams where the entity can be seen, otherwise draw the normal model there
         pub visible: bool,
-        /// Draw chams through walls
         pub occluded: bool,
         pub visible_color: Color,
         pub occluded_color: Color,
@@ -335,7 +335,7 @@ struct_with_serialize! {
 }
 
 struct_with_serialize! {
-    #[derive(Default, Clone)]
+    #[derive(Clone)]
     pub struct AimbotConfig {
         pub master: bool,
         pub silent_aim: bool,
@@ -351,6 +351,21 @@ struct_with_serialize! {
         pub auto_swing: bool,
         pub swing_prediction: bool,
         pub auto_backstab: bool,
+        /// Predict players turning as they move on the ground
+        pub strafe_ground: bool,
+        /// Predict players turning as they move in the air
+        pub strafe_air: bool,
+        pub projectile: bool,
+        /// How far ahead to simulate targets for projectiles, in milliseconds
+        pub max_sim_time: i32,
+        /// Hit surfaces near targets that explosives can't hit directly
+        pub splash: bool,
+        /// Hold fire on a target until our explosive already on its way to them lands
+        pub wait_for_shot: bool,
+        pub auto_detonate: bool,
+        pub draw_prediction: bool,
+        /// Write how far movement prediction is off to prediction.csv
+        pub log_prediction: bool,
     }
 }
 
@@ -361,6 +376,36 @@ struct_with_serialize! {
         pub length: i32,
         pub fake_ping: i32,
         pub disable_interpolation: bool,
+    }
+}
+
+impl Default for AimbotConfig {
+    fn default() -> Self {
+        AimbotConfig {
+            master: false,
+            silent_aim: false,
+            building_aim: false,
+            key: KeyConfig::default(),
+            fov: 0,
+            draw_fov: false,
+            ignore_category: 0,
+            priority_category: 0,
+            disable_when_spectated: 0,
+            ignore_invis: false,
+            melee: false,
+            auto_swing: false,
+            swing_prediction: false,
+            auto_backstab: false,
+            strafe_ground: true,
+            strafe_air: true,
+            projectile: false,
+            max_sim_time: 2000,
+            splash: true,
+            wait_for_shot: false,
+            auto_detonate: false,
+            draw_prediction: false,
+            log_prediction: false,
+        }
     }
 }
 

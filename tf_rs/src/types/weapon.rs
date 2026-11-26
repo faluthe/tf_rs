@@ -12,11 +12,11 @@ fn attrib_hook_float() -> Option<AttribHookFloat> {
     static HOOK: OnceCell<Option<usize>> = OnceCell::new();
     let addr = HOOK.get_or_init(|| {
         let segments = module::segments("client.so");
-        let name = module::find_string(&segments, c"melee_bounds_multiplier")?;
-        let lea = module::find_lea_to(&segments, name)?;
-        let hook = module::call_target(lea + 7);
+        let hook = module::find_string(&segments, c"melee_bounds_multiplier")
+            .and_then(|name| module::find_lea_to(&segments, name))
+            .and_then(|lea| module::call_target(lea + 7));
         if hook.is_none() {
-            log::warn!("Attribute hook not found, melee multipliers are ignored");
+            log::warn!("Attribute hook not found, weapon attributes are ignored");
         }
         hook
     });
@@ -37,9 +37,13 @@ impl FromRaw for Weapon {
 
 impl Weapon {
     offset_get!(pub fn next_attack: f32, 0xE94);
+    // -1 for weapons without a clip
+    offset_get!(pub fn clip: i32, 0xEE0);
     offset_get!(fn weapon_mode: i32, 0xF70);
     // CTFWeaponBaseMelee: when the current swing lands, negative when not swinging
     offset_get!(pub fn smack_time: f32, 0x10A0);
+    // CTFPipebombLauncher, and CTFCompoundBow which derives from it
+    offset_get!(pub fn charge_begin_time: f32, 0x10D8);
 
     pub fn weapon_class(&self) -> WeaponClass {
         let f = vfunc!(self.vtable, 451, extern "C" fn(*mut c_void) -> WeaponClass);

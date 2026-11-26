@@ -41,6 +41,9 @@ pub extern "C" fn hk_draw_model_execute(
         return call_original();
     };
 
+    let backtrack = backtrack
+        && helpers::get_localplayer()
+            .is_some_and(|local| backtrack::weapon_is_lag_compensated(&local));
     if backtrack {
         draw_backtrack(info_ref, &chams_config, |bones| {
             Hooks::draw_model_execute()
