@@ -221,10 +221,10 @@ pub fn draw(localplayer: Option<&Player>, surface: &Surface, config: &Config) {
     CLASS_MODEL.store(player.is_none(), Ordering::Relaxed);
     let shown = match player {
         Some(player) => draw_player(&player, subject, &scene),
-        // Only the teammate model draws here, so every subject is shown as one with its overlay
+        // Only the teammate skin draws here, so every subject wears it under its own chams
         None => {
-            let team = subject_team(Subject::Teammate, local_team);
-            studio::draw(state.class, team, &scene, config)
+            let skin_team = subject_team(Subject::Teammate, local_team);
+            studio::draw(state.class, subject, skin_team, &scene, config)
         }
     };
     if let Some(shown) = shown {

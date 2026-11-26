@@ -171,8 +171,14 @@ fn time() -> f32 {
     START.get_or_init(Instant::now).elapsed().as_secs_f32()
 }
 
-/// Draw class `index` on `team` into `scene` with a teammate's chams
-pub(super) fn draw(index: usize, team: Team, scene: &Scene, config: &Config) -> Option<Shown> {
+/// Draw class `index` in the skin of `team` into `scene` with the chams of `subject`
+pub(super) fn draw(
+    index: usize,
+    subject: Subject,
+    team: Team,
+    scene: &Scene,
+    config: &Config,
+) -> Option<Shown> {
     let cache = Interfaces::mdl_cache();
     let studio = Interfaces::studio_render();
     if !cache.is_valid() || !studio.is_valid() {
@@ -226,8 +232,7 @@ pub(super) fn draw(index: usize, team: Team, scene: &Scene, config: &Config) -> 
 
     let info = draw_info(model.ptr(), hardware, skin, ambient);
     if config.esp.master && config.esp.chams.enabled {
-        let (layers, normal_fallback) =
-            chams_layers(Subject::Teammate, scene.occluded, &config.esp.chams);
+        let (layers, normal_fallback) = chams_layers(subject, scene.occluded, &config.esp.chams);
         // The layers draw the model's own look in the engine's color, which nothing has set
         // outside a map, so it would be black and see-through
         let old_color = render_view.get_color_modulation();
