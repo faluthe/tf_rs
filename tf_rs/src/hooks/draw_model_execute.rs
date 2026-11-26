@@ -1,9 +1,7 @@
 use std::ffi::c_void;
 
 use crate::{
-    config::{
-        BacktrackConfig, ChamsConfig, ChamsGroupConfig, ChamsLayerConfig, ChamsTargetConfig, Config,
-    },
+    config::{ChamsConfig, ChamsGroupConfig, ChamsLayerConfig, ChamsTargetConfig, Config},
     features::{
         backtrack,
         chams::{self, Loaded},
@@ -14,7 +12,8 @@ use crate::{
     interfaces::Interfaces,
     player_db::{self, PlayerCategory},
     types::{
-        ClassId, Color, Entity, Matrix3x4, ModelRenderInfo, Player, material::MATERIAL_VAR_IGNORE_Z,
+        ClassId, Color, Entity, Matrix3x4, ModelRenderInfo, Player,
+        material::MATERIAL_VAR_IGNORE_Z, player::Bones,
     },
 };
 
@@ -30,12 +29,12 @@ pub extern "C" fn hk_draw_model_execute(
             .expect("Invalid DrawModelExecute function signature");
     };
 
-    let (chams_config, backtrack_config) = {
+    let (chams_config, backtrack) = {
         let config = Config::read();
         if !config.esp.master || !config.esp.chams.enabled {
             return call_original();
         }
-        (config.esp.chams.clone(), config.backtrack.clone())
+        (config.esp.chams.clone(), config.backtrack.enabled)
     };
 
     if !Interfaces::engine_client().is_in_game() {
@@ -46,8 +45,11 @@ pub extern "C" fn hk_draw_model_execute(
         return call_original();
     };
 
-    if backtrack_config.enabled {
-        draw_backtrack(info_ref, &chams_config, &backtrack_config, |bones| {
+    let backtrack = backtrack
+        && helpers::get_localplayer()
+            .is_some_and(|local| backtrack::weapon_is_lag_compensated(&local));
+    if backtrack {
+        draw_backtrack(info_ref, &chams_config, |bones| {
             Hooks::draw_model_execute()
                 .call_draw_model_execute(this, state, info, bones)
                 .expect("Invalid DrawModelExecute function signature");
@@ -151,12 +153,7 @@ fn draw_layers(layers: &[ChamsLayerConfig], normal_fallback: bool, scale: f32, d
 
 /// Draw the model posed at each backtrack record of an enemy player, `draw` renders it with
 /// the given bones
-fn draw_backtrack(
-    info: &ModelRenderInfo,
-    config: &ChamsConfig,
-    backtrack_config: &BacktrackConfig,
-    draw: impl Fn(*mut Matrix3x4),
-) {
+fn draw_backtrack(info: &ModelRenderInfo, config: &ChamsConfig, draw: impl Fn(*mut Matrix3x4)) {
     // The target falls back to the other ticks' look when it has none of its own
     let target_group = if config.backtrack_target.active() {
         config.backtrack_target
@@ -167,18 +164,23 @@ fn draw_backtrack(
     {
         return;
     }
+    let Some(records) = backtrack::drawn(info.entity_index, info.origin) else {
+        return;
+    };
 
-    backtrack::valid_bones(info.entity_index, backtrack_config, |bones, is_target| {
-        let group = if is_target {
-            target_group
-        } else {
-            config.backtrack
-        };
-        // The engine only reads the bones, the cast is for the signature
-        draw_layers(&group.layers(), false, WORLD_MODEL_SCALE, || {
-            draw(bones.as_ptr() as *mut Matrix3x4)
+    // The engine only reads the bones, the cast is for the signature
+    let draw = |bones: &Bones| draw(bones.as_ptr() as *mut Matrix3x4);
+    // The target last so it's drawn over the others, each layer set once for all its records
+    if records.others().next().is_some() {
+        draw_layers(&config.backtrack.layers(), false, WORLD_MODEL_SCALE, || {
+            records.others().for_each(draw)
         });
-    });
+    }
+    if records.target().is_some() {
+        draw_layers(&target_group.layers(), false, WORLD_MODEL_SCALE, || {
+            records.target().into_iter().for_each(draw)
+        });
+    }
 }
 
 fn is_enemy_player(index: i32) -> bool {

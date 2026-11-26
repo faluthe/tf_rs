@@ -20,9 +20,9 @@ pub struct Hooks {
     pub client_mode: VmtShadow,
     pub panel: VmtShadow,
     pub model_render: VmtShadow,
-    // The net channel is recreated each connection and hooked when one is found
+    /// The net channel is recreated each connection and hooked when one is found
     pub net_chan: VmtShadow,
-    // Hooks of earlier net channels, kept alive as a freed channel may still point at them
+    /// Hooks of earlier net channels, kept alive as a freed channel may still point at them
     pub retired_net_chans: Vec<VmtShadow>,
     pub poll_event: SDLHook,
     pub swap_window: SDLHook,

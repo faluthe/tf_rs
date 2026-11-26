@@ -1,6 +1,7 @@
 pub mod aimbot;
 pub mod backtrack;
 pub mod chams;
+pub mod engine_prediction;
 pub mod esp;
 pub mod fake_ping;
 pub mod melee;

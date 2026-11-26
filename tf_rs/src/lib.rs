@@ -1,3 +1,18 @@
+//! TF2 cheat for Linux, built as a shared library and injected into the running game.
+//! An educational reference for library injection, vtable hooking and Source engine
+//! internals, a Rust port of [tf_c](https://github.com/faluthe/tf_c).
+//!
+//! Only use it where you're allowed to modify the game client: private servers, single
+//! player and the like.
+//!
+//! Injection is done by the `inject` crate. Once loaded, the Delete key toggles the menu
+//! and its Unload button restores every hook and unloads the library.
+//!
+//! Files:
+//! - `tf_rs.log` next to the injected `.so`, truncated on each injection
+//! - `~/.<name>.tf_rs.cfg` for each configuration, `default` is loaded at startup
+//! - `~/.tf_rs_players.cfg` for player categories, see `player_db`
+
 use std::{
     ffi::c_void,
     mem,
@@ -17,6 +32,8 @@ mod player_db;
 mod traits;
 mod types;
 
+/// Run by the dynamic linker once `dlopen` has mapped and relocated us. `#[used]` keeps
+/// it from being stripped since nothing references it.
 #[used]
 #[unsafe(link_section = ".init_array")]
 static INIT: extern "C" fn() = {
@@ -38,6 +55,7 @@ static INIT: extern "C" fn() = {
     init
 };
 
+/// Run by `dlclose` before we're unmapped, the game must not be left calling into our hooks.
 #[used]
 #[unsafe(link_section = ".fini_array")]
 static FINI: extern "C" fn() = {

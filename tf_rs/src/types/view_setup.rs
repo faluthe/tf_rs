@@ -1,3 +1,6 @@
+use crate::types::Vec3;
+
+/// CViewSetup, as far as the camera
 #[repr(C)]
 pub struct ViewSetup {
     pub x: i32,
@@ -15,4 +18,10 @@ pub struct ViewSetup {
     pub ortho_right: f32,
     pub ortho_bottom: f32,
     pub fov: f32,
+    pub fov_viewmodel: f32,
+    pub origin: Vec3,
+    pub angles: Vec3,
 }
+
+const _: () = assert!(std::mem::offset_of!(ViewSetup, fov) == 0x38);
+const _: () = assert!(std::mem::offset_of!(ViewSetup, origin) == 0x40);

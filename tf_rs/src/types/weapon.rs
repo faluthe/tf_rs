@@ -6,7 +6,7 @@ use crate::{helpers::module, offset_get, traits::FromRaw, vfunc};
 
 type AttribHookFloat = extern "C" fn(f32, *const c_char, *mut c_void, *mut c_void, bool) -> f32;
 
-/// CAttributeManager::AttribHookValue<float>, called right after the melee swing trace loads
+/// `CAttributeManager::AttribHookValue<float>`, called right after the melee swing trace loads
 /// the name of the bounds multiplier
 fn attrib_hook_float() -> Option<AttribHookFloat> {
     static HOOK: OnceCell<Option<usize>> = OnceCell::new();

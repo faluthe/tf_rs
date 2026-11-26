@@ -3,7 +3,7 @@ use std::ffi::c_void;
 use crate::{
     offset_get,
     traits::FromRaw,
-    types::{Color, Vec3, rgba},
+    types::{Color, Hull, Vec3, rgba},
     vfunc,
 };
 
@@ -18,6 +18,11 @@ impl FromRaw for Entity {
         let vtable = unsafe { *(raw as *mut *mut *mut c_void) };
         Entity { this: raw, vtable }
     }
+}
+
+/// Entity index a handle points at
+pub fn handle_index(handle: u32) -> i32 {
+    (handle & 0xFFF) as i32
 }
 
 impl Entity {
@@ -38,7 +43,32 @@ impl Entity {
         unsafe { *self.field::<Vec3>(0x448) }
     }
 
-    /// Pointer to the member at `offset`, for fields that get written
+    /// Writes m_vecAbsOrigin, what `origin` reads, without marking anything dirty
+    pub fn set_origin(&self, origin: Vec3) {
+        unsafe { *self.field::<Vec3>(0x328) = origin }
+    }
+
+    /// Writes m_vecNetworkOrigin, which prediction starts the next command's movement from
+    pub fn set_network_origin(&self, origin: Vec3) {
+        unsafe { *self.field::<Vec3>(0x448) = origin }
+    }
+
+    /// Entity index of m_hOwnerEntity
+    pub fn owner_index(&self) -> i32 {
+        handle_index(unsafe { *self.field::<u32>(0x754) })
+    }
+
+    /// Entity index of whoever threw a pipe or sticky
+    pub fn thrower_index(&self) -> i32 {
+        handle_index(unsafe { *self.field::<u32>(0xC30) })
+    }
+
+    /// Entity index of the launcher that fired a pipe or sticky
+    pub fn launcher_index(&self) -> i32 {
+        handle_index(unsafe { *self.field::<u32>(0xC44) })
+    }
+
+    /// Pointer to the member at `offset`
     pub fn field<T>(&self, offset: usize) -> *mut T {
         (self.this as usize + offset) as *mut T
     }
@@ -56,11 +86,11 @@ impl Entity {
     }
 
     fn get_networkable(&self) -> *mut c_void {
-        (self.this as usize + 0x10) as *mut c_void
+        self.field(0x10)
     }
 
     fn get_collideable(&self) -> *mut c_void {
-        (self.this as usize + 0x240) as *mut c_void
+        self.field(0x240)
     }
 
     fn client_class(&self) -> *mut c_void {
@@ -92,6 +122,15 @@ impl Entity {
         let vtable = unsafe { *(collideable as *mut *mut *mut c_void) };
         let f = vfunc!(vtable, 2, extern "C" fn(*mut c_void) -> *const Vec3);
         unsafe { *(f(collideable)) }
+    }
+
+    /// Collision box at the entity's origin
+    pub fn hull(&self) -> Hull {
+        Hull {
+            origin: self.origin(),
+            mins: self.mins(),
+            maxs: self.maxs(),
+        }
     }
 
     /// Network name of the entity's client class, e.g. "CTFViewModel"
