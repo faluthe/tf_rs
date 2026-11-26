@@ -95,6 +95,17 @@ fn aimbot_settings(nk: &Nuklear, config: &mut Config) {
         if aim.draw_prediction {
             nk.row_dynamic(ROW, 1)
                 .checkbox("Always draw", &mut aim.draw_prediction_always);
+            if aim.draw_prediction_always {
+                field(nk, "View path", |nk| {
+                    nk.color_combo(&mut aim.view_path_color);
+                });
+            }
+            field(nk, "Shot path", |nk| {
+                nk.color_combo(&mut aim.shot_path_color);
+            });
+            field(nk, "Target path", |nk| {
+                nk.color_combo(&mut aim.target_path_color);
+            });
         }
         nk.row_dynamic(ROW, 1)
             .checkbox("Log prediction accuracy", &mut aim.log_prediction);

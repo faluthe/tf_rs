@@ -14,6 +14,8 @@ pub struct Globals {
     pub is_spectated: bool,
     pub unload_requested: bool,
     pub prediction: Option<PredictionPaths>,
+    /// Where the shot the projectile aimbot would take lands, and the realtime to stop drawing at
+    pub aim_preview: Option<(Vec3, f32)>,
 }
 
 #[derive(Default, Clone)]

@@ -379,12 +379,14 @@ pub(crate) fn draw_health_values(
 }
 
 /// The paths the projectile aimbot predicted for its last shot, and optionally where a shot along
-/// the view would go
+/// the view would go and where the shot the aimbot would take lands
 pub fn draw_prediction(localplayer: &Player, surface: &Surface, config: &Config) {
-    if !config.aimbot.master || !config.aimbot.draw_prediction {
+    let aim = &config.aimbot;
+    if !aim.master || !aim.draw_prediction {
         return;
     }
-    let draw = |points: &[Vec3]| {
+    let draw = |points: &[Vec3], color: &Color| {
+        surface.draw_set_color_c(color);
         let screen: Vec<_> = points.iter().map(helpers::view::world_to_screen).collect();
         for w in screen.windows(2) {
             if let (Some(a), Some(b)) = (w[0], w[1]) {
@@ -392,53 +394,112 @@ pub fn draw_prediction(localplayer: &Player, surface: &Surface, config: &Config)
             }
         }
     };
-    // Where it lands, a box about the size of a player's head
-    let land = |points: &[Vec3]| {
+    let land = |points: &[Vec3], color: &Color| {
         if let Some(end) = points.last() {
-            draw_cube(surface, end, 6.0);
+            draw_cube(surface, end, LANDING_SIZE, color);
         }
     };
-    if config.aimbot.draw_prediction_always
-        && let Some(path) = projectile::view_path(localplayer)
-    {
-        surface.draw_set_color(0, 200, 255, 255);
-        draw(&path);
-        land(&path);
-    }
+
     // A copy, nothing is drawn while holding the lock, and only while it's still shown
     let now = Interfaces::global_vars().realtime;
-    let Some(paths) = Globals::read()
-        .prediction
-        .as_ref()
-        .filter(|p| now <= p.until)
-        .cloned()
-    else {
-        return;
+    let (fired, preview) = {
+        let g = Globals::read();
+        let fired = g.prediction.as_ref().filter(|p| now <= p.until).cloned();
+        let preview = g.aim_preview.filter(|(_, until)| now <= *until);
+        (fired, preview)
     };
-    surface.draw_set_color(255, 255, 255, 255);
-    draw(&paths.player);
-    surface.draw_set_color(255, 208, 0, 255);
-    draw(&paths.projectile);
-    land(&paths.projectile);
+    if let Some(paths) = fired {
+        draw(&paths.player, &aim.target_path_color);
+        draw(&paths.projectile, &aim.shot_path_color);
+        land(&paths.projectile, &aim.shot_path_color);
+    }
+    if !aim.draw_prediction_always {
+        return;
+    }
+    if let Some((end, _)) = preview {
+        draw_cube(surface, &end, LANDING_SIZE, &aim.shot_path_color);
+    }
+    if let Some(path) = projectile::view_path(localplayer) {
+        draw(&path, &aim.view_path_color);
+        land(&path, &aim.view_path_color);
+    }
 }
 
-/// A wireframe cube `half` units out from `center` on each side, in the current color
-fn draw_cube(surface: &Surface, center: &Vec3, half: f32) {
-    let corners: Vec<_> = (0..8)
-        .map(|i| {
-            let side = |bit: i32| if i & bit != 0 { half } else { -half };
-            helpers::view::world_to_screen(&(*center + Vec3::new(side(1), side(2), side(4))))
-        })
-        .collect();
-    // Corners differing in one bit share an edge
-    for a in 0..8 {
-        for bit in [1, 2, 4] {
-            let b = a | bit;
-            if b != a
-                && let (Some(p), Some(q)) = (corners[a], corners[b])
-            {
-                surface.draw_line(p.x as i32, p.y as i32, q.x as i32, q.y as i32);
+/// Half the width of the boxes marking where projectiles land
+const LANDING_SIZE: f32 = 3.0;
+
+/// A solid cube `half` units out from `center` on each side, its faces shaded so it reads as 3D
+fn draw_cube(surface: &Surface, center: &Vec3, half: f32, color: &Color) {
+    let Some((camera, _)) = helpers::view::camera() else {
+        return;
+    };
+    let corner = |i: usize| {
+        let side = |bit: usize| if i & bit != 0 { half } else { -half };
+        *center + Vec3::new(side(1), side(2), side(4))
+    };
+    // Each face by the axis bit it's on and which side, corners in order around it
+    for (axis, shade) in [(1usize, 0.7f32), (2, 0.85), (4, 1.0)] {
+        let (u, v) = match axis {
+            1 => (2, 4),
+            2 => (1, 4),
+            _ => (1, 2),
+        };
+        for positive in [false, true] {
+            let base = if positive { axis } else { 0 };
+            let mut normal = Vec3::default();
+            let sign = if positive { 1.0 } else { -1.0 };
+            match axis {
+                1 => normal.x = sign,
+                2 => normal.y = sign,
+                _ => normal.z = sign,
             }
+            let face_center = *center + normal * half;
+            // Faces turned away from the camera are behind the others
+            if (camera - face_center).dot(&normal) <= 0.0 {
+                continue;
+            }
+            let quad: Option<Vec<_>> = [base, base | u, base | u | v, base | v]
+                .iter()
+                .map(|&i| helpers::view::world_to_screen(&corner(i)))
+                .collect();
+            let Some(quad) = quad else {
+                continue;
+            };
+            // The bottom is darkest, like the sides it's lit from above
+            let shade = if axis == 4 && !positive { 0.55 } else { shade };
+            let scale = |c: u8| (c as f32 * shade) as i32;
+            surface.draw_set_color(
+                scale(color.r),
+                scale(color.g),
+                scale(color.b),
+                color.a as i32,
+            );
+            fill_convex(surface, &quad);
+        }
+    }
+}
+
+/// Fill a convex polygon on the screen a row at a time
+fn fill_convex(surface: &Surface, points: &[crate::types::Vec2]) {
+    let (top, bottom) = points
+        .iter()
+        .fold((f32::MAX, f32::MIN), |(t, b), p| (t.min(p.y), b.max(p.y)));
+    let (_, screen_h) = Interfaces::engine_client().get_screen_size();
+    let top = top.max(0.0).floor() as i32;
+    let bottom = bottom.min(screen_h as f32).ceil() as i32;
+    for y in top..bottom {
+        let row = y as f32 + 0.5;
+        let (mut left, mut right) = (f32::MAX, f32::MIN);
+        for (i, a) in points.iter().enumerate() {
+            let b = points[(i + 1) % points.len()];
+            if (a.y <= row) != (b.y <= row) {
+                let x = a.x + (row - a.y) / (b.y - a.y) * (b.x - a.x);
+                left = left.min(x);
+                right = right.max(x);
+            }
+        }
+        if left <= right {
+            surface.draw_filled_rect(left.round() as i32, y, right.round() as i32 + 1, y + 1);
         }
     }
 }

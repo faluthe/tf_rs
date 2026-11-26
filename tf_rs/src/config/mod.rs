@@ -461,6 +461,12 @@ struct_with_serialize! {
         pub draw_prediction: bool,
         /// Also draw where a shot along the view would go, and the shot the aimbot would take
         pub draw_prediction_always: bool,
+        /// Where a shot along the view would go
+        pub view_path_color: Color,
+        /// Fired shots, and where the shot the aimbot would take lands
+        pub shot_path_color: Color,
+        /// Where the target of a fired shot was predicted to go
+        pub target_path_color: Color,
         /// Write how far movement prediction is off to prediction.csv
         pub log_prediction: bool,
     }
@@ -502,6 +508,9 @@ impl Default for AimbotConfig {
             auto_detonate: false,
             draw_prediction: false,
             draw_prediction_always: false,
+            view_path_color: Color::hex(0x00c8ff),
+            shot_path_color: Color::hex(0xffd000),
+            target_path_color: Color::hex(0xffffff),
             log_prediction: false,
         }
     }
