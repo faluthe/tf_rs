@@ -1,4 +1,4 @@
-use nuklear::Nuklear;
+use nuklear::{Nuklear, ToggleColor};
 
 use super::{ROW, field, key_button};
 use crate::{config::Config, features::fake_ping, globals::Globals, player_db};
@@ -93,19 +93,20 @@ fn aimbot_settings(nk: &Nuklear, config: &mut Config) {
             .checkbox("Auto detonate", &mut aim.auto_detonate)
             .checkbox("Draw prediction", &mut aim.draw_prediction);
         if aim.draw_prediction {
-            nk.row_dynamic(ROW, 1)
-                .checkbox("Always draw", &mut aim.draw_prediction_always);
-            if aim.draw_prediction_always {
-                field(nk, "View path", |nk| {
-                    nk.color_combo(&mut aim.view_path_color);
-                });
-            }
-            field(nk, "Shot path", |nk| {
-                nk.color_combo(&mut aim.shot_path_color);
-            });
-            field(nk, "Target path", |nk| {
-                nk.color_combo(&mut aim.target_path_color);
-            });
+            nk.toggle_color_list(&mut [
+                ToggleColor::color("Shot path", &mut aim.shot_path_color),
+                ToggleColor::color("Target path", &mut aim.target_path_color),
+                ToggleColor::new(
+                    "View path",
+                    &mut aim.draw_view_path,
+                    Some(&mut aim.view_path_color),
+                ),
+                ToggleColor::new(
+                    "Aim point",
+                    &mut aim.draw_aim_point,
+                    Some(&mut aim.aim_point_color),
+                ),
+            ]);
         }
         nk.row_dynamic(ROW, 1)
             .checkbox("Log prediction accuracy", &mut aim.log_prediction);

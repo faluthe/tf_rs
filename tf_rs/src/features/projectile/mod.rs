@@ -95,7 +95,7 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
     if !looking {
         Globals::write().target = None;
         // Still look for a shot to draw, without aiming or firing it
-        if aim.draw_prediction && aim.draw_prediction_always {
+        if aim.draw_prediction && aim.draw_aim_point {
             let (found, _) = find_target(localplayer, cmd, config, info);
             if let Some(found) = found {
                 preview(&found.paths);
@@ -160,7 +160,7 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
         );
     }
 
-    if aim.draw_prediction && aim.draw_prediction_always {
+    if aim.draw_prediction && aim.draw_aim_point {
         preview(&found.paths);
     }
     // Only what's fired gets its paths drawn, a line for a shot that never left looks like a miss

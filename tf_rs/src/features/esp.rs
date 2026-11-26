@@ -413,13 +413,14 @@ pub fn draw_prediction(localplayer: &Player, surface: &Surface, config: &Config)
         draw(&paths.projectile, &aim.shot_path_color);
         land(&paths.projectile, &aim.shot_path_color);
     }
-    if !aim.draw_prediction_always {
-        return;
+    if aim.draw_aim_point
+        && let Some((end, _)) = preview
+    {
+        draw_cube(surface, &end, LANDING_SIZE, &aim.aim_point_color);
     }
-    if let Some((end, _)) = preview {
-        draw_cube(surface, &end, LANDING_SIZE, &aim.shot_path_color);
-    }
-    if let Some(path) = projectile::view_path(localplayer) {
+    if aim.draw_view_path
+        && let Some(path) = projectile::view_path(localplayer)
+    {
         draw(&path, &aim.view_path_color);
         land(&path, &aim.view_path_color);
     }
