@@ -11,7 +11,7 @@ use nuklear::Rect;
 
 use super::{
     Camera, Shown, Subject, chams_layers, occluded,
-    pose::{self, Studio},
+    pose::{Merge, Rig, Studio},
 };
 use crate::{
     config::Config,
@@ -89,10 +89,10 @@ const CLASS_TABLE: [Class; 9] = [
     ),
 ];
 
-pub const CLASSES: [&str; 9] = {
-    let mut labels = [""; 9];
+pub const CLASSES: [&str; CLASS_TABLE.len()] = {
+    let mut labels = [""; CLASS_TABLE.len()];
     let mut i = 0;
-    while i < 9 {
+    while i < labels.len() {
         labels[i] = CLASS_TABLE[i].label;
         i += 1;
     }
@@ -107,8 +107,23 @@ struct Loaded {
     weapon: Option<u16>,
 }
 
-/// Indexed like CLASS_TABLE, the outer none until loading was tried
-static LOADED: Mutex<[Option<Option<Loaded>>; 9]> = Mutex::new([None; 9]);
+/// What posing a class takes from its files, worked out on its first draw
+struct Posing {
+    rig: Rig,
+    /// None without a weapon or when it can't be read
+    weapon: Option<Merge>,
+}
+
+/// What is kept of a class once loading it was tried
+struct State {
+    loaded: Option<Loaded>,
+    /// None until the model was first drawn, then none inside if it can't be posed
+    posing: Option<Option<Posing>>,
+}
+
+/// Indexed like CLASS_TABLE, none until loading was tried
+static STATES: Mutex<[Option<State>; CLASS_TABLE.len()]> =
+    Mutex::new([const { None }; CLASS_TABLE.len()]);
 
 /// Standing hull of every class
 const MINS: Vec3 = Vec3 {
@@ -122,24 +137,34 @@ const MAXS: Vec3 = Vec3 {
     z: 82.0,
 };
 
-fn load(index: usize) -> Option<Loaded> {
-    let mut loaded = LOADED.lock().unwrap_or_else(|e| e.into_inner());
-    *loaded[index].get_or_insert_with(|| {
+fn load(class: &Class) -> Option<Loaded> {
+    let cache = Interfaces::mdl_cache();
+    let find = |path: &str| cache.find_mdl(path).filter(|&h| !cache.is_error_model(h));
+    let model = find(&format!("models/player/{}.mdl", class.name));
+    let animations = find(&format!("models/player/{}_animations.mdl", class.name));
+    let loaded = model.zip(animations).map(|(model, animations)| Loaded {
+        model,
+        animations,
+        weapon: find(class.weapon),
+    });
+    if loaded.is_none() {
+        log::warn!("Couldn't load the {} model for the preview", class.label);
+    }
+    loaded
+}
+
+impl Posing {
+    fn new(model: &Studio, animations: &Studio, weapon: Option<u16>) -> Option<Self> {
+        let anim = IDLE.iter().find_map(|s| animations.sequence_anim(s))?;
         let cache = Interfaces::mdl_cache();
-        let class = &CLASS_TABLE[index];
-        let find = |path: &str| cache.find_mdl(path).filter(|&h| !cache.is_error_model(h));
-        let model = find(&format!("models/player/{}.mdl", class.name));
-        let animations = find(&format!("models/player/{}_animations.mdl", class.name));
-        let loaded = model.zip(animations).map(|(model, animations)| Loaded {
-            model,
-            animations,
-            weapon: find(class.weapon),
-        });
-        if loaded.is_none() {
-            log::warn!("Couldn't load the {} model for the preview", class.label);
-        }
-        loaded
-    })
+        let weapon = weapon
+            .and_then(|h| unsafe { Studio::from_ptr(cache.studio_hdr(h)) })
+            .and_then(|hdr| Merge::new(&hdr, model));
+        Some(Posing {
+            rig: Rig::new(model, animations, anim)?,
+            weapon,
+        })
+    }
 }
 
 /// Seconds since the first class model was drawn, its animation clock
@@ -164,7 +189,12 @@ pub(super) fn draw(
         return None;
     }
     let class = &CLASS_TABLE[index];
-    let loaded = load(index)?;
+    let mut states = STATES.lock().unwrap_or_else(|e| e.into_inner());
+    let state = states[index].get_or_insert_with(|| State {
+        loaded: load(class),
+        posing: None,
+    });
+    let loaded = state.loaded?;
 
     let origin = Vec3::default();
     // Facing +x, so turned around from there the camera sees the front
@@ -186,8 +216,11 @@ pub(super) fn draw(
     if hardware.is_null() {
         return Some(shown);
     }
-    let anim = IDLE.iter().find_map(|s| animations.sequence_anim(s))?;
-    let bones = pose::pose(&model, &animations, &anim, time())?;
+    let posing = state
+        .posing
+        .get_or_insert_with(|| Posing::new(&model, &animations, loaded.weapon))
+        .as_ref()?;
+    let bones = posing.rig.pose(&animations, time())?;
     let skin = if *team == Team::Blue { 1 } else { 0 };
 
     let render_view = Interfaces::render_view();
@@ -214,7 +247,7 @@ pub(super) fn draw(
             // The layers set the engine's color, the studio renderer keeps its own
             studio.set_color_modulation(render_view.get_color_modulation());
             studio.set_alpha_modulation(render_view.get_blend());
-            draw_model(&studio, &info, &bones, &origin);
+            studio.draw_model(&info, &bones, &origin, STUDIORENDER_DRAW_NO_FLEXES);
         });
         render_view.set_color_modulation(old_color);
         render_view.set_blend(old_blend);
@@ -224,14 +257,14 @@ pub(super) fn draw(
 
     // Never chams'd, so hidden with the player behind a wall
     if !occluded() {
-        let weapon = loaded.weapon.and_then(|h| {
-            let hdr = unsafe { Studio::from_ptr(cache.studio_hdr(h)) }?;
-            let hardware = cache.hardware_data(h);
-            let bones = pose::merge(&hdr, &model, &bones)?;
-            (!hardware.is_null()).then(|| (draw_info(hdr.ptr(), hardware, skin, ambient), bones))
-        });
-        if let Some((info, bones)) = weapon {
-            draw_plain(&studio, &info, &bones, &origin);
+        let weapon = loaded.weapon.zip(posing.weapon.as_ref());
+        if let Some((handle, merge)) = weapon {
+            let hdr = cache.studio_hdr(handle);
+            let hardware = cache.hardware_data(handle);
+            if !hdr.is_null() && !hardware.is_null() {
+                let info = draw_info(hdr, hardware, skin, ambient);
+                draw_plain(&studio, &info, &merge.pose(&bones), &origin);
+            }
         }
     }
 
@@ -262,15 +295,11 @@ fn draw_info(
     }
 }
 
-fn draw_model(studio: &StudioRender, info: &DrawModelInfo, bones: &[Matrix3x4], origin: &Vec3) {
-    studio.draw_model(info, bones, origin, STUDIORENDER_DRAW_NO_FLEXES);
-}
-
 /// With its own materials and colors
 fn draw_plain(studio: &StudioRender, info: &DrawModelInfo, bones: &[Matrix3x4], origin: &Vec3) {
     studio.set_color_modulation([1.0; 3]);
     studio.set_alpha_modulation(1.0);
-    draw_model(studio, info, bones, origin);
+    studio.draw_model(info, bones, origin, STUDIORENDER_DRAW_NO_FLEXES);
 }
 
 /// Soft light from all around, brightest from above and on the side facing the camera. Each

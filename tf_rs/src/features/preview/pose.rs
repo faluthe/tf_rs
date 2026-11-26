@@ -3,6 +3,70 @@
 
 use crate::types::Matrix3x4;
 
+/// Byte offsets of the studiohdr_t fields read
+mod studiohdr {
+    pub const ID: usize = 0;
+    pub const LENGTH: usize = 76;
+    /// Count and offset of the mstudiobone_t table
+    pub const BONES: usize = 156;
+    /// Count and offset of the mstudioanimdesc_t table
+    pub const LOCAL_ANIMS: usize = 180;
+    /// Count and offset of the mstudioseqdesc_t table
+    pub const LOCAL_SEQS: usize = 188;
+    /// Enough to hold every field above
+    pub const MIN_SIZE: usize = 196;
+}
+
+mod mstudiobone {
+    pub const SIZE: usize = 216;
+    pub const NAME: usize = 0;
+    pub const PARENT: usize = 4;
+    pub const POS: usize = 32;
+    pub const QUAT: usize = 44;
+    pub const ROT: usize = 60;
+    pub const POS_SCALE: usize = 72;
+    pub const ROT_SCALE: usize = 84;
+}
+
+mod mstudioseqdesc {
+    pub const SIZE: usize = 212;
+    pub const LABEL: usize = 4;
+    pub const NUM_BLENDS: usize = 56;
+    /// Offset of the i16 animation indices of the blends
+    pub const ANIM_INDICES: usize = 60;
+}
+
+mod mstudioanimdesc {
+    pub const SIZE: usize = 100;
+    pub const FPS: usize = 8;
+    pub const FRAMES: usize = 16;
+    pub const ANIM_BLOCK: usize = 52;
+    pub const ANIM_INDEX: usize = 56;
+    pub const SECTION_INDEX: usize = 80;
+    pub const SECTION_FRAMES: usize = 84;
+}
+
+mod mstudioanimsections {
+    pub const SIZE: usize = 8;
+    pub const ANIM_BLOCK: usize = 0;
+    pub const ANIM_INDEX: usize = 4;
+}
+
+/// The header of one bone's tracks
+mod mstudioanim {
+    pub const BONE: usize = 0;
+    pub const FLAGS: usize = 1;
+    pub const NEXT: usize = 2;
+    pub const DATA: usize = 4;
+
+    pub const RAWPOS: u8 = 0x01;
+    pub const RAWROT: u8 = 0x02;
+    pub const ANIMPOS: u8 = 0x04;
+    pub const ANIMROT: u8 = 0x08;
+    pub const DELTA: u8 = 0x10;
+    pub const RAWROT2: u8 = 0x20;
+}
+
 /// A loaded model file, every read checked against its length
 pub struct Studio<'a> {
     b: &'a [u8],
@@ -15,8 +79,7 @@ struct Local {
     quat: [f32; 4],
 }
 
-struct Bone<'a> {
-    name: &'a str,
+struct Bone {
     parent: i32,
     local: Local,
     rot: [f32; 3],
@@ -36,17 +99,6 @@ pub struct Anim {
     anim_block: i32,
 }
 
-const BONE_SIZE: usize = 216;
-const SEQ_SIZE: usize = 212;
-const ANIM_SIZE: usize = 100;
-
-const ANIM_RAWPOS: u8 = 0x01;
-const ANIM_RAWROT: u8 = 0x02;
-const ANIM_ANIMPOS: u8 = 0x04;
-const ANIM_ANIMROT: u8 = 0x08;
-const ANIM_DELTA: u8 = 0x10;
-const ANIM_RAWROT2: u8 = 0x20;
-
 impl<'a> Studio<'a> {
     /// The studiohdr_t at `ptr`, none if it isn't one
     ///
@@ -56,15 +108,17 @@ impl<'a> Studio<'a> {
         if ptr.is_null() {
             return None;
         }
-        let head = unsafe { std::slice::from_raw_parts(ptr, 80) };
-        if &head[..4] != b"IDST" {
+        let head = Studio {
+            b: unsafe { std::slice::from_raw_parts(ptr, studiohdr::MIN_SIZE) },
+        };
+        if head.bytes(studiohdr::ID)? != *b"IDST" {
             return None;
         }
-        let length = i32::from_le_bytes(head[76..80].try_into().ok()?);
-        if length < 80 {
+        let length = usize::try_from(head.i32(studiohdr::LENGTH)?).ok()?;
+        if length < studiohdr::MIN_SIZE {
             return None;
         }
-        let b = unsafe { std::slice::from_raw_parts(ptr, length as usize) };
+        let b = unsafe { std::slice::from_raw_parts(ptr, length) };
         Some(Studio { b })
     }
 
@@ -74,6 +128,10 @@ impl<'a> Studio<'a> {
 
     fn bytes<const N: usize>(&self, at: usize) -> Option<[u8; N]> {
         self.b.get(at..at.checked_add(N)?)?.try_into().ok()
+    }
+
+    fn u8(&self, at: usize) -> Option<u8> {
+        self.b.get(at).copied()
     }
 
     fn i32(&self, at: usize) -> Option<i32> {
@@ -119,54 +177,72 @@ impl<'a> Studio<'a> {
         Some((0..count).map(move |i| start + i * size))
     }
 
-    fn bones(&self) -> Option<Vec<Bone<'a>>> {
-        self.table(156, BONE_SIZE)?
+    fn bones(&self) -> Option<Vec<Bone>> {
+        use mstudiobone as b;
+        self.table(studiohdr::BONES, b::SIZE)?
             .map(|o| {
                 Some(Bone {
-                    name: self.str(self.rel(o, 0)?)?,
-                    parent: self.i32(o + 4)?,
+                    parent: self.i32(o + b::PARENT)?,
                     local: Local {
-                        pos: self.f32s(o + 32)?,
-                        quat: self.f32s(o + 44)?,
+                        pos: self.f32s(o + b::POS)?,
+                        quat: self.f32s(o + b::QUAT)?,
                     },
-                    rot: self.f32s(o + 60)?,
-                    pos_scale: self.f32s(o + 72)?,
-                    rot_scale: self.f32s(o + 84)?,
+                    rot: self.f32s(o + b::ROT)?,
+                    pos_scale: self.f32s(o + b::POS_SCALE)?,
+                    rot_scale: self.f32s(o + b::ROT_SCALE)?,
                 })
             })
             .collect()
     }
 
+    /// Names of the bones, in the order of `bones`
+    fn bone_names(&self) -> Option<Vec<&'a str>> {
+        self.table(studiohdr::BONES, mstudiobone::SIZE)?
+            .map(|o| self.str(self.rel(o, mstudiobone::NAME)?))
+            .collect()
+    }
+
     /// The first animation of the sequence called `name`, ignoring case
     pub fn sequence_anim(&self, name: &str) -> Option<Anim> {
-        let seq = self.table(188, SEQ_SIZE)?.find(|&o| {
-            self.rel(o, 4)
+        use mstudioseqdesc as s;
+        let seq = self.table(studiohdr::LOCAL_SEQS, s::SIZE)?.find(|&o| {
+            self.rel(o, s::LABEL)
                 .and_then(|at| self.str(at))
                 .is_some_and(|n| n.eq_ignore_ascii_case(name))
         })?;
-        if self.i32(seq + 56)? < 1 {
+        if self.i32(seq + s::NUM_BLENDS)? < 1 {
             return None;
         }
-        let index = self.i16(self.rel(seq, 60)?)?;
+        let index = self.i16(self.rel(seq, s::ANIM_INDICES)?)?;
         self.anim(index as usize)
     }
 
     fn anim(&self, index: usize) -> Option<Anim> {
-        let offset = self.table(180, ANIM_SIZE)?.nth(index)?;
+        use mstudioanimdesc as a;
+        let offset = self.table(studiohdr::LOCAL_ANIMS, a::SIZE)?.nth(index)?;
         Some(Anim {
             offset,
-            fps: self.f32(offset + 8)?,
-            frames: self.i32(offset + 16)?,
-            anim_block: self.i32(offset + 52)?,
-            anim_index: self.i32(offset + 56)?,
-            section_index: self.i32(offset + 80)?,
-            section_frames: self.i32(offset + 84)?,
+            fps: self.f32(offset + a::FPS)?,
+            frames: self.i32(offset + a::FRAMES)?,
+            anim_block: self.i32(offset + a::ANIM_BLOCK)?,
+            anim_index: self.i32(offset + a::ANIM_INDEX)?,
+            section_index: self.i32(offset + a::SECTION_INDEX)?,
+            section_frames: self.i32(offset + a::SECTION_FRAMES)?,
         })
+    }
+
+    /// The pose of the model's first animation, or the bones' own values without one, which are
+    /// unposed
+    fn reference(&self, bones: &[Bone]) -> Vec<Local> {
+        self.anim(0)
+            .and_then(|a| self.sample(bones, &a, 0))
+            .unwrap_or_else(|| bones.iter().map(|b| b.local).collect())
     }
 
     /// Where the bone tracks of `anim` at `frame` start, and the frame within them
     fn tracks(&self, anim: &Anim, frame: i32) -> Option<(usize, i32)> {
         let (block, index, frame) = if anim.section_frames > 0 {
+            use mstudioanimsections as s;
             // The last frame is kept on its own after the sections
             let (section, frame) = if anim.frames > anim.section_frames && frame == anim.frames - 1
             {
@@ -175,10 +251,14 @@ impl<'a> Studio<'a> {
                 let section = frame / anim.section_frames;
                 (section, frame - section * anim.section_frames)
             };
-            let at = anim
-                .offset
-                .checked_add_signed(anim.section_index as isize + section as isize * 8)?;
-            (self.i32(at)?, self.i32(at + 4)?, frame)
+            let at = anim.offset.checked_add_signed(
+                anim.section_index as isize + section as isize * s::SIZE as isize,
+            )?;
+            (
+                self.i32(at + s::ANIM_BLOCK)?,
+                self.i32(at + s::ANIM_INDEX)?,
+                frame,
+            )
         } else {
             (anim.anim_block, anim.anim_index, frame)
         };
@@ -193,8 +273,8 @@ impl<'a> Studio<'a> {
     fn track_value(&self, mut at: usize, frame: i32, scale: f32) -> Option<f32> {
         let mut k = frame;
         loop {
-            let valid = *self.b.get(at)? as i32;
-            let total = *self.b.get(at + 1)? as i32;
+            let valid = self.u8(at)? as i32;
+            let total = self.u8(at + 1)? as i32;
             if total == 0 {
                 return Some(0.0);
             }
@@ -221,21 +301,23 @@ impl<'a> Studio<'a> {
 
     /// Local transforms of every bone at `frame` of `anim`, bones it doesn't move keep their own
     fn sample(&self, bones: &[Bone], anim: &Anim, frame: i32) -> Option<Vec<Local>> {
+        use mstudioanim as m;
         let mut locals: Vec<Local> = bones.iter().map(|b| b.local).collect();
         let (mut at, frame) = self.tracks(anim, frame)?;
         loop {
-            let index = *self.b.get(at)? as usize;
-            let flags = *self.b.get(at + 1)?;
-            let next = self.i16(at + 2)?;
+            let index = self.u8(at + m::BONE)? as usize;
+            let flags = self.u8(at + m::FLAGS)?;
+            let next = self.i16(at + m::NEXT)?;
             let bone = bones.get(index)?;
-            let data = at + 4;
-            let delta = flags & ANIM_DELTA != 0;
+            let data = at + m::DATA;
+            let has = |flag: u8| flags & flag != 0;
+            let delta = has(m::DELTA);
 
-            let quat = if flags & ANIM_RAWROT != 0 {
+            let quat = if has(m::RAWROT) {
                 quat48(self.u16(data)?, self.u16(data + 2)?, self.u16(data + 4)?)
-            } else if flags & ANIM_RAWROT2 != 0 {
+            } else if has(m::RAWROT2) {
                 quat64(u64::from_le_bytes(self.bytes(data)?))
-            } else if flags & ANIM_ANIMROT != 0 {
+            } else if has(m::ANIMROT) {
                 let mut angles = self.track_values(data, frame, bone.rot_scale)?;
                 if !delta {
                     for (a, r) in angles.iter_mut().zip(bone.rot) {
@@ -249,17 +331,17 @@ impl<'a> Studio<'a> {
                 bone.local.quat
             };
 
-            let pos = if flags & ANIM_RAWPOS != 0 {
+            let pos = if has(m::RAWPOS) {
                 let at = data
-                    + if flags & ANIM_RAWROT != 0 { 6 } else { 0 }
-                    + if flags & ANIM_RAWROT2 != 0 { 8 } else { 0 };
+                    + if has(m::RAWROT) { 6 } else { 0 }
+                    + if has(m::RAWROT2) { 8 } else { 0 };
                 [
                     half(self.u16(at)?),
                     half(self.u16(at + 2)?),
                     half(self.u16(at + 4)?),
                 ]
-            } else if flags & ANIM_ANIMPOS != 0 {
-                let at = data + if flags & ANIM_ANIMROT != 0 { 6 } else { 0 };
+            } else if has(m::ANIMPOS) {
+                let at = data + if has(m::ANIMROT) { 6 } else { 0 };
                 let mut pos = self.track_values(at, frame, bone.pos_scale)?;
                 if !delta {
                     for (p, b) in pos.iter_mut().zip(bone.local.pos) {
@@ -289,58 +371,93 @@ impl<'a> Studio<'a> {
         let last = (anim.frames - 1) as f32;
         let frame = (time * anim.fps).rem_euclid(last);
         let first = frame.floor() as i32;
-        let a = self.sample(bones, anim, first)?;
+        let mut a = self.sample(bones, anim, first)?;
         let b = self.sample(bones, anim, (first + 1).min(anim.frames - 1))?;
         let s = frame.fract();
-        Some(a.iter().zip(&b).map(|(a, b)| blend(a, b, s)).collect())
+        for (a, b) in a.iter_mut().zip(&b) {
+            *a = blend(a, b, s);
+        }
+        Some(a)
     }
 }
 
-/// Bone to model matrices of `model` posed by `anim` of `anims` at `time` seconds, matching bones
-/// by name. Bones the animation lacks take the model's reference pose. None if it can't be read
-pub fn pose(model: &Studio, anims: &Studio, anim: &Anim, time: f32) -> Option<Vec<Matrix3x4>> {
-    let model_bones = model.bones()?;
-    // The reference pose is the model's first animation, the bones' own values are unposed
-    let reference = model
-        .anim(0)
-        .and_then(|a| model.sample(&model_bones, &a, 0))
-        .unwrap_or_else(|| model_bones.iter().map(|b| b.local).collect());
-
-    let anim_bones = anims.bones()?;
-    let animated = anims.sample_at(&anim_bones, anim, time)?;
-
-    let locals: Vec<Local> = model_bones
-        .iter()
-        .zip(&reference)
-        .map(|(bone, reference)| {
-            anim_bones
-                .iter()
-                .position(|b| b.name == bone.name)
-                .map_or(*reference, |i| animated[i])
-        })
-        .collect();
-    Some(chain(&model_bones, &locals, |_| None))
+/// A model posed by an animation in another file, with everything that doesn't change between
+/// frames read once. Only holds offsets into the files, so it stays right when the cache moves them
+pub struct Rig {
+    anim: Anim,
+    model_bones: Vec<Bone>,
+    anim_bones: Vec<Bone>,
+    /// For each model bone, the animation bone of the same name
+    animated: Vec<Option<usize>>,
+    /// Pose of the model bones the animation lacks
+    reference: Vec<Local>,
 }
 
-/// Bone to model matrices of `attachment` merged onto `parent` posed by `parent_bones`: bones
-/// sharing a name follow the parent's, the rest hang off them in the attachment's reference pose
-pub fn merge(
-    attachment: &Studio,
-    parent: &Studio,
-    parent_bones: &[Matrix3x4],
-) -> Option<Vec<Matrix3x4>> {
-    let bones = attachment.bones()?;
-    let reference = attachment
-        .anim(0)
-        .and_then(|a| attachment.sample(&bones, &a, 0))
-        .unwrap_or_else(|| bones.iter().map(|b| b.local).collect());
-    let parent_names: Vec<&str> = parent.bones()?.iter().map(|b| b.name).collect();
-    Some(chain(&bones, &reference, |i| {
-        parent_names
+impl Rig {
+    /// `model` posed by `anim` of `anims`, matching bones by name. None if they can't be read
+    pub fn new(model: &Studio, anims: &Studio, anim: Anim) -> Option<Self> {
+        let model_bones = model.bones()?;
+        let anim_bones = anims.bones()?;
+        let anim_names = anims.bone_names()?;
+        let animated = model
+            .bone_names()?
             .iter()
-            .position(|&n| n == bones[i].name)
-            .and_then(|p| parent_bones.get(p).copied())
-    }))
+            .map(|name| anim_names.iter().position(|n| n == name))
+            .collect();
+        Some(Rig {
+            reference: model.reference(&model_bones),
+            anim,
+            model_bones,
+            anim_bones,
+            animated,
+        })
+    }
+
+    /// Bone to model matrices `time` seconds into the animation, `anims` being the file it was
+    /// made from
+    pub fn pose(&self, anims: &Studio, time: f32) -> Option<Vec<Matrix3x4>> {
+        let animated = anims.sample_at(&self.anim_bones, &self.anim, time)?;
+        let locals: Vec<Local> = self
+            .animated
+            .iter()
+            .zip(&self.reference)
+            .map(|(i, reference)| i.map_or(*reference, |i| animated[i]))
+            .collect();
+        Some(chain(&self.model_bones, &locals, |_| None))
+    }
+}
+
+/// A model attached to another: bones sharing a name follow the parent's, the rest hang off them
+/// in the attachment's reference pose
+pub struct Merge {
+    bones: Vec<Bone>,
+    reference: Vec<Local>,
+    /// For each bone, the parent model's bone of the same name
+    parent_bone: Vec<Option<usize>>,
+}
+
+impl Merge {
+    pub fn new(attachment: &Studio, parent: &Studio) -> Option<Self> {
+        let bones = attachment.bones()?;
+        let parent_names = parent.bone_names()?;
+        let parent_bone = attachment
+            .bone_names()?
+            .iter()
+            .map(|name| parent_names.iter().position(|n| n == name))
+            .collect();
+        Some(Merge {
+            reference: attachment.reference(&bones),
+            bones,
+            parent_bone,
+        })
+    }
+
+    /// Bone to model matrices with the parent posed by `parent_bones`
+    pub fn pose(&self, parent_bones: &[Matrix3x4]) -> Vec<Matrix3x4> {
+        chain(&self.bones, &self.reference, |i| {
+            self.parent_bone[i].and_then(|p| parent_bones.get(p).copied())
+        })
+    }
 }
 
 /// Bone to model matrices from local transforms, `fixed` overriding any bone
