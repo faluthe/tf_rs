@@ -49,6 +49,9 @@ fn aimbot_settings(nk: &Nuklear, config: &mut Config) {
             aim.key.code,
             aim.key.is_mouse_button,
         );
+        drop(g);
+        nk.row_dynamic(ROW, 1)
+            .checkbox("Aim when firing", &mut aim.aim_when_firing);
     } else {
         nk.spacing(1);
     }

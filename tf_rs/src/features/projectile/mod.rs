@@ -15,6 +15,7 @@ use std::{cmp::Ordering, sync::atomic};
 use crate::{
     config::Config,
     features::{
+        aimbot,
         movesim::{MoveSim, Strafe},
         shot_log,
     },
@@ -86,11 +87,9 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
         if key && key_down {
             cmd.buttons |= ATTACK;
         }
-        charging && if key { key_down } else { !attacking }
-    } else if key {
-        key_down
+        charging && aimbot::wants_aim(aim, key && key_down, !attacking)
     } else {
-        attacking
+        aimbot::wants_aim(aim, key_down, attacking)
     };
     if !looking {
         Globals::write().target = None;

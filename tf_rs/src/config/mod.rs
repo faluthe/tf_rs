@@ -436,6 +436,8 @@ struct_with_serialize! {
         pub silent_aim: bool,
         pub building_aim: bool,
         pub key: KeyConfig,
+        /// With the aim key on, also aim shots fired normally
+        pub aim_when_firing: bool,
         pub fov: i32,
         pub draw_fov: bool,
         pub ignore_category: u8,
@@ -491,6 +493,7 @@ impl Default for AimbotConfig {
             silent_aim: false,
             building_aim: false,
             key: KeyConfig::default(),
+            aim_when_firing: false,
             fov: 0,
             draw_fov: false,
             ignore_category: 0,

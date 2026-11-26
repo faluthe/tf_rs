@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::{
     config::Config,
     features::{
+        aimbot,
         backtrack::{self, Choice},
         engine_prediction,
         movesim::{MoveSim, Strafe},
@@ -264,11 +265,7 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
     };
 
     let key_down = Globals::read().aimbot_key_down;
-    let wants = if aim.key.use_key {
-        key_down
-    } else {
-        (cmd.buttons & Buttons::InAttack as i32) != 0
-    };
+    let wants = aimbot::wants_aim(aim, key_down, (cmd.buttons & Buttons::InAttack as i32) != 0);
     let auto_swing = aim.auto_swing && (!aim.key.use_key || key_down);
     let attack = !swinging && can_attack && (auto_swing || backstab_only);
 

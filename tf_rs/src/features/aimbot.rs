@@ -1,7 +1,7 @@
 use core::f32;
 
 use crate::{
-    config::Config,
+    config::{AimbotConfig, Config},
     features::{
         backtrack::{self, Choice},
         melee, projectile,
@@ -77,18 +77,26 @@ pub fn run(localplayer: &Player, cmd: *mut UserCmd, config: &Config) -> Choice {
         return choice;
     }
 
-    let use_key = config.aimbot.key.use_key;
-    let wants_shot = (use_key && Globals::read().aimbot_key_down)
-        || (!use_key && (cmd.buttons & Buttons::InAttack as i32) != 0);
+    let key_down = config.aimbot.key.use_key && Globals::read().aimbot_key_down;
+    let attacking = (cmd.buttons & Buttons::InAttack as i32) != 0;
 
-    if wants_shot && localplayer.can_attack() {
+    if wants_aim(&config.aimbot, key_down, attacking) && localplayer.can_attack() {
         cmd.view_angles = best.angle;
-        if use_key {
+        if key_down {
             cmd.buttons |= Buttons::InAttack as i32;
         }
     }
 
     choice
+}
+
+/// Whether the aimbot should take the shot, from the aim key or from firing normally
+pub fn wants_aim(aim: &AimbotConfig, key_down: bool, attacking: bool) -> bool {
+    if aim.key.use_key {
+        key_down || (aim.aim_when_firing && attacking)
+    } else {
+        attacking
+    }
 }
 
 // TODO: Add sentry + other entity checks
