@@ -17,6 +17,8 @@ pub mod view;
 
 /// Index and player of each enemy of `localplayer` that's alive and not dormant, leaving out
 /// invisible ones with `ignore_invis`
+// Clippy would fold the whole filter under one negation, which reads worse
+#[allow(clippy::nonminimal_bool)]
 pub fn enemies(localplayer: &Player, ignore_invis: bool) -> impl Iterator<Item = (i32, Player)> {
     let team = localplayer.team();
     let local = localplayer.index();
@@ -28,7 +30,7 @@ pub fn enemies(localplayer: &Player, ignore_invis: bool) -> impl Iterator<Item =
             !p.is_dormant()
                 && !p.is_dead()
                 && p.team() != team
-                && (!ignore_invis || !p.is_invisible())
+                && !(ignore_invis && p.is_invisible())
         })
 }
 

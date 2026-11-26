@@ -87,7 +87,7 @@ impl Entity {
 
     /// The entity's IClientRenderable
     pub fn renderable(&self) -> Renderable {
-        Renderable::from_raw((self.this as usize + 0x8) as *mut c_void)
+        Renderable::from_raw((self.this as usize + RENDERABLE_OFFSET) as *mut c_void)
     }
 
     fn get_networkable(&self) -> *mut c_void {
@@ -179,6 +179,9 @@ impl Entity {
     }
 }
 
+/// Where an entity's IClientRenderable base sits in it
+const RENDERABLE_OFFSET: usize = 0x8;
+
 /// How the engine sees an entity it draws
 #[derive(Copy, Clone)]
 pub struct Renderable {
@@ -236,7 +239,7 @@ impl Renderable {
 
     /// The entity this is the renderable of, for renderables that are entities
     pub fn entity(&self) -> Entity {
-        Entity::from_raw((self.this as usize - 0x8) as *mut c_void)
+        Entity::from_raw((self.this as usize - RENDERABLE_OFFSET) as *mut c_void)
     }
 
     pub fn skin(&self) -> i32 {
