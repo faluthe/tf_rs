@@ -5,9 +5,9 @@
 //! detonates them. With the Scottish Resistance only stickies near the crosshair go off, so the
 //! view is turned to the one that would hit.
 
-use std::{collections::HashMap, sync::Mutex};
+use std::sync::Mutex;
 
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::OnceCell;
 
 use crate::{
     config::Config,
@@ -28,7 +28,7 @@ const TYPE: usize = 0xC58;
 const REMOTE_DETONATE: [i32; 2] = [1, 2];
 
 /// When each sticky, by entity handle, was first seen, the client doesn't know when it was fired
-static FIRST_SEEN: Lazy<Mutex<HashMap<u32, f32>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static FIRST_SEEN: Mutex<Vec<(u32, f32)>> = Mutex::new(Vec::new());
 
 struct Sticky {
     origin: Vec3,
@@ -53,8 +53,11 @@ fn read<T: Copy>(ent: &Entity, offset: usize) -> T {
 fn armed_stickies(localplayer: &Player, now: f32) -> Vec<Sticky> {
     let list = Interfaces::entity_list();
     let local = localplayer.index();
+    let default_arm_time = live_time();
     let mut first_seen = FIRST_SEEN.lock().unwrap();
-    let mut seen = Vec::new();
+    let mut seen = Vec::with_capacity(first_seen.len());
+    // Stickies almost always share a launcher, so its attributes are looked up once
+    let mut launcher: Option<(i32, (f32, bool))> = None;
     let mut out = Vec::new();
 
     for (handle, ent) in projectile::our_projectiles(local) {
@@ -64,16 +67,26 @@ fn armed_stickies(localplayer: &Player, now: f32) -> Vec<Sticky> {
         {
             continue;
         }
-        seen.push(handle);
-        let fired = *first_seen.entry(handle).or_insert(now);
+        let fired = first_seen
+            .iter()
+            .find(|(h, _)| *h == handle)
+            .map_or(now, |&(_, t)| t);
+        seen.push((handle, fired));
 
-        let launcher = list.get_client_entity::<Weapon>(ent.launcher_index());
-        let (arm_time, needs_aim) = match &launcher {
-            Some(w) => (
-                w.attrib_float(live_time(), c"sticky_arm_time"),
-                w.attrib_float(0.0, c"set_detonate_mode") as i32 == 1,
-            ),
-            None => (live_time(), false),
+        let index = ent.launcher_index();
+        let (arm_time, needs_aim) = match launcher {
+            Some((i, attribs)) if i == index => attribs,
+            _ => {
+                let attribs = match list.get_client_entity::<Weapon>(index) {
+                    Some(w) => (
+                        w.attrib_float(default_arm_time, c"sticky_arm_time"),
+                        w.attrib_float(0.0, c"set_detonate_mode") as i32 == 1,
+                    ),
+                    None => (default_arm_time, false),
+                };
+                launcher = Some((index, attribs));
+                attribs
+            }
         };
         if now < fired + arm_time {
             continue;
@@ -84,7 +97,7 @@ fn armed_stickies(localplayer: &Player, now: f32) -> Vec<Sticky> {
             needs_aim,
         });
     }
-    first_seen.retain(|h, _| seen.contains(h));
+    *first_seen = seen;
     out
 }
 
