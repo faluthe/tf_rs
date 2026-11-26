@@ -139,8 +139,9 @@ impl Interfaces {
                 .ok_or_else(|| anyhow::anyhow!("gpGlobals load not found in HudUpdate"))?;
             let eaddr = ptr::read_unaligned((hud_update + mov + 3) as *const i32);
             let ip = hud_update + mov + 7;
-            w.global_vars =
-                ptr::read_unaligned(ip.wrapping_add_signed(eaddr as isize) as *const *mut GlobalVars);
+            w.global_vars = ptr::read_unaligned(
+                ip.wrapping_add_signed(eaddr as isize) as *const *mut GlobalVars
+            );
             info!("Global vars interface at {:p}", w.global_vars);
         }
 

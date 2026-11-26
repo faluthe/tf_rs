@@ -25,7 +25,7 @@ use crate::{
     player_db::PlayerCategory,
     types::{
         BBox, Color, Entity, Player, Vec2, Vec3,
-        entity::Team,
+        entity::{Renderable, Team},
         rgba,
         view_setup::{Frustum, VIEW_CLEAR_DEPTH, ViewSetup},
     },
@@ -294,9 +294,15 @@ fn draw_player(player: &Player, subject: Subject, scene: &Scene) -> Option<Shown
     })
 }
 
-/// Cosmetics and the held weapon of `player`
+/// Cosmetics and the held weapon of `player`, leaving out any drawn as first person arms
 fn attachments(player: &Player) -> Vec<Entity> {
     let weapon = player.active_weapon_index();
+    let model_info = Interfaces::model_info();
+    // In first person the held weapon takes the class's arms model
+    let is_viewmodel = |renderable: &Renderable| {
+        let name = model_info.get_model_name(renderable.model());
+        name.ends_with("_arms.mdl") || name.contains("/v_models/")
+    };
     let mut out = Vec::new();
     let mut child = player.ent.renderable().first_shadow_child();
     // Bounded in case the list is caught changing
@@ -306,10 +312,10 @@ fn attachments(player: &Player) -> Vec<Entity> {
         };
         let entity = renderable.entity();
         let class = entity.class_name();
-        if class.starts_with("CTFWearable")
+        let attached = class.starts_with("CTFWearable")
             || class == "CTFPowerupBottle"
-            || entity.index() == weapon
-        {
+            || entity.index() == weapon;
+        if attached && !is_viewmodel(&renderable) {
             out.push(entity);
         }
         child = renderable.next_shadow_peer();
