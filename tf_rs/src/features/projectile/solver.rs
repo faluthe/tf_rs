@@ -87,6 +87,20 @@ impl Solver<'_> {
         }
     }
 
+    /// A solver only for flight paths, without what aiming needs
+    pub(super) fn for_path<'a>(
+        localplayer: &'a Player,
+        eye: Vec3,
+        info: ProjectileInfo,
+    ) -> Solver<'a> {
+        let mut info = info;
+        // Arc tables only matter for solving, and charged speeds would rebuild them every frame
+        let drag = std::mem::replace(&mut info.drag, 0.0);
+        let mut solver = Solver::new(localplayer, eye, info, 0.0);
+        solver.info.drag = drag;
+        solver
+    }
+
     /// Launch pitch (radians, up positive) and flight time from `from` to `to`
     pub(super) fn trajectory(&self, from: &Vec3, to: &Vec3) -> Option<(f32, f32)> {
         let (g, v) = (self.info.gravity, self.speed);
@@ -372,6 +386,29 @@ impl Solver<'_> {
     fn hull(&self) -> (Vec3, Vec3) {
         let h = self.info.hull;
         (Vec3::new(-h, -h, -h), Vec3::new(h, h, h))
+    }
+
+    /// Cut `path` where the projectile runs into something
+    pub(super) fn cut(&self, path: &mut Vec<Vec3>) {
+        let (mins, maxs) = self.hull();
+        let filter = TraceFilter::simple(self.localplayer, self.info.group, None);
+        for (a, b) in self.segments(path.len()) {
+            let trace = Interfaces::engine_trace().trace_hull(
+                &path[a],
+                &path[b],
+                &mins,
+                &maxs,
+                self.mask(a),
+                &filter,
+            );
+            if trace.did_hit() {
+                // Points from a in a straight span aren't evenly spaced, keep those before the hit
+                let hit = a as f32 + trace.fraction * (b - a) as f32;
+                path.truncate(hit as usize + 1);
+                path.push(trace.end_pos);
+                return;
+            }
+        }
     }
 
     /// Whether the projectile reaches `point` without running into anything first

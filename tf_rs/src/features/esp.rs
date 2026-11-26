@@ -2,6 +2,7 @@ use std::sync::OnceLock;
 
 use crate::{
     config::{BuildingColorConfig, Config, EntityESPConfig, EspColorConfig},
+    features::projectile,
     globals::Globals,
     helpers,
     interfaces::{Interfaces, Surface},
@@ -377,10 +378,25 @@ pub(crate) fn draw_health_values(
     }
 }
 
-/// The paths the projectile aimbot predicted for its last shot
-pub fn draw_prediction(surface: &Surface, config: &Config) {
+/// The paths the projectile aimbot predicted for its last shot, and optionally where a shot along
+/// the view would go
+pub fn draw_prediction(localplayer: &Player, surface: &Surface, config: &Config) {
     if !config.aimbot.master || !config.aimbot.draw_prediction {
         return;
+    }
+    let draw = |points: &[Vec3]| {
+        let screen: Vec<_> = points.iter().map(helpers::view::world_to_screen).collect();
+        for w in screen.windows(2) {
+            if let (Some(a), Some(b)) = (w[0], w[1]) {
+                surface.draw_line(a.x as i32, a.y as i32, b.x as i32, b.y as i32);
+            }
+        }
+    };
+    if config.aimbot.draw_prediction_always
+        && let Some(path) = projectile::view_path(localplayer)
+    {
+        surface.draw_set_color(255, 208, 0, 255);
+        draw(&path);
     }
     // A copy, nothing is drawn while holding the lock, and only while it's still shown
     let now = Interfaces::global_vars().realtime;
@@ -391,14 +407,6 @@ pub fn draw_prediction(surface: &Surface, config: &Config) {
         .cloned()
     else {
         return;
-    };
-    let draw = |points: &[Vec3]| {
-        let screen: Vec<_> = points.iter().map(helpers::view::world_to_screen).collect();
-        for w in screen.windows(2) {
-            if let (Some(a), Some(b)) = (w[0], w[1]) {
-                surface.draw_line(a.x as i32, a.y as i32, b.x as i32, b.y as i32);
-            }
-        }
     };
     surface.draw_set_color(255, 255, 255, 255);
     draw(&paths.player);

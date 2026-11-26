@@ -459,7 +459,7 @@ struct_with_serialize! {
         pub wait_for_shot: bool,
         pub auto_detonate: bool,
         pub draw_prediction: bool,
-        /// Draw the shot the aimbot would take every tick, not only the ones it fires
+        /// Also draw where a shot along the view would go, every frame
         pub draw_prediction_always: bool,
         /// Write how far movement prediction is off to prediction.csv
         pub log_prediction: bool,

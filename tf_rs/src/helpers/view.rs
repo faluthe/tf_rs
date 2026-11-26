@@ -15,6 +15,7 @@ use crate::{
 #[derive(Clone, Copy)]
 struct Camera {
     origin: Vec3,
+    angles: Vec3,
     forward: Vec3,
     right: Vec3,
     up: Vec3,
@@ -29,11 +30,17 @@ pub fn record(setup: &ViewSetup) {
     let (forward, right, up) = setup.angles.angle_vectors();
     *CAMERA.lock().unwrap() = Some(Camera {
         origin: setup.origin,
+        angles: setup.angles,
         forward,
         right,
         up,
         fov: setup.fov,
     });
+}
+
+/// The main view's origin and angles this frame
+pub fn camera() -> Option<(Vec3, Vec3)> {
+    CAMERA.lock().unwrap().map(|c| (c.origin, c.angles))
 }
 
 /// Where `point` is on the screen, none when it's behind the camera

@@ -48,7 +48,7 @@ pub extern "C" fn hk_paint_traverse(
 
         if !localplayer.is_dead() {
             esp::draw_fov(&surface, &config);
-            esp::draw_prediction(&surface, &config);
+            esp::draw_prediction(localplayer, &surface, &config);
         }
     }
 

@@ -32,6 +32,8 @@ pub use tracking::{forget_projectiles, our_projectiles};
 pub use weapon::is_projectile_weapon;
 
 const MAX_TARGETS: usize = 3;
+/// Seconds of flight drawn along the view, enough to cross any map
+const VIEW_PATH_TIME: f32 = 3.0;
 /// Ticks per target splash is looked for, from the first one the projectile could make it by
 const SPLASH_TICKS: i32 = 12;
 
@@ -92,13 +94,6 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
     };
     if !looking {
         Globals::write().target = None;
-        // Still look for a shot to draw, without aiming or firing it
-        if aim.draw_prediction && aim.draw_prediction_always {
-            let (found, _) = find_target(localplayer, cmd, config, info);
-            if let Some(found) = found {
-                show(found.paths, PREVIEW_TIME);
-            }
-        }
         return;
     }
 
@@ -158,28 +153,35 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
         );
     }
 
-    // Unless always drawn, only what's fired: a line for a shot that never left looks like a miss
-    if aim.draw_prediction && (fires || aim.draw_prediction_always) {
-        let time = if fires {
-            found.time + helpers::round_trip()
-        } else {
-            PREVIEW_TIME
-        };
-        show(found.paths, time);
+    // Only what's fired, a line for a shot that never left would look like a miss
+    if aim.draw_prediction && fires {
+        let now = Interfaces::global_vars().realtime;
+        let mut paths = found.paths;
+        paths.until = now + found.time + helpers::round_trip();
+        Globals::write().prediction = Some(paths);
     }
 }
 
-/// Seconds a shot that isn't fired stays drawn, long enough to bridge the ticks between searches
-const PREVIEW_TIME: f32 = 0.1;
-
-/// Draw `paths` for `time` seconds, unless a fired shot is still being drawn for longer
-fn show(mut paths: PredictionPaths, time: f32) {
-    let now = Interfaces::global_vars().realtime;
-    paths.until = now + time;
-    let mut g = Globals::write();
-    if g.prediction.as_ref().is_none_or(|p| p.until <= paths.until) {
-        g.prediction = Some(paths);
+/// Where a projectile fired from the held weapon along the view would go, until it hits something.
+/// Taken from the frame's camera rather than the last command, so it follows the view smoothly.
+pub fn view_path(localplayer: &Player) -> Option<Vec<Vec3>> {
+    let weapon = localplayer.active_weapon()?;
+    if !is_projectile_weapon(&weapon) {
+        return None;
     }
+    let info = weapon_info(localplayer, &weapon)?;
+    let (camera, angles) = helpers::view::camera()?;
+    // The camera is the eye in firstperson and moves with it between ticks, unlike our origin
+    let eye = localplayer.eye_pos();
+    let eye = if camera.distance_to(&eye) < 16.0 {
+        camera
+    } else {
+        eye
+    };
+    let solver = Solver::for_path(localplayer, eye, info);
+    let mut path = solver.path(&angles, info.lifetime.min(VIEW_PATH_TIME))?;
+    solver.cut(&mut path);
+    Some(path)
 }
 
 fn find_target(
