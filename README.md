@@ -22,6 +22,8 @@ cargo inject --debug    # also open a terminal tailing the log
 
 ## Documentation
 
+Hosted at [faluthe.github.io/tf_rs](https://faluthe.github.io/tf_rs/), built from `main`. To build it locally:
+
 ```bash
 cargo doc --open
 ```
