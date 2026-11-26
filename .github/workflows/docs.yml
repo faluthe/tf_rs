@@ -31,7 +31,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y clang libclang-dev libsdl2-dev libglew-dev
 
       - name: Build docs
-        run: cargo doc --workspace --no-deps
+        run: |
+          llvm=$(dirname "$(dirname "$(readlink -f "$(command -v clang)")")")
+          echo "using $llvm"
+          LIBCLANG_PATH="$llvm/lib" CLANG_PATH="$llvm/bin/clang" cargo doc --workspace --no-deps
 
       - name: Add landing page
         run: echo '<meta http-equiv="refresh" content="0; url=tf_rs/index.html">' > target/doc/index.html
