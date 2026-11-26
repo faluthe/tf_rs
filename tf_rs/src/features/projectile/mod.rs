@@ -92,6 +92,13 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
     };
     if !looking {
         Globals::write().target = None;
+        // Still look for a shot to draw, without aiming or firing it
+        if aim.draw_prediction && aim.draw_prediction_always {
+            let (found, _) = find_target(localplayer, cmd, config, info);
+            if let Some(found) = found {
+                show(found.paths, PREVIEW_TIME);
+            }
+        }
         return;
     }
 
@@ -151,12 +158,27 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
         );
     }
 
-    // Only what's fired, a line for a shot that never left would look like a miss
-    if aim.draw_prediction && fires {
-        let now = Interfaces::global_vars().realtime;
-        let mut paths = found.paths;
-        paths.until = now + found.time + helpers::round_trip();
-        Globals::write().prediction = Some(paths);
+    // Unless always drawn, only what's fired: a line for a shot that never left looks like a miss
+    if aim.draw_prediction && (fires || aim.draw_prediction_always) {
+        let time = if fires {
+            found.time + helpers::round_trip()
+        } else {
+            PREVIEW_TIME
+        };
+        show(found.paths, time);
+    }
+}
+
+/// Seconds a shot that isn't fired stays drawn, long enough to bridge the ticks between searches
+const PREVIEW_TIME: f32 = 0.1;
+
+/// Draw `paths` for `time` seconds, unless a fired shot is still being drawn for longer
+fn show(mut paths: PredictionPaths, time: f32) {
+    let now = Interfaces::global_vars().realtime;
+    paths.until = now + time;
+    let mut g = Globals::write();
+    if g.prediction.as_ref().is_none_or(|p| p.until <= paths.until) {
+        g.prediction = Some(paths);
     }
 }
 

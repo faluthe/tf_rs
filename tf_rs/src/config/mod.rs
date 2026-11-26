@@ -459,6 +459,8 @@ struct_with_serialize! {
         pub wait_for_shot: bool,
         pub auto_detonate: bool,
         pub draw_prediction: bool,
+        /// Draw the shot the aimbot would take every tick, not only the ones it fires
+        pub draw_prediction_always: bool,
         /// Write how far movement prediction is off to prediction.csv
         pub log_prediction: bool,
     }
@@ -499,6 +501,7 @@ impl Default for AimbotConfig {
             wait_for_shot: false,
             auto_detonate: false,
             draw_prediction: false,
+            draw_prediction_always: false,
             log_prediction: false,
         }
     }

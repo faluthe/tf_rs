@@ -91,7 +91,12 @@ fn aimbot_settings(nk: &Nuklear, config: &mut Config) {
             .checkbox("Splash", &mut aim.splash)
             .checkbox("Wait for previous shot", &mut aim.wait_for_shot)
             .checkbox("Auto detonate", &mut aim.auto_detonate)
-            .checkbox("Draw prediction", &mut aim.draw_prediction)
+            .checkbox("Draw prediction", &mut aim.draw_prediction);
+        if aim.draw_prediction {
+            nk.row_dynamic(ROW, 1)
+                .checkbox("Always draw", &mut aim.draw_prediction_always);
+        }
+        nk.row_dynamic(ROW, 1)
             .checkbox("Log prediction accuracy", &mut aim.log_prediction);
     }
 
