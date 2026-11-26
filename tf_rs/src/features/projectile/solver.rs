@@ -11,7 +11,7 @@ use super::{
 use crate::{
     helpers,
     interfaces::{Interfaces, mask},
-    types::{Hull, Player, TraceFilter, Vec3, entity::Team, trace_filter::group},
+    types::{Entity, Hull, Player, TraceFilter, Vec3, entity::Team, trace_filter::group},
 };
 
 /// How many ticks early the projectile can reach the target's box and still hit
@@ -282,7 +282,7 @@ impl Solver<'_> {
     pub(super) fn hits(
         &self,
         path: &mut Vec<Vec3>,
-        target: &Player,
+        target: &Entity,
         predicted: &Hull,
         point: &Vec3,
         tolerance: f32,
@@ -378,7 +378,7 @@ impl Solver<'_> {
 
     /// The game's filter for the projectile, passing through `target` whose box is checked
     /// separately where it's predicted to be
-    fn filter(&self, target: &Player) -> TraceFilter {
+    fn filter(&self, target: &Entity) -> TraceFilter {
         TraceFilter::simple(self.localplayer, self.info.group, Some(target))
     }
 
@@ -415,7 +415,7 @@ impl Solver<'_> {
     pub(super) fn clear(
         &self,
         path: &[Vec3],
-        target: &Player,
+        target: &Entity,
         point: &Vec3,
         tolerance: f32,
     ) -> bool {

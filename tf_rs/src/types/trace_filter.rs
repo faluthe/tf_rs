@@ -4,7 +4,10 @@ use std::{
     sync::OnceLock,
 };
 
-use crate::{helpers::module, types::Player};
+use crate::{
+    helpers::module,
+    types::{Entity, Player},
+};
 
 /// Collision groups the game's rules decide collisions between
 pub mod group {
@@ -70,7 +73,7 @@ impl TraceFilter {
     /// The game's CTraceFilterSimple for something in `group` that `pass` owns: it passes
     /// through `pass` and what it owns, and collides with what the game's collision rules say.
     /// `skip_also` is passed through as well.
-    pub fn simple(pass: &Player, group: i32, skip_also: Option<&Player>) -> Self {
+    pub fn simple(pass: &Player, group: i32, skip_also: Option<&Entity>) -> Self {
         Self::game(c"18CTraceFilterSimple", pass, group, 0, skip_also)
     }
 
@@ -92,7 +95,7 @@ impl TraceFilter {
         pass: &Player,
         group: i32,
         ignore_team: i32,
-        skip_also: Option<&Player>,
+        skip_also: Option<&Entity>,
     ) -> Self {
         let mut filter = TraceFilter {
             skip_also: skip_also.map_or(ptr::null(), |p| p.this as _),

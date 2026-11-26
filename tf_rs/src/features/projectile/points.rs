@@ -5,7 +5,7 @@ use std::cmp::Ordering;
 use super::{count_trace, weapon::ProjectileInfo};
 use crate::{
     interfaces::{Interfaces, mask},
-    types::{Player, Ray, TraceFilter, Vec3},
+    types::{Entity, Player, Ray, TraceFilter, Vec3},
 };
 
 /// Surface directions looked along around a target for splash
@@ -57,12 +57,12 @@ fn sphere_directions() -> &'static [Vec3] {
     })
 }
 
-/// Spots on surfaces around a player standing at `origin` that a blast would reach them from,
+/// Spots on surfaces around a target standing at `origin` that a blast would reach them from,
 /// facing `eye` and closest first
 pub(super) fn splash_points(
     shooter: &Player,
     origin: Vec3,
-    target: &Player,
+    target: &Entity,
     info: &ProjectileInfo,
     eye: &Vec3,
 ) -> Vec<Vec3> {

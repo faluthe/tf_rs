@@ -8,7 +8,7 @@ use std::{
 
 use crate::{
     interfaces::{Interfaces, mask},
-    types::{BBox, Entity, Flow, Player, Vec2, Vec3},
+    types::{BBox, ClassId, Entity, Flow, Player, Vec2, Vec3},
 };
 
 pub mod macros;
@@ -31,6 +31,23 @@ pub fn enemies(localplayer: &Player, ignore_invis: bool) -> impl Iterator<Item =
                 && !p.is_dead()
                 && p.team() != team
                 && !(ignore_invis && p.is_invisible())
+        })
+}
+
+/// Index and entity of each of `localplayer`'s enemies' buildings that isn't dormant
+pub fn enemy_buildings(localplayer: &Player) -> impl Iterator<Item = (i32, Entity)> {
+    let team = localplayer.team();
+    let list = Interfaces::entity_list();
+    let first = Interfaces::engine_client().get_max_clients() + 1;
+    (first..=list.max_entities())
+        .filter_map(move |i| Some((i, list.get_client_entity::<Entity>(i)?)))
+        .filter(move |(_, e)| {
+            !e.is_dormant()
+                && e.team() != team
+                && matches!(
+                    e.class_id(),
+                    Some(ClassId::Sentry | ClassId::Dispenser | ClassId::Teleporter)
+                )
         })
 }
 

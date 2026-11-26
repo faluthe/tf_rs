@@ -22,7 +22,7 @@ use crate::{
     globals::{Globals, PredictionPaths, Target},
     helpers,
     interfaces::Interfaces,
-    types::{Hull, Player, UserCmd, Vec3, Weapon, user_cmd::Buttons},
+    types::{Entity, Hull, Player, UserCmd, Vec3, Weapon, user_cmd::Buttons},
 };
 use points::{aim_points, splash_points};
 use solver::{Solution, Solve, Solver};
@@ -47,6 +47,7 @@ fn count_trace() {
 
 struct Found {
     index: i32,
+    building: bool,
     angles: Vec3,
     time: f32,
     fov: f32,
@@ -115,7 +116,7 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
     }
     Globals::write().target = found.as_ref().map(|f| Target {
         target_index: f.index,
-        should_headshot: info.headshot,
+        should_headshot: info.headshot && !f.building,
     });
     let Some(found) = found else {
         if logging {
@@ -149,7 +150,8 @@ pub fn run(localplayer: &Player, weapon: &Weapon, cmd: &mut UserCmd, config: &Co
         let land_time = s.start_time + (s.choke + s.latency_ticks + s.ticks) as f32 * tick;
         tracking::record(found.index, land_time, found.time);
     }
-    if logging && fires {
+    // The shot log follows players
+    if logging && fires && !found.building {
         shot_log::shot(
             localplayer,
             &found.shot,
@@ -271,6 +273,35 @@ fn find_target(
         }
         diagnostics.push(diag);
     }
+
+    let buildings = helpers::enemy_buildings(localplayer).filter(|_| aim.building_aim);
+    for (index, building) in buildings {
+        let center = building.origin() + (building.mins() + building.maxs()) * 0.5;
+        let center_fov = cmd
+            .view_angles
+            .fov_to(&helpers::calculate_angle(&eye, &center));
+        if center_fov > aim.fov as f32 {
+            continue;
+        }
+        let mut diag = shot_log::TargetDiagnostics {
+            index,
+            fov: center_fov,
+            distance: center.distance_to(&eye),
+            on_ground: true,
+            ..Default::default()
+        };
+        let wait_for = landings
+            .iter()
+            .filter(|(t, _)| *t == index)
+            .map(|(_, land_time)| *land_time)
+            .min_by(f32::total_cmp);
+        if let Some(found) = search.building(&building, index, wait_for, &mut diag)
+            && best.as_ref().is_none_or(|b| found.fov < b.fov)
+        {
+            best = Some(found);
+        }
+        diagnostics.push(diag);
+    }
     (best, diagnostics)
 }
 
@@ -374,6 +405,7 @@ impl Search<'_> {
             player_path.push(sim.origin());
             return Some(Found {
                 index: target.index(),
+                building: false,
                 angles: solution.angles,
                 time: solution.time,
                 fov,
@@ -401,11 +433,104 @@ impl Search<'_> {
         None
     }
 
+    /// A shot at `building`, which stays where it is. Shots landing at or after `wait_for`
+    /// aren't taken.
+    fn building(
+        &self,
+        building: &Entity,
+        index: i32,
+        wait_for: Option<f32>,
+        diag: &mut shot_log::TargetDiagnostics,
+    ) -> Option<Found> {
+        let (info, tick) = (&self.solver.info, self.tick);
+        let (origin, mins, maxs) = (building.origin(), building.mins(), building.maxs());
+        let target_box = Hull { origin, mins, maxs };
+        let middle = origin + (mins + maxs) * 0.5;
+        let base = Vec3::new(middle.x, middle.y, origin.z + mins.z + 5.0);
+        // Explosives at its base blast it as well, and the floor is harder to miss
+        let points = if info.splash {
+            [base, middle]
+        } else {
+            [middle, base]
+        };
+        // Nothing to simulate, the newest tick is where it is
+        let start_time = Interfaces::global_vars().tickcount as f32 * tick;
+        let latency_ticks = self.latency_ticks;
+        let tolerance = info.hull.max(4.0) + 8.0;
+
+        let direct = points.iter().find_map(|point| {
+            // It doesn't move, so the shot lands whenever the projectile gets there
+            let ticks = match self.solver.solve(point, self.max_ticks) {
+                Solve::Good(solution) => (solution.time / tick) as i32 + 1,
+                Solve::Late => {
+                    diag.count(Reject::Late);
+                    return None;
+                }
+                Solve::Bad => {
+                    diag.count(Reject::Bad);
+                    return None;
+                }
+            };
+            self.attempt(building, point, ticks, tolerance, Some(&target_box), diag)
+                .map(|hit| (hit, *point, ticks, false))
+        });
+        let hit = direct.or_else(|| {
+            if !self.use_splash {
+                return None;
+            }
+            let eye = self.solver.eye;
+            let localplayer = self.solver.localplayer;
+            splash_points(localplayer, origin, building, info, &eye)
+                .iter()
+                .find_map(|point| {
+                    let Solve::Good(solution) = self.solver.solve(point, self.max_ticks) else {
+                        return None;
+                    };
+                    let ticks = (solution.time / tick) as i32 + 1;
+                    self.attempt(building, point, ticks, tolerance + 4.0, None, diag)
+                        .map(|hit| (hit, *point, ticks, true))
+                })
+        });
+        let ((solution, path, fov), point, ticks, splash) = hit?;
+
+        let land_time = start_time + (latency_ticks + ticks) as f32 * tick;
+        if wait_for.is_some_and(|w| land_time >= w) {
+            diag.waiting = true;
+            return None;
+        }
+        Some(Found {
+            index,
+            building: true,
+            angles: solution.angles,
+            time: solution.time,
+            fov,
+            paths: PredictionPaths {
+                player: Vec::new(),
+                projectile: path,
+                until: 0.0,
+            },
+            shot: shot_log::Prediction {
+                target: index,
+                start_time,
+                choke: 0,
+                latency_ticks,
+                ticks,
+                origin,
+                point,
+                splash,
+                target_on_ground: true,
+                launch: self.solver.launch(&solution.angles).unwrap_or_default(),
+                gravity: info.gravity,
+                drag: info.drag,
+            },
+        })
+    }
+
     /// An unobstructed shot landing on `point` within `ticks`, counting why not in `diag`. With
     /// `predicted` it has to hit that box, otherwise only reach the surface at `point`.
     fn attempt(
         &self,
-        target: &Player,
+        target: &Entity,
         point: &Vec3,
         ticks: i32,
         tolerance: f32,

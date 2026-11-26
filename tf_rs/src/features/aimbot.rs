@@ -10,7 +10,7 @@ use crate::{
     helpers,
     interfaces::{Interfaces, mask},
     player_db,
-    types::{ClassId, Entity, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon, user_cmd::Buttons},
+    types::{Player, Ray, TraceFilter, UserCmd, Vec3, Weapon, user_cmd::Buttons},
 };
 
 struct Candidate {
@@ -187,22 +187,7 @@ fn get_target(
         return priority.or(best);
     }
 
-    let first_building = Interfaces::engine_client().get_max_clients() + 1;
-    for i in first_building..=Interfaces::entity_list().max_entities() {
-        let Some(entity) = Interfaces::entity_list().get_client_entity::<Entity>(i) else {
-            continue;
-        };
-        if entity.is_dormant() || entity.team() == localplayer.team() {
-            continue;
-        }
-
-        if !matches!(
-            entity.class_id(),
-            Some(ClassId::Sentry) | Some(ClassId::Dispenser) | Some(ClassId::Teleporter)
-        ) {
-            continue;
-        }
-
+    for (i, entity) in helpers::enemy_buildings(localplayer) {
         let entity_pos = entity.origin();
         let mins = entity.mins();
         let maxs = entity.maxs();
