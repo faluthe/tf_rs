@@ -1,5 +1,6 @@
 use crate::types::Vec3;
 
+/// CViewSetup
 #[repr(C)]
 #[derive(Default)]
 pub struct ViewSetup {
@@ -43,3 +44,6 @@ pub struct ViewSetup {
 pub type Frustum = [[f32; 4]; 6];
 
 pub const VIEW_CLEAR_DEPTH: i32 = 0x2;
+
+const _: () = assert!(std::mem::offset_of!(ViewSetup, fov) == 0x38);
+const _: () = assert!(std::mem::offset_of!(ViewSetup, origin) == 0x40);

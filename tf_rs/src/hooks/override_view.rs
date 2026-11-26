@@ -20,4 +20,7 @@ pub extern "C" fn hk_override_view(this: *mut c_void, setup: *mut ViewSetup) {
             (*setup).fov = localplayer.fov() as f32;
         }
     }
+    if let Some(setup) = unsafe { setup.as_ref() } {
+        helpers::view::record(setup);
+    }
 }

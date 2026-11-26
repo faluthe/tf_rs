@@ -1,2 +1,5 @@
 [alias]
 inject = "run -p inject --"
+
+[build]
+rustdocflags = ["--document-private-items"]

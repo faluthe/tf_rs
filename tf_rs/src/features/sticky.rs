@@ -5,30 +5,30 @@
 //! detonates them. With the Scottish Resistance only stickies near the crosshair go off, so the
 //! view is turned to the one that would hit.
 
-use std::{collections::HashMap, sync::Mutex};
+use std::sync::Mutex;
 
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::OnceCell;
 
 use crate::{
     config::Config,
-    features::movesim::{MoveSim, Strafe},
+    features::{
+        movesim::{MoveSim, Strafe},
+        projectile,
+    },
     helpers,
-    interfaces::Interfaces,
-    types::{ClassId, ConVar, Entity, Flow, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon},
+    interfaces::{Interfaces, mask},
+    types::{ClassId, ConVar, Entity, Hull, Player, Ray, TraceFilter, UserCmd, Vec3, Weapon},
 };
 
-const MASK_SOLID: u32 = 0x200400B;
 const IN_ATTACK2: i32 = 1 << 11;
 
-const THROWER: usize = 0xC30;
 const DAMAGE_RADIUS: usize = 0xC14;
-const LAUNCHER: usize = 0xC44;
 const TYPE: usize = 0xC58;
 /// TF_GL_MODE_REMOTE_DETONATE and its practice variant
 const REMOTE_DETONATE: [i32; 2] = [1, 2];
 
 /// When each sticky, by entity handle, was first seen, the client doesn't know when it was fired
-static FIRST_SEEN: Lazy<Mutex<HashMap<u32, f32>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static FIRST_SEEN: Mutex<Vec<(u32, f32)>> = Mutex::new(Vec::new());
 
 struct Sticky {
     origin: Vec3,
@@ -53,34 +53,40 @@ fn read<T: Copy>(ent: &Entity, offset: usize) -> T {
 fn armed_stickies(localplayer: &Player, now: f32) -> Vec<Sticky> {
     let list = Interfaces::entity_list();
     let local = localplayer.index();
+    let default_arm_time = live_time();
     let mut first_seen = FIRST_SEEN.lock().unwrap();
-    let mut seen = Vec::new();
+    let mut seen = Vec::with_capacity(first_seen.len());
+    // Stickies almost always share a launcher, so its attributes are looked up once
+    let mut launcher: Option<(i32, (f32, bool))> = None;
     let mut out = Vec::new();
 
-    for i in 1..=list.max_entities() {
-        let Some(ent) = list.get_client_entity::<Entity>(i) else {
-            continue;
-        };
-        if ent.is_dormant() || !matches!(ent.class_id(), Some(ClassId::PillOrSticky)) {
-            continue;
-        }
-        if (read::<u32>(&ent, THROWER) & 0xFFF) as i32 != local
+    for (handle, ent) in projectile::our_projectiles(local) {
+        if !matches!(ent.class_id(), Some(ClassId::PillOrSticky))
+            || ent.thrower_index() != local
             || !REMOTE_DETONATE.contains(&read::<i32>(&ent, TYPE))
         {
             continue;
         }
-        let handle = ent.ref_handle();
-        seen.push(handle);
-        let fired = *first_seen.entry(handle).or_insert(now);
+        let fired = first_seen
+            .iter()
+            .find(|(h, _)| *h == handle)
+            .map_or(now, |&(_, t)| t);
+        seen.push((handle, fired));
 
-        let launcher =
-            list.get_client_entity::<Weapon>((read::<u32>(&ent, LAUNCHER) & 0xFFF) as i32);
-        let (arm_time, needs_aim) = match &launcher {
-            Some(w) => (
-                w.attrib_float(live_time(), c"sticky_arm_time"),
-                w.attrib_float(0.0, c"set_detonate_mode") as i32 == 1,
-            ),
-            None => (live_time(), false),
+        let index = ent.launcher_index();
+        let (arm_time, needs_aim) = match launcher {
+            Some((i, attribs)) if i == index => attribs,
+            _ => {
+                let attribs = match list.get_client_entity::<Weapon>(index) {
+                    Some(w) => (
+                        w.attrib_float(default_arm_time, c"sticky_arm_time"),
+                        w.attrib_float(0.0, c"set_detonate_mode") as i32 == 1,
+                    ),
+                    None => (default_arm_time, false),
+                };
+                launcher = Some((index, attribs));
+                attribs
+            }
         };
         if now < fired + arm_time {
             continue;
@@ -91,31 +97,21 @@ fn armed_stickies(localplayer: &Player, now: f32) -> Vec<Sticky> {
             needs_aim,
         });
     }
-    first_seen.retain(|h, _| seen.contains(h));
+    *first_seen = seen;
     out
 }
 
-/// Point of the box `origin + mins..maxs` closest to `point`
-fn nearest_point(point: &Vec3, origin: &Vec3, mins: &Vec3, maxs: &Vec3) -> Vec3 {
-    Vec3::new(
-        point.x.clamp(origin.x + mins.x, origin.x + maxs.x),
-        point.y.clamp(origin.y + mins.y, origin.y + maxs.y),
-        point.z.clamp(origin.z + mins.z, origin.z + maxs.z),
-    )
-}
-
-/// Whether a blast at `sticky` reaches a player standing at `origin`, the way the server's
+/// Whether a blast at `sticky` reaches a player with collision box `hull`, the way the server's
 /// radius damage checks it
-fn reaches(sticky: &Sticky, origin: &Vec3, mins: &Vec3, maxs: &Vec3) -> bool {
-    let point = nearest_point(&sticky.origin, origin, mins, maxs);
+fn reaches(sticky: &Sticky, hull: &Hull) -> bool {
+    let point = hull.nearest_point(&sticky.origin);
     if sticky.origin.distance_to(&point) > sticky.radius * 0.95 {
         return false;
     }
     let filter = TraceFilter::world_only();
-    let center = *origin + Vec3::new(0.0, 0.0, (mins.z + maxs.z) / 2.0);
-    [point, center].iter().any(|to| {
+    [point, hull.center()].iter().any(|to| {
         let trace =
-            Interfaces::engine_trace().trace(&Ray::init(&sticky.origin, to), MASK_SOLID, &filter);
+            Interfaces::engine_trace().trace(&Ray::init(&sticky.origin, to), mask::SOLID, &filter);
         trace.fraction >= 1.0
     })
 }
@@ -130,29 +126,10 @@ pub fn run(localplayer: &Player, cmd: &mut UserCmd, config: &Config) {
     let reach = stickies.iter().map(|s| s.radius).fold(0.0, f32::max);
 
     let tick = Interfaces::global_vars().interval_per_tick;
-    let latency = Interfaces::engine_client()
-        .get_net_channel_info()
-        .map_or(0.0, |nci| {
-            nci.latency(Flow::Outgoing) + nci.latency(Flow::Incoming)
-        });
-    let latency_ticks = (latency / tick).round() as i32;
-    let strafe = Strafe {
-        ground: aim.strafe_ground,
-        air: aim.strafe_air,
-    };
+    let latency_ticks = (helpers::round_trip() / tick).round() as i32;
+    let strafe = Strafe::from(aim);
 
-    for i in 1..=Interfaces::engine_client().get_max_clients() {
-        let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i) else {
-            continue;
-        };
-        if player == *localplayer
-            || player.is_dormant()
-            || player.is_dead()
-            || player.team() == localplayer.team()
-            || (aim.ignore_invis && player.is_invisible())
-        {
-            continue;
-        }
+    for (_, player) in helpers::enemies(localplayer, aim.ignore_invis) {
         let current = player.origin();
         // Nowhere near any of them, even after moving for a while
         if stickies
@@ -172,9 +149,12 @@ pub fn run(localplayer: &Player, cmd: &mut UserCmd, config: &Config) {
             }
             None => current,
         };
-        let (mins, maxs) = (player.mins(), player.maxs());
+        let hull = Hull {
+            origin,
+            ..player.hull()
+        };
 
-        if let Some(sticky) = stickies.iter().find(|s| reaches(s, &origin, &mins, &maxs)) {
+        if let Some(sticky) = stickies.iter().find(|s| reaches(s, &hull)) {
             if sticky.needs_aim {
                 cmd.view_angles = helpers::calculate_angle(&localplayer.eye_pos(), &sticky.origin);
             }

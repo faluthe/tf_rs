@@ -1,3 +1,25 @@
+//! Builds `tf_rs` and injects it into the running game (`tf_linux64`) by having `gdb`
+//! call `dlopen` in it. `sudo` is needed for `gdb` to ptrace the game.
+//!
+//! ```text
+//! cargo inject            # debug build
+//! cargo inject --release
+//! cargo inject --debug    # also opens a terminal tailing the log
+//! ```
+//!
+//! The terminal is `$TERMINAL`, `xdg-terminal-exec` or `x-terminal-emulator`, the first
+//! one found.
+//!
+//! Injecting by hand with `inject/so_inject.sh`:
+//!
+//! ```text
+//! cargo build -p tf_rs
+//! sudo ./inject/so_inject.sh inject $(pidof tf_linux64) $PWD/target/debug/libtf_rs.so
+//! sudo ./inject/so_inject.sh uninject <pid> <handle printed by dlopen>
+//! ```
+//!
+//! Don't uninject after using the menu's Unload button, it already unloaded the library.
+
 use core::panic;
 use std::{
     io::{BufRead, BufReader, ErrorKind, IsTerminal, Read},

@@ -22,25 +22,6 @@ impl FromRaw for Material {
 }
 
 impl Material {
-    pub fn get_name(&self) -> &str {
-        let f = vfunc!(self.vtable, 0, (*mut c_void) -> *const c_char);
-        let ptr = f(self.this);
-        if ptr.is_null() {
-            return "";
-        }
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap_or("") }
-    }
-
-    pub fn alpha_modulate(&self, a: f32) {
-        let f = vfunc!(self.vtable, 27, (*mut c_void, f32) -> ());
-        f(self.this, a);
-    }
-
-    pub fn color_modulate(&self, r: f32, g: f32, b: f32) {
-        let f = vfunc!(self.vtable, 28, (*mut c_void, f32, f32, f32) -> ());
-        f(self.this, r, g, b);
-    }
-
     /// The material's shader parameter `name`, if its shader has one
     pub fn find_var(&self, name: &CStr) -> Option<MaterialVar> {
         let f =

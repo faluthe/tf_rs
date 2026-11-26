@@ -22,4 +22,10 @@ impl ModelInfo {
         }
         unsafe { CStr::from_ptr(ptr).to_str().unwrap_or("") }
     }
+
+    /// The model's studiohdr_t, null for brush and sprite models
+    pub fn get_studio_model(&self, model: *const c_void) -> *const u8 {
+        let f = vfunc!(self.vtable, 29, (*mut c_void, *const c_void) -> *const u8);
+        f(self.this, model)
+    }
 }

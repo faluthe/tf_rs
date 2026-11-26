@@ -1,3 +1,9 @@
+/// Virtual function `idx` of `vtable` as a function pointer of the given signature, ABI
+/// defaults to `extern "C"`.
+///
+/// ```ignore
+/// let health = vfunc!(self.vtable, 152, (*mut c_void) -> i32)(self.this);
+/// ```
 #[macro_export]
 macro_rules! vfunc {
     // With explicit ABI: vfunc!(vtable_expr, idx, extern "C" fn(args...) -> ret)
@@ -14,6 +20,11 @@ macro_rules! vfunc {
     }};
 }
 
+/// Getter reading a `Type` at a fixed byte offset from `self.this`.
+///
+/// ```ignore
+/// offset_get!(pub fn team: Team, 0xDC);
+/// ```
 #[macro_export]
 macro_rules! offset_get {
     // Usage: offset_get!(pub fn name: Type, offset);
@@ -29,19 +40,22 @@ macro_rules! offset_get {
     };
 }
 
+/// Defines a struct with `Display` and `FromStr` impls for the config file format,
+/// instead of pulling in serde. Fields use their own impls, so structs nest.
 #[macro_export]
 macro_rules! struct_with_serialize {
     (
         $(#[$meta:meta])*
         $vis:vis struct $name:ident {
             $(
+                $(#[$field_meta:meta])*
                 $field_vis:vis $field:ident : $ty:ty
             ),* $(,)?
         }
     ) => {
         $(#[$meta])*
         $vis struct $name {
-            $($field_vis $field : $ty),*
+            $($(#[$field_meta])* $field_vis $field : $ty),*
         }
 
         impl std::fmt::Display for $name {

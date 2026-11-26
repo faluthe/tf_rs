@@ -6,15 +6,9 @@
 //! prediction.csv next to the library. Errors at a few ticks either side are checked too, a best
 //! offset away from zero means the prediction runs early or late rather than going the wrong way.
 
-use std::{
-    ffi::OsStr,
-    io::Write,
-    os::unix::ffi::OsStrExt,
-    path::{Path, PathBuf},
-    sync::{
-        Mutex,
-        atomic::{AtomicU32, Ordering},
-    },
+use std::sync::{
+    Mutex,
+    atomic::{AtomicU32, Ordering},
 };
 
 use once_cell::sync::Lazy;
@@ -65,10 +59,6 @@ static STATE: Lazy<Mutex<State>> = Lazy::new(|| {
     })
 });
 
-fn class_of(player: &Player) -> i32 {
-    unsafe { *player.ent.field::<i32>(0x1BA0) }
-}
-
 fn simulate(player: &Player, strafe: Strafe) -> Option<(Vec<Vec3>, f32, i32, f32)> {
     let mut sim = MoveSim::new(player, None, strafe)?;
     while sim.path.len() < TICKS {
@@ -88,42 +78,23 @@ fn simulate(player: &Player, strafe: Strafe) -> Option<(Vec<Vec3>, f32, i32, f32
 pub fn sample(localplayer: &Player, config: &Config) {
     let now = Interfaces::global_vars().realtime;
     let tick = Interfaces::global_vars().interval_per_tick;
-    let strafe = Strafe {
-        ground: config.aimbot.strafe_ground,
-        air: config.aimbot.strafe_air,
-    };
-    let due: Vec<i32> = {
-        let state = STATE.lock().unwrap();
-        (1..=Interfaces::engine_client().get_max_clients().min(64))
-            .filter(|&i| now - state.last_sample[i as usize] >= SAMPLE_INTERVAL)
-            .collect()
-    };
+    let strafe = Strafe::from(&config.aimbot);
+    let last_sample = STATE.lock().unwrap().last_sample.clone();
+    let due = helpers::enemies(localplayer, false).filter(|(i, _)| {
+        last_sample
+            .get(*i as usize)
+            .is_some_and(|t| now - t >= SAMPLE_INTERVAL)
+    });
 
     let mut new = Vec::new();
-    for i in due {
-        let Some(player) = Interfaces::entity_list().get_client_entity::<Player>(i) else {
-            continue;
-        };
-        if player == *localplayer
-            || player.is_dormant()
-            || player.is_dead()
-            || player.team() == localplayer.team()
-        {
-            continue;
-        }
+    for (i, player) in due {
         let start_time = player.simulation_time();
         let start_ground = player.is_on_ground();
         let velocity = player.velocity();
         let origin = player.network_origin();
 
         let full = simulate(&player, strafe);
-        let plain = simulate(
-            &player,
-            Strafe {
-                ground: false,
-                air: false,
-            },
-        );
+        let plain = simulate(&player, Strafe::NONE);
         let gravity = movesim::gravity();
         let linear: Vec<Vec3> = (0..=TICKS)
             .map(|j| {
@@ -145,7 +116,7 @@ pub fn sample(localplayer: &Player, config: &Config) {
                 variant,
                 start_time,
                 positions,
-                class: class_of(&player),
+                class: player.player_class() as i32,
                 start_ground,
                 speed: velocity.length_2d(),
                 average_yaw,
@@ -234,37 +205,6 @@ pub fn observe() {
         state.last_flush = now;
         let rows = std::mem::take(&mut state.rows);
         drop(state);
-        write_rows(&rows);
-    }
-}
-
-fn path() -> Option<PathBuf> {
-    let lib = helpers::lib_path()?;
-    Some(
-        Path::new(OsStr::from_bytes(lib.as_bytes()))
-            .parent()?
-            .join(FILE),
-    )
-}
-
-fn write_rows(rows: &str) {
-    let Some(path) = path() else {
-        return;
-    };
-    let file = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path);
-    match file {
-        Ok(mut f) => {
-            let empty = f.metadata().is_ok_and(|m| m.len() == 0);
-            let _ = if empty {
-                f.write_all(HEADER.as_bytes())
-            } else {
-                Ok(())
-            }
-            .and_then(|_| f.write_all(rows.as_bytes()));
-        }
-        Err(e) => log::warn!("Could not write {}: {e}", path.display()),
+        helpers::append_csv(FILE, HEADER, &rows);
     }
 }
