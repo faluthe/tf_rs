@@ -228,7 +228,7 @@ pub fn is_original(index: usize) -> bool {
     MATERIALS.get(index).is_some_and(|m| m.layers.is_empty())
 }
 
-// Each material's layers, empty if any of them failed to load
+/// Each material's layers, empty if any of them failed to load
 static LOADED: OnceLock<Vec<Vec<Material>>> = OnceLock::new();
 
 /// Loads or creates every chams material, call from the main thread outside of rendering

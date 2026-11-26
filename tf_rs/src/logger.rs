@@ -1,13 +1,13 @@
-/* File logger.
- *
- * The game runs inside the Steam Linux Runtime (pressure-vessel) container,
- * where stdout/stderr are pipes owned by Steam, so we log to a file next to
- * our own .so instead. That path is visible from both the container and the
- * host, since the container had to be able to dlopen the library.
- *
- * This deliberately avoids thread-locals with destructors glibc won't unmap
- * a library while a live thread has a pending TLS destructor from it, which
- * kept dlclose from unloading us. */
+//! File logger.
+//!
+//! The game runs inside the Steam Linux Runtime (pressure-vessel) container,
+//! where stdout/stderr are pipes owned by Steam, so we log to a file next to
+//! our own .so instead. That path is visible from both the container and the
+//! host, since the container had to be able to dlopen the library.
+//!
+//! This deliberately avoids thread-locals with destructors glibc won't unmap
+//! a library while a live thread has a pending TLS destructor from it, which
+//! kept dlclose from unloading us.
 
 use std::{
     collections::VecDeque,

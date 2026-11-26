@@ -12,3 +12,14 @@ pub struct GlobalVars {
     _sim_ticks_this_frame: i32,
     _network_protocol: i32,
 }
+
+impl GlobalVars {
+    /// Nearest tick to `time`
+    pub fn time_to_ticks(&self, time: f32) -> i32 {
+        (0.5 + time / self.interval_per_tick) as i32
+    }
+
+    pub fn ticks_to_time(&self, ticks: i32) -> f32 {
+        self.interval_per_tick * ticks as f32
+    }
+}

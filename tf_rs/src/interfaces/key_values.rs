@@ -8,7 +8,7 @@ use log::debug;
 
 use crate::{helpers::module, interfaces::BIN_PATH, vfunc};
 
-// sizeof(KeyValues) in the current materialsystem.so, the public SDK header is out of date
+/// sizeof(KeyValues) in the current materialsystem.so, the public SDK header is out of date
 const KEY_VALUES_SIZE: i32 = 0x48;
 
 type KeyValuesSystemFn = unsafe extern "C" fn() -> *mut c_void;

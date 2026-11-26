@@ -46,33 +46,30 @@ fn collect(map: *const DataMap, base_offset: usize, out: &mut Vec<(usize, usize)
     }
 }
 
-/// Merged, sorted byte ranges of a map, cached per map
-fn ranges(map: *const c_void) -> Vec<(usize, usize)> {
-    static CACHE: Lazy<Mutex<HashMap<usize, Vec<(usize, usize)>>>> =
+/// Merged, sorted byte ranges of a map, worked out once per map and kept for good
+fn ranges(map: *const c_void) -> &'static [(usize, usize)] {
+    static CACHE: Lazy<Mutex<HashMap<usize, &'static [(usize, usize)]>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
     let mut cache = CACHE.lock().unwrap();
-    cache
-        .entry(map as usize)
-        .or_insert_with(|| {
-            let mut fields = Vec::new();
-            collect(map as *const DataMap, 0, &mut fields, 0);
-            fields.sort();
-            let mut merged: Vec<(usize, usize)> = Vec::new();
-            for (offset, size) in fields {
-                match merged.last_mut() {
-                    Some((o, s)) if offset <= *o + *s => *s = (*s).max(offset + size - *o),
-                    _ => merged.push((offset, size)),
-                }
+    cache.entry(map as usize).or_insert_with(|| {
+        let mut fields = Vec::new();
+        collect(map as *const DataMap, 0, &mut fields, 0);
+        fields.sort();
+        let mut merged: Vec<(usize, usize)> = Vec::new();
+        for (offset, size) in fields {
+            match merged.last_mut() {
+                Some((o, s)) if offset <= *o + *s => *s = (*s).max(offset + size - *o),
+                _ => merged.push((offset, size)),
             }
-            merged
-        })
-        .clone()
+        }
+        merged.leak()
+    })
 }
 
 /// A copy of an entity's predicted fields, written back with `restore`
 pub struct Snapshot {
     object: *mut u8,
-    ranges: Vec<(usize, usize)>,
+    ranges: &'static [(usize, usize)],
     bytes: Vec<u8>,
 }
 
@@ -84,7 +81,7 @@ impl Snapshot {
         let ranges = ranges(map);
         let object = object as *mut u8;
         let mut bytes = Vec::with_capacity(ranges.iter().map(|r| r.1).sum());
-        for &(offset, size) in &ranges {
+        for &(offset, size) in ranges {
             bytes
                 .extend_from_slice(unsafe { std::slice::from_raw_parts(object.add(offset), size) });
         }
@@ -97,7 +94,7 @@ impl Snapshot {
 
     pub fn restore(&self) {
         let mut at = 0;
-        for &(offset, size) in &self.ranges {
+        for &(offset, size) in self.ranges {
             unsafe {
                 std::ptr::copy_nonoverlapping(
                     self.bytes.as_ptr().add(at),

@@ -2,7 +2,10 @@ use std::ffi::c_void;
 
 use crate::{
     config::Config,
-    features::{aimbot, backtrack, chams, fake_ping, movement, prediction_log, sticky},
+    features::{
+        aimbot, backtrack, chams, engine_prediction::Prediction, fake_ping, movement,
+        prediction_log, sticky,
+    },
     globals::Globals,
     helpers,
     hooks::Hooks,
@@ -10,7 +13,7 @@ use crate::{
     types::UserCmd,
 };
 
-// Thirdperson toggle state
+/// Thirdperson toggle state
 static mut TP: i32 = 0;
 static mut LAST_TP: bool = false;
 
@@ -40,8 +43,9 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
     }
 
     chams::init();
-    let backtrack_config = Config::read().backtrack.clone();
-    fake_ping::update(&backtrack_config);
+    // A copy, so no lock is held while calling into the game
+    let config = Config::read().clone();
+    fake_ping::update(&config.backtrack);
 
     let localplayer = helpers::get_localplayer().expect("Failed to get localplayer");
 
@@ -49,10 +53,8 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
         return rc;
     }
 
-    // A copy, so no lock is held while calling into the game
-    let config = Config::read().clone();
-
     movement::bunnyhop(&localplayer, cmd, &config);
+    let prediction = Prediction::start(&localplayer, cmd);
     let choice = aimbot::run(&localplayer, cmd, &config);
     if config.aimbot.master
         && config.aimbot.projectile
@@ -62,6 +64,7 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
         sticky::run(&localplayer, unsafe { &mut *cmd }, &config);
     }
     backtrack::run(&localplayer, cmd, &config, choice);
+    drop(prediction);
     if config.aimbot.projectile && config.aimbot.log_prediction {
         prediction_log::sample(&localplayer, &config);
     }

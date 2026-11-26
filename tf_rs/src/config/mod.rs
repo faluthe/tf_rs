@@ -1,3 +1,12 @@
+//! Feature settings, saved to `~/.<name>.tf_rs.cfg`. Nested structs are indented blocks:
+//!
+//! ```text
+//! esp:
+//!     master: true
+//!     player_enemy:
+//!         boxes: true
+//! ```
+
 use std::{
     env, fs,
     path::PathBuf,
@@ -41,11 +50,12 @@ struct_with_serialize! {
     }
 }
 
-// theme indexes `features::theme::THEMES`, font indexes `nuklear::Font::ALL`
 struct_with_serialize! {
     #[derive(Default, Clone)]
     pub struct MenuConfig {
+        /// Index into `features::theme::THEMES`
         pub theme: usize,
+        /// Index into `nuklear::Font::ALL`
         pub font: usize,
     }
 }
@@ -307,8 +317,8 @@ impl ChamsLayerConfig {
 struct_with_serialize! {
     #[derive(Clone, Copy)]
     pub struct ChamsGroupConfig {
-        // The first layer, its fields stay at this level so configs from before layers load.
-        // Without a visible pass on any layer the normal model is drawn where it can be seen
+        /// The first layer, its fields stay at this level so configs from before layers load.
+        /// Without a visible pass on any layer the normal model is drawn where it can be seen
         pub material: usize,
         pub visible: bool,
         pub occluded: bool,
@@ -444,26 +454,23 @@ struct_with_serialize! {
         pub disable_when_spectated: usize,
         pub ignore_invis: bool,
         pub melee: bool,
-        // Swing on its own whenever a target is in reach
         pub auto_swing: bool,
-        // Start swinging when the target will be in reach once the swing lands
         pub swing_prediction: bool,
-        // With a knife, only go for backstabs and stab on its own when one is possible
         pub auto_backstab: bool,
-        // Predict players turning as they move, on the ground and in the air
+        /// Predict players turning as they move on the ground
         pub strafe_ground: bool,
+        /// Predict players turning as they move in the air
         pub strafe_air: bool,
         pub projectile: bool,
-        // How far ahead to simulate targets for projectiles, in milliseconds
+        /// How far ahead to simulate targets for projectiles, in milliseconds
         pub max_sim_time: i32,
-        // Hit surfaces near targets that explosives can't hit directly
+        /// Hit surfaces near targets that explosives can't hit directly
         pub splash: bool,
-        // Hold fire on a target until our explosive already on its way to them lands
+        /// Hold fire on a target until our explosive already on its way to them lands
         pub wait_for_shot: bool,
-        // Detonate stickies when an enemy will be in a blast
         pub auto_detonate: bool,
         pub draw_prediction: bool,
-        // Write how far movement prediction is off to prediction.csv
+        /// Write how far movement prediction is off to prediction.csv
         pub log_prediction: bool,
     }
 }
@@ -472,9 +479,7 @@ struct_with_serialize! {
     #[derive(Clone)]
     pub struct BacktrackConfig {
         pub enabled: bool,
-        // Milliseconds of history used past the newest tick the server accepts
         pub length: i32,
-        // Milliseconds of latency added on top of the real one
         pub fake_ping: i32,
         pub disable_interpolation: bool,
     }
