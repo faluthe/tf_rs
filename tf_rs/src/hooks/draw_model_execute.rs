@@ -2,14 +2,17 @@ use std::ffi::c_void;
 
 use crate::{
     config::{ChamsConfig, ChamsGroupConfig, ChamsLayerConfig, ChamsTargetConfig, Config},
-    features::{backtrack, chams},
+    features::{
+        backtrack,
+        chams::{self, Loaded},
+    },
     globals::Globals,
     helpers,
     hooks::Hooks,
     interfaces::Interfaces,
     player_db::{self, PlayerCategory},
     types::{
-        ClassId, Color, Entity, Material, Matrix3x4, ModelRenderInfo, Player,
+        ClassId, Color, Entity, Matrix3x4, ModelRenderInfo, Player,
         material::MATERIAL_VAR_IGNORE_Z, player::Bones,
     },
 };
@@ -56,13 +59,29 @@ pub extern "C" fn hk_draw_model_execute(
     let Some(group) = chams_group(info_ref, &chams_config).filter(|g| g.active()) else {
         return call_original();
     };
-    draw_layers(&group.layers(), true, call_original);
+    let scale = if is_first_person(info_ref) {
+        1.0
+    } else {
+        WORLD_MODEL_SCALE
+    };
+    draw_layers(&group.layers(), true, scale, call_original);
+}
+
+/// How much more scaled textures repeat on models in the world than on the first person ones.
+/// Player models fit the whole body in one texture, so a tile would cover most of them
+const WORLD_MODEL_SCALE: f32 = 4.0;
+
+fn is_first_person(info: &ModelRenderInfo) -> bool {
+    info.entity_index < 1
+        || Interfaces::entity_list()
+            .get_client_entity::<Entity>(info.entity_index)
+            .is_some_and(|e| e.class_name() == "CTFViewModel")
 }
 
 /// Draw the model once per pass of each layer with `draw`, every occluded pass first so the
 /// visible ones land on top of them. With `normal_fallback` the normal model is drawn where it
-/// can be seen when no layer has a visible pass
-fn draw_layers(layers: &[ChamsLayerConfig], normal_fallback: bool, draw: impl Fn()) {
+/// can be seen when no layer has a visible pass. Scaled textures are scaled up by `scale`
+fn draw_layers(layers: &[ChamsLayerConfig], normal_fallback: bool, scale: f32, draw: impl Fn()) {
     let render_view = Interfaces::render_view();
     let model_render = Interfaces::model_render();
     let old_color = render_view.get_color_modulation();
@@ -84,17 +103,22 @@ fn draw_layers(layers: &[ChamsLayerConfig], normal_fallback: bool, draw: impl Fn
         draw();
     };
 
-    let mut used: Vec<&'static [Material]> = Vec::new();
+    let mut used: Vec<&'static [Loaded]> = Vec::new();
     // Each of the material's own layers in its drifting shade of `color`
     let mut draw_pass = |material: usize, color: Color, ignore_z: bool| {
-        let Some((sublayers, materials)) = chams::layers(material) else {
+        let Some((sublayers, loaded)) = chams::layers(material) else {
             return;
         };
-        used.push(materials);
-        for (sublayer, material) in sublayers.iter().zip(materials) {
-            model_render.forced_material_override(Some(material));
-            material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, ignore_z);
-            set_color(sublayer.color(color, time));
+        used.push(loaded);
+        for (sublayer, loaded) in sublayers.iter().zip(loaded) {
+            let color = sublayer.color(color, time);
+            model_render.forced_material_override(Some(&loaded.material));
+            loaded
+                .material
+                .set_material_var_flags(MATERIAL_VAR_IGNORE_Z, ignore_z);
+            loaded.tint(color);
+            loaded.scale(sublayer.scale * scale);
+            set_color(color);
             draw();
         }
     };
@@ -118,8 +142,10 @@ fn draw_layers(layers: &[ChamsLayerConfig], normal_fallback: bool, draw: impl Fn
     }
 
     model_render.forced_material_override(None);
-    for material in used.into_iter().flatten() {
-        material.set_material_var_flags(MATERIAL_VAR_IGNORE_Z, false);
+    for loaded in used.into_iter().flatten() {
+        loaded
+            .material
+            .set_material_var_flags(MATERIAL_VAR_IGNORE_Z, false);
     }
     render_view.set_color_modulation(old_color);
     render_view.set_blend(old_blend);
@@ -146,12 +172,12 @@ fn draw_backtrack(info: &ModelRenderInfo, config: &ChamsConfig, draw: impl Fn(*m
     let draw = |bones: &Bones| draw(bones.as_ptr() as *mut Matrix3x4);
     // The target last so it's drawn over the others, each layer set once for all its records
     if records.others().next().is_some() {
-        draw_layers(&config.backtrack.layers(), false, || {
+        draw_layers(&config.backtrack.layers(), false, WORLD_MODEL_SCALE, || {
             records.others().for_each(draw)
         });
     }
     if records.target().is_some() {
-        draw_layers(&target_group.layers(), false, || {
+        draw_layers(&target_group.layers(), false, WORLD_MODEL_SCALE, || {
             records.target().into_iter().for_each(draw)
         });
     }

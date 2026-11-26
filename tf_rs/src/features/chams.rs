@@ -1,4 +1,7 @@
-use std::{ffi::CString, sync::OnceLock};
+use std::{
+    ffi::{CStr, CString},
+    sync::OnceLock,
+};
 
 use log::warn;
 
@@ -6,6 +9,34 @@ use crate::{
     interfaces::Interfaces,
     types::{Color, Material, material::MATERIAL_VAR_NO_DRAW},
 };
+
+/// A loaded layer. Its parameters are looked up on every use, a map change rebuilds them
+pub struct Loaded {
+    pub material: Material,
+}
+
+/// Parameters the draw color doesn't reach, set to it instead
+const TINTS: [&CStr; 3] = [c"$phongtint", c"$envmaptint", c"$selfillumtint"];
+
+impl Loaded {
+    /// Texture scale of materials that read it from `$chamsscale`
+    pub fn scale(&self, scale: f32) {
+        if let Some(var) = self.material.find_var(c"$chamsscale") {
+            var.set_float(scale);
+        }
+    }
+
+    /// Tint reflections and self illumination `color`
+    pub fn tint(&self, color: Color) {
+        for var in TINTS.iter().filter_map(|name| self.material.find_var(name)) {
+            var.set_vec3(
+                color.r as f32 / 255.0,
+                color.g as f32 / 255.0,
+                color.b as f32 / 255.0,
+            );
+        }
+    }
+}
 
 pub struct ChamsMaterial {
     pub label: &'static str,
@@ -23,6 +54,8 @@ pub struct Layer {
     pub phase: f32,
     /// Brightness relative to the configured color
     pub value: f32,
+    /// Texture scale for materials that read it from `$chamsscale`, before the model's own
+    pub scale: f32,
 }
 
 impl Layer {
@@ -34,6 +67,7 @@ impl Layer {
             speed: 0.0,
             phase: 0.0,
             value: 1.0,
+            scale: 1.0,
         }
     }
 }
@@ -46,7 +80,7 @@ pub enum Source {
 }
 
 /// Menu label and the layers drawn on top of each other, indexed by ChamsLayerConfig::material.
-/// New ones go before Original so saved indexes keep pointing at the same material
+/// New ones go at the end so saved indexes keep pointing at the same material
 pub const MATERIALS: &[ChamsMaterial] = &[
     ChamsMaterial {
         label: "Debug",
@@ -123,12 +157,14 @@ pub const MATERIALS: &[ChamsMaterial] = &[
                 speed: 0.5,
                 phase: 0.0,
                 value: 0.45,
+                scale: 1.0,
             },
             Layer {
                 source: Source::Create(
                     r#""UnlitGeneric"
 {
     "$basetexture" "effects/animatedcaustic/caustic"
+    "$chamsscale" "1"
     "$additive" "1"
     "$model" "1"
     "Proxies"
@@ -144,7 +180,7 @@ pub const MATERIALS: &[ChamsMaterial] = &[
             "texturescrollvar" "$basetexturetransform"
             "texturescrollrate" ".15"
             "texturescrollangle" "60"
-            "texturescale" "1"
+            "texturescale" "$chamsscale"
         }
     }
 }"#,
@@ -153,12 +189,14 @@ pub const MATERIALS: &[ChamsMaterial] = &[
                 speed: 0.9,
                 phase: 0.0,
                 value: 1.0,
+                scale: 1.0,
             },
             Layer {
                 source: Source::Create(
                     r#""UnlitGeneric"
 {
     "$basetexture" "effects/animatedcaustic/caustic"
+    "$chamsscale" "1"
     "$additive" "1"
     "$model" "1"
     "Proxies"
@@ -174,7 +212,7 @@ pub const MATERIALS: &[ChamsMaterial] = &[
             "texturescrollvar" "$basetexturetransform"
             "texturescrollrate" ".1"
             "texturescrollangle" "200"
-            "texturescale" "1.7"
+            "texturescale" "$chamsscale"
         }
     }
 }"#,
@@ -183,12 +221,14 @@ pub const MATERIALS: &[ChamsMaterial] = &[
                 speed: 0.7,
                 phase: 2.1,
                 value: 0.85,
+                scale: 1.7,
             },
             Layer {
                 source: Source::Create(
                     r#""UnlitGeneric"
 {
     "$basetexture" "effects/animatedcaustic/caustic"
+    "$chamsscale" "1"
     "$additive" "1"
     "$model" "1"
     "Proxies"
@@ -204,7 +244,7 @@ pub const MATERIALS: &[ChamsMaterial] = &[
             "texturescrollvar" "$basetexturetransform"
             "texturescrollrate" ".06"
             "texturescrollangle" "320"
-            "texturescale" ".6"
+            "texturescale" "$chamsscale"
         }
     }
 }"#,
@@ -213,6 +253,7 @@ pub const MATERIALS: &[ChamsMaterial] = &[
                 speed: 1.2,
                 phase: 4.2,
                 value: 1.0,
+                scale: 0.6,
             },
         ],
     },
@@ -220,6 +261,56 @@ pub const MATERIALS: &[ChamsMaterial] = &[
     ChamsMaterial {
         label: "Original",
         layers: &[],
+    },
+    // Glowing edges and a see-through middle, the sky reflected at grazing angles
+    ChamsMaterial {
+        label: "Fresnel",
+        layers: &[Layer::plain(Source::Create(
+            r#""VertexLitGeneric"
+{
+    "$basetexture" "white"
+    "$bumpmap" "models/player/shared/shared_normal"
+    "$color2" "[0 0 0]"
+    "$additive" "1"
+    "$phong" "1"
+    "$phongfresnelranges" "[0 0.5 1]"
+    "$envmap" "skybox/sky_dustbowl_01"
+    "$envmapfresnel" "1"
+    "$model" "1"
+}"#,
+        ))],
+    },
+    // Glossy sheen
+    ChamsMaterial {
+        label: "Shine",
+        layers: &[Layer::plain(Source::Create(
+            r#""VertexLitGeneric"
+{
+    "$additive" "1"
+    "$envmap" "cubemaps/cubemap_sheen002.hdr"
+    "$envmaptint" "[1 1 1]"
+    "$model" "1"
+}"#,
+        ))],
+    },
+    // Ice statue lit in the layer's color
+    ChamsMaterial {
+        label: "Tint",
+        layers: &[Layer::plain(Source::Create(
+            r#""VertexLitGeneric"
+{
+    "$basetexture" "models/player/shared/ice_player"
+    "$bumpmap" "models/player/shared/shared_normal"
+    "$additive" "1"
+    "$phong" "1"
+    "$phongfresnelranges" "[0 0.001 0.001]"
+    "$envmap" "skybox/sky_dustbowl_01"
+    "$envmapfresnel" "1"
+    "$selfillum" "1"
+    "$selfillumtint" "[0 0 0]"
+    "$model" "1"
+}"#,
+        ))],
     },
 ];
 
@@ -229,7 +320,7 @@ pub fn is_original(index: usize) -> bool {
 }
 
 /// Each material's layers, empty if any of them failed to load
-static LOADED: OnceLock<Vec<Vec<Material>>> = OnceLock::new();
+static LOADED: OnceLock<Vec<Vec<Loaded>>> = OnceLock::new();
 
 /// Loads or creates every chams material, call from the main thread outside of rendering
 pub fn init() {
@@ -258,17 +349,20 @@ pub fn init() {
                     return Vec::new();
                 };
 
-                for material in &loaded {
-                    material.set_material_var_flags(MATERIAL_VAR_NO_DRAW, false);
-                }
                 loaded
+                    .into_iter()
+                    .map(|material| {
+                        material.set_material_var_flags(MATERIAL_VAR_NO_DRAW, false);
+                        Loaded { material }
+                    })
+                    .collect()
             })
             .collect()
     });
 }
 
 /// Layers of the material at `index` in MATERIALS and their loaded materials, once init has run
-pub fn layers(index: usize) -> Option<(&'static [Layer], &'static [Material])> {
+pub fn layers(index: usize) -> Option<(&'static [Layer], &'static [Loaded])> {
     let loaded = LOADED.get()?.get(index)?;
     (!loaded.is_empty()).then(|| (MATERIALS[index].layers, loaded.as_slice()))
 }
