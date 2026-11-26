@@ -250,14 +250,7 @@ pub fn run(localplayer: &Player, surface: &Surface, config: &Config) {
                 continue;
             };
 
-            for (j, (cond, color)) in conds.iter().enumerate() {
-                surface.draw_set_text_color_c(color);
-                surface.draw_set_text_pos(
-                    (bbox.right + 10) as u32,
-                    (bbox.top + (j as i32 * 10)) as u32,
-                );
-                surface.draw_print_text(cond.as_str());
-            }
+            draw_conds(&bbox, &conds, surface);
         }
     }
 }
@@ -269,9 +262,7 @@ fn building_esp(
     surface: &Surface,
     color: &Color,
 ) -> Option<BBox> {
-    let Some(bbox) = helpers::get_bounding_box(entity) else {
-        return None;
-    };
+    let bbox = helpers::get_bounding_box(entity)?;
 
     if cfg.boxes {
         draw_box(&bbox, color, surface);
@@ -289,7 +280,7 @@ fn building_esp(
 }
 
 // TODO: Outline in black for visibility
-fn draw_box(bbox: &BBox, color: &Color, surface: &Surface) {
+pub(crate) fn draw_box(bbox: &BBox, color: &Color, surface: &Surface) {
     surface.draw_set_color(0, 0, 0, 255);
     surface.draw_outlined_rect(bbox.left - 1, bbox.top - 1, bbox.right + 1, bbox.bottom + 1);
     surface.draw_outlined_rect(bbox.left + 1, bbox.top + 1, bbox.right - 1, bbox.bottom - 1);
@@ -298,15 +289,42 @@ fn draw_box(bbox: &BBox, color: &Color, surface: &Surface) {
 }
 
 // TODO: Add custom positioning
-fn draw_name(bbox: &BBox, name: &str, color: &Color, surface: &Surface) {
+pub(crate) fn draw_name(bbox: &BBox, name: &str, color: &Color, surface: &Surface) {
     surface.draw_set_text_color_c(color);
     surface.draw_set_text_pos(bbox.left as u32, (bbox.top - 20) as u32);
     surface.draw_print_text(name);
 }
 
-// TODO: Add overheal + custom positioning
+/// Labels listed down the right of the box
+pub(crate) fn draw_conds(bbox: &BBox, conds: &[(impl AsRef<str>, Color)], surface: &Surface) {
+    for (j, (cond, color)) in conds.iter().enumerate() {
+        surface.draw_set_text_color_c(color);
+        surface.draw_set_text_pos(
+            (bbox.right + 10) as u32,
+            (bbox.top + (j as i32 * 10)) as u32,
+        );
+        surface.draw_print_text(cond.as_ref());
+    }
+}
+
 fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface, horizontal: bool) {
-    let max_health = entity.max_health();
+    draw_health_values(
+        bbox,
+        entity.health(),
+        entity.max_health(),
+        surface,
+        horizontal,
+    );
+}
+
+// TODO: Add overheal + custom positioning
+pub(crate) fn draw_health_values(
+    bbox: &BBox,
+    health_raw: i32,
+    max_health: i32,
+    surface: &Surface,
+    horizontal: bool,
+) {
     if max_health <= 0 {
         return;
     }
@@ -317,7 +335,6 @@ fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface, horizontal: bool
         return;
     }
 
-    let health_raw = entity.health();
     let health = health_raw.clamp(0, max_health);
 
     let mut hp_pct = health as f32 / max_health as f32;
@@ -327,8 +344,8 @@ fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface, horizontal: bool
     hp_pct = hp_pct.clamp(0.0, 1.0);
 
     // Color gradient
-    let green = (hp_pct * 2.0 * 255.0).min(255.0).max(0.0) as i32;
-    let red = ((1.0 - hp_pct) * 2.0 * 255.0).min(255.0).max(0.0) as i32;
+    let green = (hp_pct * 2.0 * 255.0).clamp(0.0, 255.0) as i32;
+    let red = ((1.0 - hp_pct) * 2.0 * 255.0).clamp(0.0, 255.0) as i32;
 
     if horizontal {
         let bar_width = (width as f32 * hp_pct).round().clamp(0.0, width as f32) as i32;
@@ -423,7 +440,12 @@ fn building_color(
     }
 }
 
-fn esp_color(is_target: bool, friendly: bool, team_color: &Color, cfg: &EspColorConfig) -> Color {
+pub(crate) fn esp_color(
+    is_target: bool,
+    friendly: bool,
+    team_color: &Color,
+    cfg: &EspColorConfig,
+) -> Color {
     if is_target {
         rgba::ORANGE
     } else if cfg.use_team_colors {

@@ -6,9 +6,9 @@ pub struct Rect {
     pub h: f32,
 }
 
-impl Into<nuklear_sys::nk_rect> for Rect {
-    fn into(self) -> nuklear_sys::nk_rect {
-        unsafe { nuklear_sys::nk_rect(self.x, self.y, self.w, self.h) }
+impl From<Rect> for nuklear_sys::nk_rect {
+    fn from(val: Rect) -> Self {
+        unsafe { nuklear_sys::nk_rect(val.x, val.y, val.w, val.h) }
     }
 }
 

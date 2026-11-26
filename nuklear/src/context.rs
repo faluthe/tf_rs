@@ -664,6 +664,44 @@ impl Context {
         }
     }
 
+    /// `begin` with a background other than the window style's, transparent leaves a hole
+    pub(crate) fn begin_bg(
+        &self,
+        title: CString,
+        bounds: nk_rect,
+        flags: nk_flags,
+        bg: Color,
+    ) -> bool {
+        unsafe {
+            let w = &mut (*self.nk_ctx).style.window;
+            let saved = w.fixed_background;
+            w.fixed_background = nk_style_item_color(bg.into());
+            let open = nk_begin(self.nk_ctx, title.as_ptr(), bounds, flags) != 0;
+            (*self.nk_ctx).style.window.fixed_background = saved;
+            open
+        }
+    }
+
+    /// Bounds of the next widget slot, consuming it
+    pub(crate) fn reserve_slot(&self) -> nk_rect {
+        unsafe {
+            let bounds = nk_widget_bounds(self.nk_ctx);
+            nk_spacer(self.nk_ctx);
+            bounds
+        }
+    }
+
+    /// How far the mouse moved this frame while dragging with the left button pressed in `rect`
+    pub(crate) fn drag_x(&self, rect: nk_rect) -> Option<f32> {
+        unsafe {
+            let input = &(*self.nk_ctx).input;
+            let dragging =
+                nk_input_has_mouse_click_down_in_rect(input, nk_buttons_NK_BUTTON_LEFT, rect, 1)
+                    != 0;
+            dragging.then_some(input.mouse.delta.x)
+        }
+    }
+
     /// Fill the bounds of the next widget slot with `color` and consume the slot
     pub(crate) fn fill_slot(&self, color: Color) {
         unsafe {

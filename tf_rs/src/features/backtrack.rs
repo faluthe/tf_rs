@@ -434,7 +434,8 @@ fn select(localplayer: &Player, cmd: &UserCmd, config: &Config) -> Option<(i32, 
     // Without a shot to time, the pick only matters to show the target's chams
     let chams = &config.esp.chams;
     let attacking = (cmd.buttons & Buttons::InAttack as i32) != 0;
-    if !attacking && !(config.esp.master && chams.enabled && chams.backtrack_target.active()) {
+    let target_chams = config.esp.master && chams.enabled && chams.backtrack_target.active();
+    if !(attacking || target_chams) {
         return None;
     }
 

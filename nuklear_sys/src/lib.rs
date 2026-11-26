@@ -6,6 +6,8 @@
 )] // TODO: actually trim down header using bindgen options
 include!(concat!(env!("OUT_DIR"), "/nuklear_bindings.rs"));
 
+// The enum is generated, so its variant can't take #[default]
+#[allow(clippy::derivable_impls)]
 impl Default for SDL_Scancode {
     fn default() -> Self {
         SDL_Scancode::SDL_SCANCODE_UNKNOWN

@@ -86,7 +86,7 @@ pub(super) fn splash_points(
             let normal = trace.plane_normal();
             let point = trace.end_pos + normal * lift;
             // The side of the surface we can hit
-            (normal.dot(&(*eye - point)) > 0.0).then(|| (trace.fraction, point))
+            (normal.dot(&(*eye - point)) > 0.0).then_some((trace.fraction, point))
         })
         .collect();
     points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));

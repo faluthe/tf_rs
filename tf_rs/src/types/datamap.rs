@@ -46,10 +46,11 @@ fn collect(map: *const DataMap, base_offset: usize, out: &mut Vec<(usize, usize)
     }
 }
 
+type Ranges = &'static [(usize, usize)];
+
 /// Merged, sorted byte ranges of a map, worked out once per map and kept for good
-fn ranges(map: *const c_void) -> &'static [(usize, usize)] {
-    static CACHE: Lazy<Mutex<HashMap<usize, &'static [(usize, usize)]>>> =
-        Lazy::new(|| Mutex::new(HashMap::new()));
+fn ranges(map: *const c_void) -> Ranges {
+    static CACHE: Lazy<Mutex<HashMap<usize, Ranges>>> = Lazy::new(|| Mutex::new(HashMap::new()));
     let mut cache = CACHE.lock().unwrap();
     cache.entry(map as usize).or_insert_with(|| {
         let mut fields = Vec::new();

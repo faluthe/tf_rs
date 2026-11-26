@@ -26,6 +26,8 @@ pub struct Interfaces {
     pub game_movement: GameMovement,
     pub prediction: Prediction,
     pub move_helper: MoveHelper,
+    pub mdl_cache: MdlCache,
+    pub studio_render: StudioRender,
 }
 
 unsafe impl Send for Interfaces {}
@@ -52,6 +54,8 @@ impl Default for Interfaces {
             game_movement: GameMovement::default(),
             prediction: Prediction::default(),
             move_helper: MoveHelper::default(),
+            mdl_cache: MdlCache::default(),
+            studio_render: StudioRender::default(),
         }
     }
 }
@@ -64,6 +68,13 @@ impl Interfaces {
         let surface_factory = Factory::new(BIN_PATH, "vguimatsurface.so")?;
         let material_factory = Factory::new(BIN_PATH, "materialsystem.so")?;
         let vstdlib_factory = Factory::new(BIN_PATH, "libvstdlib.so")?;
+        // Only the preview outside a map needs these, carry on without
+        let optional = |lib: &str, name: &str| {
+            Factory::new(BIN_PATH, lib)
+                .and_then(|f| f.get(name))
+                .map_err(|e| warn!("{name} unavailable: {e:#}"))
+                .ok()
+        };
 
         let mut w = I.write().unwrap();
         w.client = client_factory.get("VClient017")?;
@@ -81,6 +92,12 @@ impl Interfaces {
             KeyValues::default()
         });
         w.material_system = MaterialSystem::new(material_factory.get("VMaterialSystem082")?);
+        w.mdl_cache = optional("datacache.so", "MDLCache004")
+            .map(MdlCache::new)
+            .unwrap_or_default();
+        w.studio_render = optional("studiorender.so", "VStudioRender025")
+            .map(StudioRender::new)
+            .unwrap_or_default();
         w.cvar = Cvar::new(vstdlib_factory.get("VEngineCvar004")?);
         w.game_movement = GameMovement::new(client_factory.get("GameMovement001")?);
         w.prediction = Prediction::new(client_factory.get("VClientPrediction001")?);
@@ -122,8 +139,9 @@ impl Interfaces {
                 .ok_or_else(|| anyhow::anyhow!("gpGlobals load not found in HudUpdate"))?;
             let eaddr = ptr::read_unaligned((hud_update + mov + 3) as *const i32);
             let ip = hud_update + mov + 7;
-            w.global_vars =
-                ptr::read_unaligned(ip.wrapping_add_signed(eaddr as isize) as *const *mut GlobalVars);
+            w.global_vars = ptr::read_unaligned(
+                ip.wrapping_add_signed(eaddr as isize) as *const *mut GlobalVars
+            );
             info!("Global vars interface at {:p}", w.global_vars);
         }
 
@@ -208,6 +226,14 @@ impl Interfaces {
 
     pub fn move_helper() -> MoveHelper {
         I.read().unwrap().move_helper.clone()
+    }
+
+    pub fn mdl_cache() -> MdlCache {
+        I.read().unwrap().mdl_cache.clone()
+    }
+
+    pub fn studio_render() -> StudioRender {
+        I.read().unwrap().studio_render.clone()
     }
 
     /// For the few values that are set around calls into the game, like frametime

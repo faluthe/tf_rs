@@ -1,6 +1,12 @@
 use std::ffi::c_void;
 
-use crate::{config::Config, features::esp, helpers, hooks::Hooks, interfaces::Interfaces};
+use crate::{
+    config::Config,
+    features::{esp, preview},
+    helpers,
+    hooks::Hooks,
+    interfaces::Interfaces,
+};
 
 pub extern "C" fn hk_paint_traverse(
     this: *mut c_void,
@@ -27,24 +33,27 @@ pub extern "C" fn hk_paint_traverse(
 
     surface.draw_set_text_font(esp::esp_font(&surface));
 
-    if !Interfaces::engine_client().is_in_game() {
+    let localplayer = Interfaces::engine_client()
+        .is_in_game()
+        .then(helpers::get_localplayer)
+        .flatten();
+    if localplayer.is_none() && !preview::is_shown() {
         return rc;
     }
-
-    let Some(localplayer) = helpers::get_localplayer() else {
-        return rc;
-    };
     // A copy, holding the lock while drawing can deadlock with the menu on the render thread
     let config = Config::read().clone();
 
-    esp::run(&localplayer, &surface, &config);
+    if let Some(localplayer) = &localplayer {
+        esp::run(localplayer, &surface, &config);
 
-    if localplayer.is_dead() {
-        return rc;
+        if !localplayer.is_dead() {
+            esp::draw_fov(&surface, &config);
+            esp::draw_prediction(&surface, &config);
+        }
     }
 
-    esp::draw_fov(&surface, &config);
-    esp::draw_prediction(&surface, &config);
+    // Last so nothing drawn here covers it, and outside a map too
+    preview::draw(localplayer.as_ref(), &surface, &config);
 
     rc
 }

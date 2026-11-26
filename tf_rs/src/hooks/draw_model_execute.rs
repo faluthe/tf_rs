@@ -5,6 +5,7 @@ use crate::{
     features::{
         backtrack,
         chams::{self, Loaded},
+        preview,
     },
     globals::Globals,
     helpers,
@@ -45,15 +46,22 @@ pub extern "C" fn hk_draw_model_execute(
         return call_original();
     };
 
+    let preview = preview::drawing();
     let backtrack = backtrack
         && helpers::get_localplayer()
             .is_some_and(|local| backtrack::weapon_is_lag_compensated(&local));
-    if backtrack {
+    if backtrack && preview.is_none() {
         draw_backtrack(info_ref, &chams_config, |bones| {
             Hooks::draw_model_execute()
                 .call_draw_model_execute(this, state, info, bones)
                 .expect("Invalid DrawModelExecute function signature");
         });
+    }
+
+    if let Some(subject) = preview {
+        let occluded = preview::state().occluded;
+        let (layers, normal_fallback) = preview::chams_layers(subject, occluded, &chams_config);
+        return draw_layers(&layers, normal_fallback, WORLD_MODEL_SCALE, call_original);
     }
 
     let Some(group) = chams_group(info_ref, &chams_config).filter(|g| g.active()) else {
@@ -69,7 +77,7 @@ pub extern "C" fn hk_draw_model_execute(
 
 /// How much more scaled textures repeat on models in the world than on the first person ones.
 /// Player models fit the whole body in one texture, so a tile would cover most of them
-const WORLD_MODEL_SCALE: f32 = 4.0;
+pub(crate) const WORLD_MODEL_SCALE: f32 = 4.0;
 
 fn is_first_person(info: &ModelRenderInfo) -> bool {
     info.entity_index < 1
@@ -81,7 +89,12 @@ fn is_first_person(info: &ModelRenderInfo) -> bool {
 /// Draw the model once per pass of each layer with `draw`, every occluded pass first so the
 /// visible ones land on top of them. With `normal_fallback` the normal model is drawn where it
 /// can be seen when no layer has a visible pass. Scaled textures are scaled up by `scale`
-fn draw_layers(layers: &[ChamsLayerConfig], normal_fallback: bool, scale: f32, draw: impl Fn()) {
+pub(crate) fn draw_layers(
+    layers: &[ChamsLayerConfig],
+    normal_fallback: bool,
+    scale: f32,
+    draw: impl Fn(),
+) {
     let render_view = Interfaces::render_view();
     let model_render = Interfaces::model_render();
     let old_color = render_view.get_color_modulation();
@@ -265,7 +278,7 @@ fn is_aimbot_target(index: i32) -> bool {
 }
 
 /// `group` with its layers in the target's colors, each keeping its own transparency
-fn recolor(mut group: ChamsGroupConfig, target: &ChamsTargetConfig) -> ChamsGroupConfig {
+pub(crate) fn recolor(mut group: ChamsGroupConfig, target: &ChamsTargetConfig) -> ChamsGroupConfig {
     let tint = |color: Color, layer: Color| Color {
         a: (layer.a as u16 * color.a as u16 / 255) as u8,
         ..color

@@ -85,6 +85,11 @@ impl Entity {
         unsafe { *f(self.this) }
     }
 
+    /// The entity's IClientRenderable
+    pub fn renderable(&self) -> Renderable {
+        Renderable::from_raw((self.this as usize + RENDERABLE_OFFSET) as *mut c_void)
+    }
+
     fn get_networkable(&self) -> *mut c_void {
         self.field(0x10)
     }
@@ -162,7 +167,7 @@ impl Entity {
             257 => Some(ClassId::Flare),
             258 => Some(ClassId::CrossbowBolt),
             264 => Some(ClassId::Rocket),
-            _ => return None,
+            _ => None,
         }
     }
 
@@ -171,6 +176,75 @@ impl Entity {
         let vtable = unsafe { *(networkable as *mut *mut *mut c_void) };
         let f = vfunc!(vtable, 8, extern "C" fn(*mut c_void) -> bool);
         f(networkable)
+    }
+}
+
+/// Where an entity's IClientRenderable base sits in it
+const RENDERABLE_OFFSET: usize = 0x8;
+
+/// How the engine sees an entity it draws
+#[derive(Copy, Clone)]
+pub struct Renderable {
+    pub this: *mut c_void,
+    vtable: *mut *mut c_void,
+}
+
+impl FromRaw for Renderable {
+    fn from_raw(raw: *mut c_void) -> Self {
+        let vtable = unsafe { *(raw as *mut *mut *mut c_void) };
+        Renderable { this: raw, vtable }
+    }
+}
+
+impl Renderable {
+    /// Interpolated origin the model is drawn at
+    pub fn render_origin(&self) -> Vec3 {
+        let f = vfunc!(self.vtable, 1, extern "C" fn(*mut c_void) -> *const Vec3);
+        unsafe { *f(self.this) }
+    }
+
+    pub fn render_angles(&self) -> Vec3 {
+        let f = vfunc!(self.vtable, 2, extern "C" fn(*mut c_void) -> *const Vec3);
+        unsafe { *f(self.this) }
+    }
+
+    pub fn model(&self) -> *const c_void {
+        let f = vfunc!(self.vtable, 9, extern "C" fn(*mut c_void) -> *const c_void);
+        f(self.this)
+    }
+
+    pub fn body(&self) -> i32 {
+        let f = vfunc!(self.vtable, 11, extern "C" fn(*mut c_void) -> i32);
+        f(self.this)
+    }
+
+    pub fn model_instance(&self) -> u16 {
+        let f = vfunc!(self.vtable, 33, extern "C" fn(*mut c_void) -> u16);
+        f(self.this)
+    }
+
+    /// First entity attached to this one, when it is an entity's
+    pub fn first_shadow_child(&self) -> Option<Renderable> {
+        let f = vfunc!(self.vtable, 29, extern "C" fn(*mut c_void) -> *mut c_void);
+        let child = f(self.this);
+        (!child.is_null()).then(|| Renderable::from_raw(child))
+    }
+
+    /// Next entity attached to the same one as this
+    pub fn next_shadow_peer(&self) -> Option<Renderable> {
+        let f = vfunc!(self.vtable, 30, extern "C" fn(*mut c_void) -> *mut c_void);
+        let peer = f(self.this);
+        (!peer.is_null()).then(|| Renderable::from_raw(peer))
+    }
+
+    /// The entity this is the renderable of, for renderables that are entities
+    pub fn entity(&self) -> Entity {
+        Entity::from_raw((self.this as usize - RENDERABLE_OFFSET) as *mut c_void)
+    }
+
+    pub fn skin(&self) -> i32 {
+        let f = vfunc!(self.vtable, 39, extern "C" fn(*mut c_void) -> i32);
+        f(self.this)
     }
 }
 
@@ -191,7 +265,7 @@ pub enum ClassId {
 
 #[allow(dead_code)]
 #[repr(i32)]
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Team {
     Spectator = 1,
     Red = 2,

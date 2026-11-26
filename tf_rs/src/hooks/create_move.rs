@@ -3,8 +3,8 @@ use std::ffi::c_void;
 use crate::{
     config::Config,
     features::{
-        aimbot, backtrack, chams, engine_prediction::Prediction, fake_ping, movement,
-        prediction_log, sticky,
+        aimbot, backtrack, engine_prediction::Prediction, fake_ping, movement, prediction_log,
+        sticky,
     },
     globals::Globals,
     helpers,
@@ -42,7 +42,6 @@ pub extern "C" fn hk_create_move(this: *mut c_void, sample_time: f32, cmd: *mut 
         return rc;
     }
 
-    chams::init();
     // A copy, so no lock is held while calling into the game
     let config = Config::read().clone();
     fake_ping::update(&config.backtrack);

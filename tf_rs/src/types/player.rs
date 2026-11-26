@@ -124,9 +124,13 @@ impl Player {
         self.lifestate() != 1
     }
 
+    /// Entity index of the held weapon, the lower 12 bits of its handle
+    pub fn active_weapon_index(&self) -> i32 {
+        self.active_weapon_() & 0xFFF
+    }
+
     pub fn active_weapon(&self) -> Option<Weapon> {
-        // lower 12 bits represent the index
-        let index = self.active_weapon_() & 0xFFF;
+        let index = self.active_weapon_index();
         Interfaces::entity_list().get_client_entity::<Weapon>(index)
     }
 

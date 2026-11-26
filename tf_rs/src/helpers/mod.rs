@@ -17,6 +17,8 @@ pub mod view;
 
 /// Index and player of each enemy of `localplayer` that's alive and not dormant, leaving out
 /// invisible ones with `ignore_invis`
+// Clippy would fold the whole filter under one negation, which reads worse
+#[allow(clippy::nonminimal_bool)]
 pub fn enemies(localplayer: &Player, ignore_invis: bool) -> impl Iterator<Item = (i32, Player)> {
     let team = localplayer.team();
     let local = localplayer.index();
@@ -87,11 +89,24 @@ pub fn get_localplayer() -> Option<Player> {
 }
 
 pub fn get_bounding_box(entity: &Entity) -> Option<BBox> {
+    bounding_box_with(
+        &entity.origin(),
+        &entity.mins(),
+        &entity.maxs(),
+        view::world_to_screen,
+    )
+}
+
+/// Screen box around a hull from `mins` to `maxs` at `origin`, its corners put on screen by
+/// `project`
+pub fn bounding_box_with(
+    origin: &Vec3,
+    mins: &Vec3,
+    maxs: &Vec3,
+    project: impl Fn(&Vec3) -> Option<Vec2>,
+) -> Option<BBox> {
     let shrink_xy = 0.75;
     let shrink_z = 0.95;
-    let origin = entity.origin();
-    let mins = entity.mins();
-    let maxs = entity.maxs();
 
     let mins = Vec3 {
         x: mins.x * shrink_xy,
@@ -122,7 +137,7 @@ pub fn get_bounding_box(entity: &Entity) -> Option<BBox> {
             y: origin.y + oy,
             z: origin.z + oz,
         })
-        .map(|v| view::world_to_screen(&v))
+        .map(|v| project(&v))
         .collect::<Option<Vec<_>>>()?; // None if any projection failed
 
     let first = points_2d[0];

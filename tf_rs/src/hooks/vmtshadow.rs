@@ -135,7 +135,7 @@ impl VmtShadow {
 
     /// Installed and the object still points at our table, the object must still be alive
     pub fn is_active(&self) -> bool {
-        self.installed && unsafe { *self.object == self.shadow.as_ptr().add(PREFIX) as *mut _ }
+        self.installed && unsafe { std::ptr::eq(*self.object, self.shadow.as_ptr().add(PREFIX)) }
     }
 
     pub fn original(&self, index: usize) -> FnSig {

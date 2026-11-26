@@ -4,6 +4,7 @@ mod esp;
 mod logging;
 mod misc;
 mod players;
+mod preview;
 
 use std::sync::Mutex;
 
@@ -28,7 +29,7 @@ static MENU_BOUNDS: Mutex<Rect> = Mutex::new(Rect {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MenuTab {
     Aimbot,
-    ESP,
+    Esp,
     Misc,
     Config,
     Players,
@@ -41,7 +42,7 @@ const ROW: f32 = 26.0;
 const NAV_W: f32 = 128.0;
 const TABS: [(&str, MenuTab); 6] = [
     ("Aimbot", MenuTab::Aimbot),
-    ("ESP", MenuTab::ESP),
+    ("ESP", MenuTab::Esp),
     ("Players", MenuTab::Players),
     ("Misc", MenuTab::Misc),
     ("Config", MenuTab::Config),
@@ -83,7 +84,7 @@ pub fn draw(nk: &Nuklear) {
         if nk.group_begin("body", PanelFlags::empty()) {
             match unsafe { TAB } {
                 MenuTab::Aimbot => aimbot::aimbot_tab(nk, &mut config),
-                MenuTab::ESP => esp::esp_tab(nk, &mut config),
+                MenuTab::Esp => esp::esp_tab(nk, &mut config),
                 MenuTab::Misc => misc::misc_tab(nk, &mut config),
                 MenuTab::Config => config::config_tab(nk, &mut config),
                 MenuTab::Players => players::players_tab(nk, &mut config),
@@ -94,6 +95,12 @@ pub fn draw(nk: &Nuklear) {
         nk.layout_row_end();
     }
     nk.end();
+
+    if unsafe { TAB } == MenuTab::Esp && Config::read().esp.master {
+        preview::preview_panel(nk, *bounds);
+    } else {
+        crate::features::preview::hide();
+    }
 }
 
 fn nav(nk: &Nuklear) {

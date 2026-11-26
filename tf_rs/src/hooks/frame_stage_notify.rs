@@ -2,11 +2,12 @@ use std::ffi::c_void;
 
 use crate::{
     config::Config,
-    features::{backtrack, movesim, prediction_log, projectile, shot_log},
+    features::{backtrack, chams, movesim, prediction_log, projectile, shot_log},
     hooks::Hooks,
     interfaces::Interfaces,
 };
 
+const FRAME_START: i32 = 0;
 const FRAME_NET_UPDATE_POSTDATAUPDATE_END: i32 = 3;
 const FRAME_NET_UPDATE_END: i32 = 4;
 const FRAME_RENDER_START: i32 = 5;
@@ -16,6 +17,10 @@ pub extern "C" fn hk_frame_stage_notify(this: *mut c_void, stage: i32) {
         .call_frame_stage_notify(this, stage)
         .expect("Invalid FrameStageNotify function signature");
 
+    // Outside a map too, the menu preview draws chams before any map is joined
+    if stage == FRAME_START {
+        chams::init();
+    }
     if !Interfaces::engine_client().is_in_game() {
         return;
     }

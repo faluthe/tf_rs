@@ -94,6 +94,7 @@ impl Surface {
         f(self.this)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn set_font_glyph_set(
         &self,
         font: u64,

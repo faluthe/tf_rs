@@ -1,6 +1,6 @@
 mod core;
 mod create_move;
-mod draw_model_execute;
+pub(crate) mod draw_model_execute;
 mod fn_sig;
 mod frame_stage_notify;
 mod override_view;

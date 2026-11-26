@@ -35,7 +35,9 @@ static DO_DRAW: AtomicBool = AtomicBool::new(false);
 static PALETTE: RwLock<Option<Palette>> = RwLock::new(None);
 /// Hue, saturation, value and alpha for each color picker, plus the color they last produced.
 /// Kept here because black and greys can't be converted back to their hue and saturation.
-static PICKERS: LazyLock<Mutex<HashMap<usize, (Color, [f32; 4])>>> =
+type Picker = (Color, [f32; 4]);
+
+static PICKERS: LazyLock<Mutex<HashMap<usize, Picker>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Color the picker of the open `toggle_color_list` edits, keyed by its address
@@ -128,6 +130,29 @@ impl Nuklear {
         self.context
             .begin(CString::new(title).unwrap(), size.into(), flags.bits())
             != 0
+    }
+
+    /// `begin` with its own background color, which may be transparent
+    pub fn begin_bg<T: Into<Vec<u8>>>(
+        &self,
+        title: T,
+        flags: PanelFlags,
+        size: Rect,
+        bg: Color,
+    ) -> bool {
+        self.context
+            .begin_bg(CString::new(title).unwrap(), size.into(), flags.bits(), bg)
+    }
+
+    /// Screen bounds of the next widget slot, which is left empty
+    pub fn reserve_slot(&self) -> Rect {
+        self.context.reserve_slot().into()
+    }
+
+    /// Horizontal mouse movement this frame while the left button is held after pressing it
+    /// inside `rect`
+    pub fn drag_x(&self, rect: Rect) -> Option<f32> {
+        self.context.drag_x(rect.into())
     }
 
     pub fn row_dynamic(&self, height: f32, cols: i32) -> &Self {
@@ -288,7 +313,7 @@ impl Nuklear {
 
         for (i, &pressed) in state.iter().enumerate() {
             if pressed != 0 {
-                return Input::Key(unsafe { mem::transmute(i as u32) });
+                return Input::Key(unsafe { mem::transmute::<u32, SDL_Scancode>(i as u32) });
             }
         }
 
