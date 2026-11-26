@@ -22,47 +22,40 @@ pub(super) fn preview_panel(nk: &Nuklear, menu: Rect) {
     // Follows the menu instead of being moved on its own
     nk.window_set_bounds(TITLE, rect);
 
-    let mut placement = None;
-    let clear = Color {
-        r: 0,
-        g: 0,
-        b: 0,
-        a: 0,
-    };
+    let mut state = preview::state();
+    state.placement = None;
     if nk.begin_bg(
         TITLE,
         PanelFlags::BORDER | PanelFlags::NO_SCROLLBAR,
         rect,
-        clear,
+        Color::TRANSPARENT,
     ) {
         let labels = Subject::ALL.map(Subject::label);
-        let mut selected = preview::subject() as usize;
+        let mut selected = state.subject as usize;
         nk.tab_bar(&labels, &mut selected);
-        preview::set_subject(selected);
+        state.subject = Subject::from_index(selected);
 
-        let mut occluded = preview::occluded();
         if preview::shows_class_model() {
-            let mut class = preview::class();
             nk.row_dynamic(ROW, 2)
-                .checkbox("Occluded", &mut occluded)
-                .single_select_combo(&CLASSES, &mut class);
-            preview::set_class(class);
+                .checkbox("Occluded", &mut state.occluded)
+                .single_select_combo(&CLASSES, &mut state.class);
+            state.class = state.class.min(CLASSES.len() - 1);
         } else {
-            nk.row_dynamic(ROW, 1).checkbox("Occluded", &mut occluded);
+            nk.row_dynamic(ROW, 1)
+                .checkbox("Occluded", &mut state.occluded);
         }
-        preview::set_occluded(occluded);
 
         let (_, height) = nk.get_content_region();
         nk.row_dynamic((height - CONTROLS_H).max(32.0), 1);
         let model = nk.reserve_slot();
         if let Some(dx) = nk.drag_x(model) {
-            preview::rotate(dx);
+            state.rotate(dx);
         }
-        placement = Some(Placement {
+        state.placement = Some(Placement {
             panel: nk.window_get_bounds(),
             model,
         });
     }
     nk.end();
-    preview::set_placement(placement);
+    preview::set_state(state);
 }

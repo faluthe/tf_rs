@@ -296,18 +296,18 @@ pub(crate) fn draw_name(bbox: &BBox, name: &str, color: &Color, surface: &Surfac
 }
 
 /// Labels listed down the right of the box
-pub(crate) fn draw_conds(bbox: &BBox, conds: &[(String, Color)], surface: &Surface) {
+pub(crate) fn draw_conds(bbox: &BBox, conds: &[(impl AsRef<str>, Color)], surface: &Surface) {
     for (j, (cond, color)) in conds.iter().enumerate() {
         surface.draw_set_text_color_c(color);
         surface.draw_set_text_pos(
             (bbox.right + 10) as u32,
             (bbox.top + (j as i32 * 10)) as u32,
         );
-        surface.draw_print_text(cond.as_str());
+        surface.draw_print_text(cond.as_ref());
     }
 }
 
-pub(crate) fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface, horizontal: bool) {
+fn draw_health(bbox: &BBox, entity: &Entity, surface: &Surface, horizontal: bool) {
     draw_health_values(
         bbox,
         entity.health(),

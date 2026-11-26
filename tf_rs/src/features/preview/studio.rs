@@ -7,10 +7,8 @@ use std::{
     time::Instant,
 };
 
-use nuklear::Rect;
-
 use super::{
-    Camera, Shown, Subject, chams_layers, occluded,
+    Camera, Scene, Shown, Subject, chams_layers,
     pose::{Merge, Rig, Studio},
 };
 use crate::{
@@ -173,16 +171,8 @@ fn time() -> f32 {
     START.get_or_init(Instant::now).elapsed().as_secs_f32()
 }
 
-/// Draw class `index` as `subject` on `team` into `area`, the camera turned `yaw` degrees
-pub(super) fn draw(
-    index: usize,
-    subject: Subject,
-    team: Team,
-    yaw: f32,
-    area: Rect,
-    model_shown: bool,
-    config: &Config,
-) -> Option<Shown> {
+/// Draw class `index` on `team` into `scene` with a teammate's chams
+pub(super) fn draw(index: usize, team: Team, scene: &Scene, config: &Config) -> Option<Shown> {
     let cache = Interfaces::mdl_cache();
     let studio = Interfaces::studio_render();
     if !cache.is_valid() || !studio.is_valid() {
@@ -198,14 +188,14 @@ pub(super) fn draw(
 
     let origin = Vec3::default();
     // Facing +x, so turned around from there the camera sees the front
-    let camera = Camera::framing(&origin, &MINS, &MAXS, yaw, area);
+    let camera = Camera::framing(&origin, &MINS, &MAXS, scene.yaw, scene.area);
     let shown = Shown {
         bbox: helpers::bounding_box_with(&origin, &MINS, &MAXS, |p| camera.project(p))?,
         name: class.label.to_string(),
         health: 1,
         max_health: 1,
     };
-    if !model_shown {
+    if !scene.model_shown {
         return Some(shown);
     }
 
@@ -228,15 +218,16 @@ pub(super) fn draw(
     render_view.push_3d_view(&camera.view(), VIEW_CLEAR_DEPTH, &mut frustum);
 
     let up = Vec3::new(0.0, 0.0, 1.0);
-    studio.set_view_state(&camera.origin, &camera.right(), &up, &camera.forward());
-    let ambient = ambient_cube(&camera.forward());
+    studio.set_view_state(&camera.origin, &camera.right, &up, &camera.forward);
+    let ambient = ambient_cube(&camera.forward);
     studio.set_ambient_light_colors(&ambient);
     studio.clear_local_lights();
     studio.set_eye_view_target(model.ptr(), 0, &camera.origin);
 
     let info = draw_info(model.ptr(), hardware, skin, ambient);
     if config.esp.master && config.esp.chams.enabled {
-        let (layers, normal_fallback) = chams_layers(subject, &config.esp.chams);
+        let (layers, normal_fallback) =
+            chams_layers(Subject::Teammate, scene.occluded, &config.esp.chams);
         // The layers draw the model's own look in the engine's color, which nothing has set
         // outside a map, so it would be black and see-through
         let old_color = render_view.get_color_modulation();
@@ -256,7 +247,7 @@ pub(super) fn draw(
     }
 
     // Never chams'd, so hidden with the player behind a wall
-    if !occluded() {
+    if !scene.occluded {
         let weapon = loaded.weapon.zip(posing.weapon.as_ref());
         if let Some((handle, merge)) = weapon {
             let hdr = cache.studio_hdr(handle);

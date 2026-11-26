@@ -99,7 +99,7 @@ pub fn draw(nk: &Nuklear) {
     if unsafe { TAB } == MenuTab::Esp && Config::read().esp.master {
         preview::preview_panel(nk, *bounds);
     } else {
-        crate::features::preview::set_placement(None);
+        crate::features::preview::hide();
     }
 }
 

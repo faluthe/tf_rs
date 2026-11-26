@@ -36,6 +36,12 @@ impl Color {
     }
 
     pub const WHITE: Color = Color::hex(0xffffff);
+    pub const TRANSPARENT: Color = Color {
+        r: 0,
+        g: 0,
+        b: 0,
+        a: 0,
+    };
 
     pub const fn hex(rgb: u32) -> Self {
         Color {

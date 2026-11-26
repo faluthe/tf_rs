@@ -23,7 +23,7 @@ pub extern "C" fn hk_swap_window(window: *mut c_void) -> i32 {
     if Nuklear::should_draw() {
         menu::draw(&nuklear);
     } else {
-        preview::set_placement(None);
+        preview::hide();
     }
 
     if Interfaces::engine_client().is_in_game()

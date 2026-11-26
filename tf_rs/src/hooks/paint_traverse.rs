@@ -37,6 +37,9 @@ pub extern "C" fn hk_paint_traverse(
         .is_in_game()
         .then(helpers::get_localplayer)
         .flatten();
+    if localplayer.is_none() && !preview::is_shown() {
+        return rc;
+    }
     // A copy, holding the lock while drawing can deadlock with the menu on the render thread
     let config = Config::read().clone();
 

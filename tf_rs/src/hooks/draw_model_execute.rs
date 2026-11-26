@@ -59,7 +59,8 @@ pub extern "C" fn hk_draw_model_execute(
     }
 
     if let Some(subject) = preview {
-        let (layers, normal_fallback) = preview::chams_layers(subject, &chams_config);
+        let occluded = preview::state().occluded;
+        let (layers, normal_fallback) = preview::chams_layers(subject, occluded, &chams_config);
         return draw_layers(&layers, normal_fallback, WORLD_MODEL_SCALE, call_original);
     }
 
