@@ -177,7 +177,7 @@ fn time() -> f32 {
 pub(super) fn draw(
     index: usize,
     subject: Subject,
-    team: &Team,
+    team: Team,
     yaw: f32,
     area: Rect,
     model_shown: bool,
@@ -221,7 +221,7 @@ pub(super) fn draw(
         .get_or_insert_with(|| Posing::new(&model, &animations, loaded.weapon))
         .as_ref()?;
     let bones = posing.rig.pose(&animations, time())?;
-    let skin = if *team == Team::Blue { 1 } else { 0 };
+    let skin = if team == Team::Blue { 1 } else { 0 };
 
     let render_view = Interfaces::render_view();
     let mut frustum: Frustum = Default::default();

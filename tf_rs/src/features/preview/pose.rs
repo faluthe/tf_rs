@@ -332,9 +332,8 @@ impl<'a> Studio<'a> {
             };
 
             let pos = if has(m::RAWPOS) {
-                let at = data
-                    + if has(m::RAWROT) { 6 } else { 0 }
-                    + if has(m::RAWROT2) { 8 } else { 0 };
+                let at =
+                    data + if has(m::RAWROT) { 6 } else { 0 } + if has(m::RAWROT2) { 8 } else { 0 };
                 [
                     half(self.u16(at)?),
                     half(self.u16(at + 2)?),

@@ -185,7 +185,7 @@ pub fn draw(localplayer: Option<&Player>, surface: &Surface, config: &Config) {
 
     let subject = subject();
     let local_team = localplayer.map_or(Team::Red, |p| p.team());
-    let team = subject_team(subject, &local_team);
+    let team = subject_team(subject, local_team);
     // Behind a wall the model only shows through chams
     let model_shown = !occluded() || (config.esp.master && config.esp.chams.enabled);
     let yaw = f32::from_bits(YAW.load(Ordering::Relaxed));
@@ -197,22 +197,19 @@ pub fn draw(localplayer: Option<&Player>, surface: &Surface, config: &Config) {
         // Only the teammate model draws here, so every subject is shown as one with its overlay
         None => {
             let teammate = Subject::Teammate;
-            let team = subject_team(teammate, &local_team);
-            studio::draw(class(), teammate, &team, yaw, area, model_shown, config)
+            let team = subject_team(teammate, local_team);
+            studio::draw(class(), teammate, team, yaw, area, model_shown, config)
         }
     };
     if let Some(shown) = shown {
-        overlay(&shown, subject, &team, surface, config);
+        overlay(&shown, subject, team, surface, config);
     }
 }
 
-/// The team `subject` is on when the local player is on `local`
-fn subject_team(subject: Subject, local: &Team) -> Team {
-    let friendly = subject == Subject::Teammate;
-    match (friendly, local) {
-        (true, Team::Blue) | (false, Team::Red) => Team::Blue,
-        _ => Team::Red,
-    }
+/// The team `subject` is on when the local player is on `local`, taken as red when spectating
+fn subject_team(subject: Subject, local: Team) -> Team {
+    let blue = (local == Team::Blue) == (subject == Subject::Teammate);
+    if blue { Team::Blue } else { Team::Red }
 }
 
 /// The local player while alive, else anyone who is
@@ -301,7 +298,7 @@ fn attachments(player: &Player) -> Vec<Entity> {
 }
 
 /// The box, name, health bar and labels ESP draws for `subject` on `team`
-fn overlay(shown: &Shown, subject: Subject, team: &Team, surface: &Surface, config: &Config) {
+fn overlay(shown: &Shown, subject: Subject, team: Team, surface: &Surface, config: &Config) {
     if !config.esp.master {
         return;
     }

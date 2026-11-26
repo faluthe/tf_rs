@@ -262,7 +262,7 @@ pub enum ClassId {
 
 #[allow(dead_code)]
 #[repr(i32)]
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Team {
     Spectator = 1,
     Red = 2,
