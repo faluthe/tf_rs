@@ -6,7 +6,8 @@ use super::{ROW, field};
 use crate::{
     config::{
         BuildingsColorsConfig, ChamsConfig, ChamsGroupConfig, ChamsLayerConfig, ChamsTargetConfig,
-        ColorsConfig, CondsDisplayConfig, Config, EntityESPConfig, EspColorConfig,
+        ColorsConfig, CondsDisplayConfig, Config, EntityESPConfig, EspColorConfig, GlowConfig,
+        GlowGroupConfig,
     },
     features::chams,
     player_db,
@@ -64,6 +65,7 @@ pub(super) fn esp_tab(nk: &Nuklear, config: &mut Config) {
         .checkbox("Ignore invisible", &mut esp.ignore_invis);
 
     chams_section(nk, &mut esp.chams);
+    glow_section(nk, &mut esp.glow);
 }
 
 /// Names of the parts of `cfg` that are drawn
@@ -328,31 +330,84 @@ fn layered_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig, occlud
 
 /// Colors the aimbot target is drawn in, with the materials of the group it's in
 fn target_group(nk: &Nuklear, title: &str, target: &mut ChamsTargetConfig) {
+    let ChamsTargetConfig {
+        visible,
+        occluded,
+        visible_color,
+        occluded_color,
+    } = target;
+    passes(nk, title, visible, occluded, visible_color, occluded_color);
+}
+
+/// Row with a combo saying whether either pass is on, the popup toggles and colors them
+fn passes(
+    nk: &Nuklear,
+    title: &str,
+    visible: &mut bool,
+    occluded: &mut bool,
+    visible_color: &mut Color,
+    occluded_color: &mut Color,
+) {
     let swatches = [
-        Swatch::new(target.visible, target.visible_color),
-        Swatch::new(target.occluded, target.occluded_color),
+        Swatch::new(*visible, *visible_color),
+        Swatch::new(*occluded, *occluded_color),
     ];
-    let name = if target.visible || target.occluded {
-        "On"
-    } else {
-        "Off"
-    };
+    let name = if *visible || *occluded { "On" } else { "Off" };
     field(nk, title, |nk| {
         nk.summary_combo(&[name], &swatches, CHAMS_POPUP_W, |nk| {
             nk.toggle_color_list(&mut [
-                ToggleColor::new(
-                    "Visible",
-                    &mut target.visible,
-                    Some(&mut target.visible_color),
-                ),
-                ToggleColor::new(
-                    "Occluded",
-                    &mut target.occluded,
-                    Some(&mut target.occluded_color),
-                ),
+                ToggleColor::new("Visible", visible, Some(visible_color)),
+                ToggleColor::new("Occluded", occluded, Some(occluded_color)),
             ]);
         });
     });
+}
+
+/// Glow tab shown in the menu, index into `GLOW_TABS`
+static GLOW_TAB: AtomicUsize = AtomicUsize::new(0);
+const GLOW_TABS: [&str; 3] = ["Players", "Buildings", "Categories"];
+
+fn glow_section(nk: &Nuklear, glow: &mut GlowConfig) {
+    nk.section("Glow", false)
+        .row_dynamic(ROW, 1)
+        .checkbox("Enabled", &mut glow.enabled);
+    if !glow.enabled {
+        return;
+    }
+
+    let mut tab = GLOW_TAB.load(Ordering::Relaxed);
+    nk.tab_bar(&GLOW_TABS, &mut tab);
+    GLOW_TAB.store(tab, Ordering::Relaxed);
+
+    match tab {
+        1 => {
+            glow_group(nk, "Enemy", &mut glow.building_enemy);
+            glow_group(nk, "Friendly", &mut glow.building_friendly);
+        }
+        2 => {
+            let names = player_db::get_names();
+            glow_group(nk, &names[0], &mut glow.category1);
+            glow_group(nk, &names[1], &mut glow.category2);
+            glow_group(nk, &names[2], &mut glow.category3);
+            glow_group(nk, &names[3], &mut glow.category4);
+        }
+        _ => {
+            glow_group(nk, "Enemies", &mut glow.enemy);
+            glow_group(nk, "Aimbot target", &mut glow.aimbot_target);
+            glow_group(nk, "Teammates", &mut glow.friendly);
+            glow_group(nk, "Local player", &mut glow.local);
+        }
+    }
+}
+
+fn glow_group(nk: &Nuklear, title: &str, group: &mut GlowGroupConfig) {
+    let GlowGroupConfig {
+        visible,
+        occluded,
+        visible_color,
+        occluded_color,
+    } = group;
+    passes(nk, title, visible, occluded, visible_color, occluded_color);
 }
 
 fn material_label(material: usize) -> &'static str {
