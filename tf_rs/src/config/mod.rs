@@ -238,6 +238,8 @@ struct_with_serialize! {
     #[derive(Clone)]
     pub struct GlowConfig {
         pub enabled: bool,
+        /// Outline width in pixels
+        pub thickness: i32,
         pub enemy: GlowGroupConfig,
         pub friendly: GlowGroupConfig,
         pub local: GlowGroupConfig,
@@ -256,6 +258,7 @@ impl Default for GlowConfig {
         let categories = PlayerCategoryColors::default();
         GlowConfig {
             enabled: false,
+            thickness: 1,
             enemy: GlowGroupConfig::new(true, Color::hex(0xff4040)),
             friendly: GlowGroupConfig::new(false, Color::hex(0x40ff40)),
             local: GlowGroupConfig::new(false, Color::hex(0xffffff)),
@@ -271,24 +274,16 @@ impl Default for GlowConfig {
 }
 
 struct_with_serialize! {
-    // Outline where the model can be seen and where it's behind something
     #[derive(Clone, Copy)]
     pub struct GlowGroupConfig {
-        pub visible: bool,
-        pub occluded: bool,
-        pub visible_color: Color,
-        pub occluded_color: Color,
+        pub enabled: bool,
+        pub color: Color,
     }
 }
 
 impl GlowGroupConfig {
-    fn new(on: bool, color: Color) -> Self {
-        GlowGroupConfig {
-            visible: on,
-            occluded: on,
-            visible_color: color,
-            occluded_color: color,
-        }
+    fn new(enabled: bool, color: Color) -> Self {
+        GlowGroupConfig { enabled, color }
     }
 }
 

@@ -2,7 +2,7 @@ use std::ffi::c_void;
 
 use crate::{
     config::Config,
-    features::{backtrack, chams, movesim, prediction_log, projectile, shot_log},
+    features::{backtrack, chams, glow, movesim, prediction_log, projectile, shot_log},
     hooks::Hooks,
     interfaces::Interfaces,
 };
@@ -20,6 +20,7 @@ pub extern "C" fn hk_frame_stage_notify(this: *mut c_void, stage: i32) {
     // Outside a map too, the menu preview draws chams before any map is joined
     if stage == FRAME_START {
         chams::init();
+        glow::init();
     }
     if !Interfaces::engine_client().is_in_game() {
         return;

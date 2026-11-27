@@ -9,7 +9,7 @@ use crate::{
         ColorsConfig, CondsDisplayConfig, Config, EntityESPConfig, EspColorConfig, GlowConfig,
         GlowGroupConfig,
     },
-    features::chams,
+    features::{chams, glow},
     player_db,
 };
 
@@ -330,37 +330,40 @@ fn layered_group(nk: &Nuklear, title: &str, group: &mut ChamsGroupConfig, occlud
 
 /// Colors the aimbot target is drawn in, with the materials of the group it's in
 fn target_group(nk: &Nuklear, title: &str, target: &mut ChamsTargetConfig) {
-    let ChamsTargetConfig {
-        visible,
-        occluded,
-        visible_color,
-        occluded_color,
-    } = target;
-    passes(nk, title, visible, occluded, visible_color, occluded_color);
-}
-
-/// Row with a combo saying whether either pass is on, the popup toggles and colors them
-fn passes(
-    nk: &Nuklear,
-    title: &str,
-    visible: &mut bool,
-    occluded: &mut bool,
-    visible_color: &mut Color,
-    occluded_color: &mut Color,
-) {
     let swatches = [
-        Swatch::new(*visible, *visible_color),
-        Swatch::new(*occluded, *occluded_color),
+        Swatch::new(target.visible, target.visible_color),
+        Swatch::new(target.occluded, target.occluded_color),
     ];
-    let name = if *visible || *occluded { "On" } else { "Off" };
+    let name = if target.visible || target.occluded {
+        "On"
+    } else {
+        "Off"
+    };
     field(nk, title, |nk| {
         nk.summary_combo(&[name], &swatches, CHAMS_POPUP_W, |nk| {
             nk.toggle_color_list(&mut [
-                ToggleColor::new("Visible", visible, Some(visible_color)),
-                ToggleColor::new("Occluded", occluded, Some(occluded_color)),
+                ToggleColor::new(
+                    "Visible",
+                    &mut target.visible,
+                    Some(&mut target.visible_color),
+                ),
+                ToggleColor::new(
+                    "Occluded",
+                    &mut target.occluded,
+                    Some(&mut target.occluded_color),
+                ),
             ]);
         });
     });
+}
+
+fn material_label(material: usize) -> &'static str {
+    chams::MATERIALS.get(material).map_or("None", |m| m.label)
+}
+
+fn material_grid(nk: &Nuklear, material: &mut usize) {
+    let labels: Vec<&str> = chams::MATERIALS.iter().map(|m| m.label).collect();
+    nk.select_grid(&labels, material, 3);
 }
 
 /// Glow tab shown in the menu, index into `GLOW_TABS`
@@ -374,6 +377,9 @@ fn glow_section(nk: &Nuklear, glow: &mut GlowConfig) {
     if !glow.enabled {
         return;
     }
+    field(nk, &format!("Thickness ({} px)", glow.thickness), |nk| {
+        nk.slider_int(1, &mut glow.thickness, glow::MAX_THICKNESS, 1);
+    });
 
     let mut tab = GLOW_TAB.load(Ordering::Relaxed);
     nk.tab_bar(&GLOW_TABS, &mut tab);
@@ -400,21 +406,17 @@ fn glow_section(nk: &Nuklear, glow: &mut GlowConfig) {
     }
 }
 
+/// Row with a combo saying whether the group is outlined, the popup toggles and colors it
 fn glow_group(nk: &Nuklear, title: &str, group: &mut GlowGroupConfig) {
-    let GlowGroupConfig {
-        visible,
-        occluded,
-        visible_color,
-        occluded_color,
-    } = group;
-    passes(nk, title, visible, occluded, visible_color, occluded_color);
-}
-
-fn material_label(material: usize) -> &'static str {
-    chams::MATERIALS.get(material).map_or("None", |m| m.label)
-}
-
-fn material_grid(nk: &Nuklear, material: &mut usize) {
-    let labels: Vec<&str> = chams::MATERIALS.iter().map(|m| m.label).collect();
-    nk.select_grid(&labels, material, 3);
+    let name = if group.enabled { "On" } else { "Off" };
+    let swatches = [Swatch::new(group.enabled, group.color)];
+    field(nk, title, |nk| {
+        nk.summary_combo(&[name], &swatches, CHAMS_POPUP_W, |nk| {
+            nk.toggle_color_list(&mut [ToggleColor::new(
+                "Enabled",
+                &mut group.enabled,
+                Some(&mut group.color),
+            )]);
+        });
+    });
 }
