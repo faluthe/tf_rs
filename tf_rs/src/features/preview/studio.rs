@@ -13,6 +13,7 @@ use super::{
 };
 use crate::{
     config::Config,
+    features::glow,
     helpers,
     hooks::draw_model_execute::{WORLD_MODEL_SCALE, draw_layers},
     interfaces::{DrawModelInfo, Interfaces, STUDIORENDER_DRAW_NO_FLEXES, StudioRender},
@@ -201,7 +202,7 @@ pub(super) fn draw(
         health: 1,
         max_health: 1,
     };
-    if !scene.model_shown {
+    if !scene.model_shown && scene.outline.is_none() {
         return Some(shown);
     }
 
@@ -231,6 +232,15 @@ pub(super) fn draw(
     studio.set_eye_view_target(model.ptr(), 0, &camera.origin);
 
     let info = draw_info(model.ptr(), hardware, skin, ambient);
+    let weapon = loaded
+        .weapon
+        .zip(posing.weapon.as_ref())
+        .and_then(|(handle, merge)| {
+            let hdr = cache.studio_hdr(handle);
+            let hardware = cache.hardware_data(handle);
+            (!hdr.is_null() && !hardware.is_null())
+                .then(|| (draw_info(hdr, hardware, skin, ambient), merge.pose(&bones)))
+        });
     if config.esp.master && config.esp.chams.enabled {
         let (layers, normal_fallback) = chams_layers(subject, scene.occluded, &config.esp.chams);
         // The layers draw the model's own look in the engine's color, which nothing has set
@@ -247,21 +257,28 @@ pub(super) fn draw(
         });
         render_view.set_color_modulation(old_color);
         render_view.set_blend(old_blend);
-    } else {
+    } else if scene.model_shown {
         draw_plain(&studio, &info, &bones, &origin);
     }
 
     // Never chams'd, so hidden with the player behind a wall
-    if !scene.occluded {
-        let weapon = loaded.weapon.zip(posing.weapon.as_ref());
-        if let Some((handle, merge)) = weapon {
-            let hdr = cache.studio_hdr(handle);
-            let hardware = cache.hardware_data(handle);
-            if !hdr.is_null() && !hardware.is_null() {
-                let info = draw_info(hdr, hardware, skin, ambient);
-                draw_plain(&studio, &info, &merge.pose(&bones), &origin);
+    if scene.model_shown
+        && !scene.occluded
+        && let Some((info, bones)) = &weapon
+    {
+        draw_plain(&studio, info, bones, &origin);
+    }
+
+    if let Some((color, thickness)) = scene.outline {
+        glow::outline(&[color], thickness, |_| {
+            // The outline sets the engine's color, the studio renderer keeps its own
+            studio.set_color_modulation(render_view.get_color_modulation());
+            studio.set_alpha_modulation(render_view.get_blend());
+            studio.draw_model(&info, &bones, &origin, STUDIORENDER_DRAW_NO_FLEXES);
+            if let Some((info, bones)) = &weapon {
+                studio.draw_model(info, bones, &origin, STUDIORENDER_DRAW_NO_FLEXES);
             }
-        }
+        });
     }
 
     render_view.pop_view(&mut frustum);

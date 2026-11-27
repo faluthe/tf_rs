@@ -21,7 +21,7 @@ use crate::{
     player_db::{self, PlayerCategory},
     types::{
         ClassId, Color, Entity, Material, Player, RenderContext, StencilFunc, StencilOp,
-        StencilState, Texture, ViewSetup, entity::handle_index,
+        StencilState, Texture, entity::handle_index,
     },
     vfunc,
 };
@@ -55,7 +55,7 @@ const OUTSIDE_MODELS: StencilState = StencilState {
 };
 
 /// Widest outline in pixels, each pixel costs four more full screen draws
-pub const MAX_THICKNESS: i32 = 10;
+pub const MAX_THICKNESS: i32 = 5;
 
 /// Lays a render target over what's drawn, its black left out and its colors over the rest,
 /// so overlapping copies don't add up
@@ -112,8 +112,8 @@ struct Glowing {
     color: Color,
 }
 
-/// Draw the configured outlines over the frame `setup` was drawn with
-pub fn render(setup: &ViewSetup) {
+/// Draw the configured outlines over the frame just drawn
+pub fn render() {
     let config = {
         let config = Config::read();
         if !config.esp.master || !config.esp.glow.enabled {
@@ -124,14 +124,20 @@ pub fn render(setup: &ViewSetup) {
     if !Interfaces::engine_client().is_in_game() {
         return;
     }
+    let glowing = glowing(&config);
+    let colors: Vec<Color> = glowing.iter().map(|g| g.color).collect();
+    outline(&colors, config.thickness, |i| draw(glowing[i].entity));
+}
+
+/// Outline models in the current view, `draw(i)` drawing the models outlined in `colors[i]`
+/// in whatever color and blend the engine has set. Also used by the menu's preview
+pub fn outline(colors: &[Color], thickness: i32, draw: impl Fn(usize)) {
+    if colors.is_empty() {
+        return;
+    }
     let Some(Some(spread)) = SPREAD.get() else {
         return;
     };
-    let glowing = glowing(&config);
-    if glowing.is_empty() {
-        return;
-    }
-
     let material_system = Interfaces::material_system();
     let (Some(color), Some(full_frame), Some(full_frame1)) = (
         material_system.find_material("dev/glow_color"),
@@ -157,29 +163,26 @@ pub fn render(setup: &ViewSetup) {
     render_view.set_blend(0.0);
     ctx.override_depth_enable(true, false);
     ctx.set_stencil_state(&STENCIL_MODELS);
-    for g in &glowing {
-        draw(g.entity);
+    for i in 0..colors.len() {
+        draw(i);
     }
     ctx.override_depth_enable(false, false);
     ctx.set_stencil_state(&StencilState::DISABLED);
 
-    // The models in their colors, whole even where they're behind something
-    let (width, height) = (setup.width, setup.height);
+    // The models in their colors, whole even where they're behind something, in the corner of
+    // the full frame texture the size of the view
+    let [_, _, width, height] = ctx.get_viewport();
     ctx.push_render_target_and_viewport();
     ctx.set_render_target(Some(&full_frame));
     ctx.viewport(0, 0, width, height);
     ctx.clear_color3ub(0, 0, 0);
     ctx.clear_buffers(true, false, false);
-    for g in &glowing {
-        let a = g.color.a as f32 / 255.0;
+    for (i, c) in colors.iter().enumerate() {
+        let a = c.a as f32 / 255.0;
         let channel = |v: u8| v as f32 / 255.0 * a;
-        render_view.set_color_modulation([
-            channel(g.color.r),
-            channel(g.color.g),
-            channel(g.color.b),
-        ]);
+        render_view.set_color_modulation([channel(c.r), channel(c.g), channel(c.b)]);
         render_view.set_blend(a);
-        draw(g.entity);
+        draw(i);
     }
     ctx.pop_render_target_and_viewport();
 
@@ -188,7 +191,7 @@ pub fn render(setup: &ViewSetup) {
     render_view.set_blend(old_blend);
     DRAWING.store(false, Ordering::Relaxed);
 
-    let thickness = config.thickness.clamp(1, MAX_THICKNESS);
+    let thickness = thickness.clamp(1, MAX_THICKNESS);
 
     // Spread sideways into the second full frame texture
     ctx.push_render_target_and_viewport();
@@ -207,15 +210,14 @@ pub fn render(setup: &ViewSetup) {
     }
     ctx.pop_render_target_and_viewport();
 
-    // Then up and down onto the screen, around the models
+    // Then up and down onto the view, around the models
     ctx.set_stencil_state(&OUTSIDE_MODELS);
-    let [_, _, screen_w, screen_h] = ctx.get_viewport();
     for dy in -thickness..=thickness {
         shifted(
             &ctx,
             &spread.vertical,
             &full_frame1,
-            [screen_w, screen_h],
+            [width, height],
             [0, dy],
         );
     }
@@ -359,7 +361,7 @@ impl GlowGroupConfig {
     }
 
     /// The aimbot target's outline in place of this one while it's on
-    fn with_target(self, target: &GlowGroupConfig) -> Self {
+    pub fn with_target(self, target: &GlowGroupConfig) -> Self {
         if target.enabled { *target } else { self }
     }
 }

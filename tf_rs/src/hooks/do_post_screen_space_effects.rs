@@ -11,8 +11,8 @@ pub extern "C" fn hk_do_post_screen_space_effects(
         .call_do_post_screen_space_effects(this, setup)
         .expect("Invalid DoPostScreenSpaceEffects function signature");
 
-    if let Some(setup) = unsafe { setup.as_ref() } {
-        glow::render(setup);
+    if !setup.is_null() {
+        glow::render();
     }
     rc
 }

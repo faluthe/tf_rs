@@ -17,8 +17,8 @@ use std::{
 use nuklear::Rect;
 
 use crate::{
-    config::{ChamsConfig, ChamsGroupConfig, ChamsLayerConfig, Config},
-    features::{esp, theme::THEMES},
+    config::{ChamsConfig, ChamsGroupConfig, ChamsLayerConfig, Config, GlowConfig},
+    features::{esp, glow, theme::THEMES},
     helpers,
     hooks::draw_model_execute::recolor,
     interfaces::{Interfaces, Surface},
@@ -164,6 +164,20 @@ pub fn chams_layers(
     }
 }
 
+/// The color and thickness of the outline around `subject`, if it has one
+fn outline(subject: Subject, config: &Config) -> Option<(Color, i32)> {
+    let glow: &GlowConfig = &config.esp.glow;
+    if !config.esp.master || !glow.enabled {
+        return None;
+    }
+    let group = match subject {
+        Subject::Enemy => glow.enemy,
+        Subject::Teammate => glow.friendly,
+        Subject::Target => glow.enemy.with_target(&glow.aimbot_target),
+    };
+    group.enabled.then_some((group.color, glow.thickness))
+}
+
 /// What the overlay is drawn around
 struct Shown {
     bbox: BBox,
@@ -181,6 +195,8 @@ struct Scene {
     occluded: bool,
     /// Whether the model is drawn, behind a wall it only shows through chams
     model_shown: bool,
+    /// Color and thickness of the outline, drawn behind a wall too
+    outline: Option<(Color, i32)>,
 }
 
 /// Draw the preview where the menu put it, from the paint hook. `localplayer` is none outside a
@@ -215,6 +231,7 @@ pub fn draw(localplayer: Option<&Player>, surface: &Surface, config: &Config) {
         area,
         occluded: state.occluded,
         model_shown: !state.occluded || (config.esp.master && config.esp.chams.enabled),
+        outline: outline(subject, config),
     };
 
     let player = localplayer.and_then(model_player);
@@ -264,6 +281,18 @@ fn draw_player(player: &Player, subject: Subject, scene: &Scene) -> Option<Shown
     let render_view = Interfaces::render_view();
     let model_render = Interfaces::model_render();
     let mut frustum: Frustum = Default::default();
+    let attachments = attachments(player);
+    let draw_attachments = || {
+        for attachment in &attachments {
+            let renderable = attachment.renderable();
+            model_render.draw_model(
+                &renderable,
+                attachment.index(),
+                &renderable.render_origin(),
+                &renderable.render_angles(),
+            );
+        }
+    };
     render_view.push_3d_view(&camera.view(), VIEW_CLEAR_DEPTH, &mut frustum);
     if scene.model_shown {
         DRAWING.store(subject as u8 + 1, Ordering::Relaxed);
@@ -271,16 +300,14 @@ fn draw_player(player: &Player, subject: Subject, scene: &Scene) -> Option<Shown
         DRAWING.store(0, Ordering::Relaxed);
         // Never chams'd, so hidden with the player behind a wall
         if !scene.occluded {
-            for attachment in attachments(player) {
-                let renderable = attachment.renderable();
-                model_render.draw_model(
-                    &renderable,
-                    attachment.index(),
-                    &renderable.render_origin(),
-                    &renderable.render_angles(),
-                );
-            }
+            draw_attachments();
         }
+    }
+    if let Some((color, thickness)) = scene.outline {
+        glow::outline(&[color], thickness, |_| {
+            model_render.draw_model(&renderable, index, &origin, &angles);
+            draw_attachments();
+        });
     }
     render_view.pop_view(&mut frustum);
 
