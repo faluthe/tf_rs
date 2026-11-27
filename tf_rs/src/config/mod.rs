@@ -166,6 +166,7 @@ struct_with_serialize! {
         pub conds: CondsDisplayConfig,
         pub ignore_invis: bool,
         pub chams: ChamsConfig,
+        pub glow: GlowConfig,
     }
 }
 
@@ -230,6 +231,70 @@ impl Default for ChamsConfig {
             },
             aimbot_target: ChamsTargetConfig::default(),
         }
+    }
+}
+
+struct_with_serialize! {
+    #[derive(Clone)]
+    pub struct GlowConfig {
+        pub enabled: bool,
+        pub enemy: GlowGroupConfig,
+        pub friendly: GlowGroupConfig,
+        pub local: GlowGroupConfig,
+        pub building_enemy: GlowGroupConfig,
+        pub building_friendly: GlowGroupConfig,
+        pub category1: GlowGroupConfig,
+        pub category2: GlowGroupConfig,
+        pub category3: GlowGroupConfig,
+        pub category4: GlowGroupConfig,
+        pub aimbot_target: GlowGroupConfig,
+    }
+}
+
+impl Default for GlowConfig {
+    fn default() -> Self {
+        let categories = PlayerCategoryColors::default();
+        GlowConfig {
+            enabled: false,
+            enemy: GlowGroupConfig::new(true, Color::hex(0xff4040)),
+            friendly: GlowGroupConfig::new(false, Color::hex(0x40ff40)),
+            local: GlowGroupConfig::new(false, Color::hex(0xffffff)),
+            building_enemy: GlowGroupConfig::new(false, Color::hex(0xffa500)),
+            building_friendly: GlowGroupConfig::new(false, Color::hex(0x40c0ff)),
+            category1: GlowGroupConfig::new(false, categories.category1),
+            category2: GlowGroupConfig::new(false, categories.category2),
+            category3: GlowGroupConfig::new(false, categories.category3),
+            category4: GlowGroupConfig::new(false, categories.category4),
+            aimbot_target: GlowGroupConfig::new(false, Color::hex(0xffd000)),
+        }
+    }
+}
+
+struct_with_serialize! {
+    // Outline where the model can be seen and where it's behind something
+    #[derive(Clone, Copy)]
+    pub struct GlowGroupConfig {
+        pub visible: bool,
+        pub occluded: bool,
+        pub visible_color: Color,
+        pub occluded_color: Color,
+    }
+}
+
+impl GlowGroupConfig {
+    fn new(on: bool, color: Color) -> Self {
+        GlowGroupConfig {
+            visible: on,
+            occluded: on,
+            visible_color: color,
+            occluded_color: color,
+        }
+    }
+}
+
+impl Default for GlowGroupConfig {
+    fn default() -> Self {
+        GlowGroupConfig::new(false, Color::hex(0xffffff))
     }
 }
 

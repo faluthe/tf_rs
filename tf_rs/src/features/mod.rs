@@ -4,6 +4,7 @@ pub mod chams;
 pub mod engine_prediction;
 pub mod esp;
 pub mod fake_ping;
+pub mod glow;
 pub mod melee;
 pub mod menu;
 pub mod movement;

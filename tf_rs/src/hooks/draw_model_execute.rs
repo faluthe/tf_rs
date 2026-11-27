@@ -5,7 +5,7 @@ use crate::{
     features::{
         backtrack,
         chams::{self, Loaded},
-        preview,
+        glow, preview,
     },
     globals::Globals,
     helpers,
@@ -29,6 +29,11 @@ pub extern "C" fn hk_draw_model_execute(
             .call_draw_model_execute(this, state, info, bone_to_world)
             .expect("Invalid DrawModelExecute function signature");
     };
+
+    // The outlines draw the models in their own colors
+    if glow::drawing() {
+        return call_original();
+    }
 
     let (chams_config, backtrack) = {
         let config = Config::read();
@@ -239,11 +244,7 @@ fn chams_group(info: &ModelRenderInfo, config: &ChamsConfig) -> Option<ChamsGrou
                 return Some(config.local);
             }
 
-            let player_info = Interfaces::engine_client().get_player_info(info.entity_index);
-            let guid = str::from_utf8(&player_info.guid)
-                .unwrap_or("")
-                .trim_end_matches('\0');
-            let category = match player_db::get(guid) {
+            let category = match player_db::get_by_index(info.entity_index) {
                 PlayerCategory::None => None,
                 PlayerCategory::Category1 => Some(config.category1),
                 PlayerCategory::Category2 => Some(config.category2),
@@ -272,7 +273,7 @@ fn chams_group(info: &ModelRenderInfo, config: &ChamsConfig) -> Option<ChamsGrou
     }
 }
 
-fn is_aimbot_target(index: i32) -> bool {
+pub(crate) fn is_aimbot_target(index: i32) -> bool {
     // Never wait on the aimbot while drawing
     Globals::try_read().is_some_and(|g| g.target.as_ref().is_some_and(|t| t.target_index == index))
 }

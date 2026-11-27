@@ -14,7 +14,7 @@ use std::{collections::HashMap, env, fs, sync::RwLock};
 
 use once_cell::sync::Lazy;
 
-use crate::{config::PlayerCategoryColors, types::Color};
+use crate::{config::PlayerCategoryColors, interfaces::Interfaces, types::Color};
 
 static DB: Lazy<RwLock<HashMap<String, PlayerCategory>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
@@ -106,6 +106,14 @@ pub fn get(guid: &str) -> PlayerCategory {
         .get(guid)
         .copied()
         .unwrap_or(PlayerCategory::None)
+}
+
+/// Category of the player at entity `index`
+pub fn get_by_index(index: i32) -> PlayerCategory {
+    let info = Interfaces::engine_client().get_player_info(index);
+    get(str::from_utf8(&info.guid)
+        .unwrap_or("")
+        .trim_end_matches('\0'))
 }
 
 pub fn set(guid: &str, category: PlayerCategory) {
