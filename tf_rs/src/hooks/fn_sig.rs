@@ -8,6 +8,7 @@ pub enum FnSig {
     CreateMove(extern "C" fn(*mut c_void, f32, *mut UserCmd) -> i64),
     PaintTraverse(extern "C" fn(*mut c_void, *mut c_void, i8, i8) -> i64),
     OverrideView(extern "C" fn(*mut c_void, *mut ViewSetup)),
+    DoPostScreenSpaceEffects(extern "C" fn(*mut c_void, *const ViewSetup) -> bool),
     DrawModelExecute(
         extern "C" fn(*mut c_void, *mut c_void, *const ModelRenderInfo, *mut Matrix3x4),
     ),
@@ -24,6 +25,7 @@ impl fmt::Pointer for FnSig {
             FnSig::CreateMove(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::PaintTraverse(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::OverrideView(func) => write!(f, "{:p}", *func as *const c_void),
+            FnSig::DoPostScreenSpaceEffects(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::DrawModelExecute(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::FrameStageNotify(func) => write!(f, "{:p}", *func as *const c_void),
             FnSig::SendDatagram(func) => write!(f, "{:p}", *func as *const c_void),
@@ -67,6 +69,19 @@ impl FnSig {
                 Ok(())
             }
             _ => Err(anyhow!("Invalid OverrideView function signature")),
+        }
+    }
+
+    pub fn call_do_post_screen_space_effects(
+        &self,
+        this: *mut c_void,
+        setup: *const ViewSetup,
+    ) -> Result<bool> {
+        match self {
+            FnSig::DoPostScreenSpaceEffects(f) => Ok(f(this, setup)),
+            _ => Err(anyhow!(
+                "Invalid DoPostScreenSpaceEffects function signature"
+            )),
         }
     }
 
@@ -132,6 +147,11 @@ impl FnSig {
             FnSig::OverrideView(_) => FnSig::OverrideView(unsafe {
                 mem::transmute::<*mut c_void, extern "C" fn(*mut c_void, *mut ViewSetup)>(ptr)
             }),
+            FnSig::DoPostScreenSpaceEffects(_) => FnSig::DoPostScreenSpaceEffects(unsafe {
+                mem::transmute::<*mut c_void, extern "C" fn(*mut c_void, *const ViewSetup) -> bool>(
+                    ptr,
+                )
+            }),
             FnSig::DrawModelExecute(_) => FnSig::DrawModelExecute(unsafe {
                 mem::transmute::<
                     *mut c_void,
@@ -159,6 +179,7 @@ impl FnSig {
             FnSig::CreateMove(f) => Ok(*f as *mut c_void),
             FnSig::PaintTraverse(f) => Ok(*f as *mut c_void),
             FnSig::OverrideView(f) => Ok(*f as *mut c_void),
+            FnSig::DoPostScreenSpaceEffects(f) => Ok(*f as *mut c_void),
             FnSig::DrawModelExecute(f) => Ok(*f as *mut c_void),
             FnSig::FrameStageNotify(f) => Ok(*f as *mut c_void),
             FnSig::SendDatagram(f) => Ok(*f as *mut c_void),

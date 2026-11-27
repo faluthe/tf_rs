@@ -1,6 +1,11 @@
 use std::ffi::{CStr, CString, c_char, c_void};
 
-use crate::{interfaces::Interfaces, traits::FromRaw, types::Material, vfunc};
+use crate::{
+    interfaces::Interfaces,
+    traits::FromRaw,
+    types::{Material, RenderContext, Texture},
+    vfunc,
+};
 
 #[derive(Default, Clone)]
 pub struct MaterialSystem {
@@ -51,5 +56,23 @@ impl MaterialSystem {
         }
 
         Some(Material::from_raw(ptr))
+    }
+
+    /// The render target `name`, such as `_rt_FullFrameFB`
+    pub fn find_texture(&self, name: &CStr) -> Option<Texture> {
+        let f = vfunc!(
+            self.vtable,
+            79,
+            (*mut c_void, *const c_char, *const c_char, bool, i32) -> *mut c_void
+        );
+        let ptr = f(self.this, name.as_ptr(), c"RenderTargets".as_ptr(), true, 0);
+        (!ptr.is_null()).then(|| Texture::from_raw(ptr))
+    }
+
+    /// The render context to draw with, until it's dropped
+    pub fn render_context(&self) -> Option<RenderContext> {
+        let f = vfunc!(self.vtable, 98, (*mut c_void) -> *mut c_void);
+        let ptr = f(self.this);
+        (!ptr.is_null()).then(|| RenderContext::begin(ptr))
     }
 }

@@ -1,5 +1,6 @@
 mod core;
 mod create_move;
+mod do_post_screen_space_effects;
 pub(crate) mod draw_model_execute;
 mod fn_sig;
 mod frame_stage_notify;
@@ -13,6 +14,7 @@ mod vmtshadow;
 pub use core::*;
 pub use create_move::reset_thirdperson;
 use create_move::*;
+use do_post_screen_space_effects::*;
 use draw_model_execute::*;
 use fn_sig::*;
 use frame_stage_notify::*;

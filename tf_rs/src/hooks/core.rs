@@ -7,6 +7,7 @@ use crate::{features::fake_ping, hooks::*, interfaces::Interfaces};
 
 const OVERRIDE_VIEW_INDEX: usize = 17;
 const CREATE_MOVE_INDEX: usize = 22;
+const DO_POST_SCREEN_SPACE_EFFECTS_INDEX: usize = 40;
 const PAINT_TRAVERSE_INDEX: usize = 42;
 const DRAW_MODEL_EXECUTE_INDEX: usize = 19;
 const FRAME_STAGE_NOTIFY_INDEX: usize = 35;
@@ -41,8 +42,14 @@ impl Hooks {
         w.client_mode
             .hook(OVERRIDE_VIEW_INDEX, FnSig::OverrideView(hk_override_view))
             .context("OverrideView hook")?;
+        w.client_mode
+            .hook(
+                DO_POST_SCREEN_SPACE_EFFECTS_INDEX,
+                FnSig::DoPostScreenSpaceEffects(hk_do_post_screen_space_effects),
+            )
+            .context("DoPostScreenSpaceEffects hook")?;
         w.client_mode.install().context("ClientMode vtable")?;
-        log::debug!("Hooked CreateMove and OverrideView");
+        log::debug!("Hooked CreateMove, OverrideView and DoPostScreenSpaceEffects");
 
         w.panel = VmtShadow::new(Interfaces::panel().ptr()).context("Panel vtable")?;
         w.panel
@@ -118,6 +125,13 @@ impl Hooks {
 
     pub fn override_view() -> FnSig {
         H.read().unwrap().client_mode.original(OVERRIDE_VIEW_INDEX)
+    }
+
+    pub fn do_post_screen_space_effects() -> FnSig {
+        H.read()
+            .unwrap()
+            .client_mode
+            .original(DO_POST_SCREEN_SPACE_EFFECTS_INDEX)
     }
 
     pub fn paint_traverse() -> FnSig {
