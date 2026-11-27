@@ -74,8 +74,20 @@ fn spread_vmt(texture: &str) -> String {
     )
 }
 
-/// Copies of the full frame texture, and of the one it's spread sideways into
+/// Flat color through walls that the models are drawn with. The game's dev/glow_color is only
+/// precached in a map, outside one the error material is found in its place
+const COLOR_VMT: &str = r#""UnlitGeneric"
+{
+    "$basetexture" "vgui/white"
+    "$model" "1"
+    "$nofog" "1"
+    "$ignorez" "1"
+}"#;
+
+/// The models' flat color, then copies of the full frame texture and of the one it's spread
+/// sideways into
 struct Spread {
+    color: Material,
     horizontal: Material,
     vertical: Material,
 }
@@ -89,15 +101,16 @@ static SPREAD: OnceLock<Option<Spread>> = OnceLock::new();
 pub fn init() {
     SPREAD.get_or_init(|| {
         let material_system = Interfaces::material_system();
-        let create = |name: &str, texture: &str| {
+        let create = |name: &str, vmt: String| {
             let name = CString::new(name).ok()?;
-            let vmt = CString::new(spread_vmt(texture)).ok()?;
+            let vmt = CString::new(vmt).ok()?;
             material_system.create_material(&name, &vmt)
         };
         let spread = (|| {
             Some(Spread {
-                horizontal: create("__glow_spread_h", "_rt_FullFrameFB")?,
-                vertical: create("__glow_spread_v", "_rt_FullFrameFB1")?,
+                color: create("__glow_color", COLOR_VMT.to_string())?,
+                horizontal: create("__glow_spread_h", spread_vmt("_rt_FullFrameFB"))?,
+                vertical: create("__glow_spread_v", spread_vmt("_rt_FullFrameFB1"))?,
             })
         })();
         if spread.is_none() {
@@ -139,8 +152,7 @@ pub fn outline(colors: &[Color], thickness: i32, draw: impl Fn(usize)) {
         return;
     };
     let material_system = Interfaces::material_system();
-    let (Some(color), Some(full_frame), Some(full_frame1)) = (
-        material_system.find_material("dev/glow_color"),
+    let (Some(full_frame), Some(full_frame1)) = (
         material_system.find_texture(c"_rt_FullFrameFB"),
         material_system.find_texture(c"_rt_FullFrameFB1"),
     ) else {
@@ -156,7 +168,7 @@ pub fn outline(colors: &[Color], thickness: i32, draw: impl Fn(usize)) {
     let old_blend = render_view.get_blend();
 
     DRAWING.store(true, Ordering::Relaxed);
-    model_render.forced_material_override(Some(&color));
+    model_render.forced_material_override(Some(&spread.color));
 
     // Stencil the models whole, without touching the color or depth already drawn
     ctx.clear_buffers(false, false, true);
