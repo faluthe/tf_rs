@@ -2,7 +2,7 @@ use std::ffi::c_void;
 
 use crate::{
     config::Config,
-    features::{esp, preview},
+    features::{esp, pickups, preview},
     helpers,
     hooks::Hooks,
     interfaces::Interfaces,
@@ -45,6 +45,7 @@ pub extern "C" fn hk_paint_traverse(
 
     if let Some(localplayer) = &localplayer {
         esp::run(localplayer, &surface, &config);
+        pickups::draw(&surface, &config);
 
         if !localplayer.is_dead() {
             esp::draw_fov(&surface, &config);

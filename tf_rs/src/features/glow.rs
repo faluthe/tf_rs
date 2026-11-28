@@ -15,6 +15,7 @@ use log::warn;
 
 use crate::{
     config::{Config, GlowConfig, GlowGroupConfig},
+    features::pickups,
     helpers,
     hooks::draw_model_execute::is_aimbot_target,
     interfaces::Interfaces,
@@ -315,6 +316,10 @@ fn group(
                 group
             })
         }
+        ClassId::AmmoHealth => pickups::kind(&entity).map(|kind| match kind {
+            pickups::Kind::Health => config.health,
+            pickups::Kind::Ammo => config.ammo,
+        }),
         ClassId::Sentry | ClassId::Dispenser | ClassId::Teleporter => {
             Some(if entity.team() == localplayer.team() {
                 config.building_friendly

@@ -5,7 +5,7 @@ use crate::{
     features::{
         backtrack,
         chams::{self, Loaded},
-        glow, preview,
+        glow, pickups, preview,
     },
     globals::Globals,
     helpers,
@@ -268,6 +268,10 @@ fn chams_group(info: &ModelRenderInfo, config: &ChamsConfig) -> Option<ChamsGrou
                 Some(config.building_enemy)
             }
         }
+        Some(ClassId::AmmoHealth) => pickups::kind(&entity).map(|kind| match kind {
+            pickups::Kind::Health => config.health,
+            pickups::Kind::Ammo => config.ammo,
+        }),
         _ if entity.class_name() == "CTFViewModel" => Some(config.hands),
         _ => None,
     }

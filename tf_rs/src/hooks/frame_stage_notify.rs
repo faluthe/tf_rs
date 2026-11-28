@@ -2,7 +2,7 @@ use std::ffi::c_void;
 
 use crate::{
     config::Config,
-    features::{backtrack, chams, glow, movesim, prediction_log, projectile, shot_log},
+    features::{backtrack, chams, glow, movesim, pickups, prediction_log, projectile, shot_log},
     hooks::Hooks,
     interfaces::Interfaces,
 };
@@ -31,6 +31,7 @@ pub extern "C" fn hk_frame_stage_notify(this: *mut c_void, stage: i32) {
         // Entities now hold what the server just sent, before interpolation moves them back
         FRAME_NET_UPDATE_END => {
             projectile::forget_projectiles();
+            pickups::update();
             backtrack::update_records();
             let (simulating, logging) = {
                 let aim = &Config::read().aimbot;

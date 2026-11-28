@@ -155,7 +155,7 @@ struct_with_serialize! {
 }
 
 struct_with_serialize! {
-    #[derive(Default, Clone)]
+    #[derive(Clone)]
     pub struct ESPConfig {
         pub master: bool,
         pub player_enemy: EntityESPConfig,
@@ -167,6 +167,61 @@ struct_with_serialize! {
         pub ignore_invis: bool,
         pub chams: ChamsConfig,
         pub glow: GlowConfig,
+        pub health: PickupESPConfig,
+        pub ammo: PickupESPConfig,
+    }
+}
+
+impl Default for ESPConfig {
+    fn default() -> Self {
+        ESPConfig {
+            master: false,
+            player_enemy: Default::default(),
+            player_friendly: Default::default(),
+            building_enemy: Default::default(),
+            building_friendly: Default::default(),
+            aimbot_target: false,
+            conds: Default::default(),
+            ignore_invis: false,
+            chams: Default::default(),
+            glow: Default::default(),
+            health: PickupESPConfig::new(Color::hex(HEALTH_COLOR)),
+            ammo: PickupESPConfig::new(Color::hex(AMMO_COLOR)),
+        }
+    }
+}
+
+/// Health packs and ammo boxes by default
+const HEALTH_COLOR: u32 = 0x60ff60;
+const AMMO_COLOR: u32 = 0xd0d0d0;
+
+struct_with_serialize! {
+    #[derive(Clone)]
+    pub struct PickupESPConfig {
+        pub names: bool,
+        /// How long until it's back while it's picked up
+        pub timer: bool,
+        pub color: Color,
+    }
+}
+
+impl PickupESPConfig {
+    fn new(color: Color) -> Self {
+        PickupESPConfig {
+            names: false,
+            timer: false,
+            color,
+        }
+    }
+
+    pub fn bool(&self) -> bool {
+        self.names || self.timer
+    }
+}
+
+impl Default for PickupESPConfig {
+    fn default() -> Self {
+        PickupESPConfig::new(Color::hex(0xffffff))
     }
 }
 
@@ -188,6 +243,8 @@ struct_with_serialize! {
         pub backtrack: ChamsGroupConfig,
         pub backtrack_target: ChamsGroupConfig,
         pub aimbot_target: ChamsTargetConfig,
+        pub health: ChamsGroupConfig,
+        pub ammo: ChamsGroupConfig,
     }
 }
 
@@ -230,6 +287,8 @@ impl Default for ChamsConfig {
                 ..ChamsGroupConfig::new(false, 0, 0)
             },
             aimbot_target: ChamsTargetConfig::default(),
+            health: ChamsGroupConfig::new(false, HEALTH_COLOR, 0x208a20),
+            ammo: ChamsGroupConfig::new(false, AMMO_COLOR, 0x707070),
         }
     }
 }
@@ -250,6 +309,8 @@ struct_with_serialize! {
         pub category3: GlowGroupConfig,
         pub category4: GlowGroupConfig,
         pub aimbot_target: GlowGroupConfig,
+        pub health: GlowGroupConfig,
+        pub ammo: GlowGroupConfig,
     }
 }
 
@@ -269,6 +330,8 @@ impl Default for GlowConfig {
             category3: GlowGroupConfig::new(false, categories.category3),
             category4: GlowGroupConfig::new(false, categories.category4),
             aimbot_target: GlowGroupConfig::new(false, Color::hex(0xffd000)),
+            health: GlowGroupConfig::new(false, Color::hex(HEALTH_COLOR)),
+            ammo: GlowGroupConfig::new(false, Color::hex(AMMO_COLOR)),
         }
     }
 }

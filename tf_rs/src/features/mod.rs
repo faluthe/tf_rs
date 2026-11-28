@@ -9,6 +9,7 @@ pub mod melee;
 pub mod menu;
 pub mod movement;
 pub mod movesim;
+pub mod pickups;
 pub mod prediction_log;
 pub mod preview;
 pub mod projectile;

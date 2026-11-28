@@ -7,7 +7,7 @@ use crate::{
     config::{
         BuildingsColorsConfig, ChamsConfig, ChamsGroupConfig, ChamsLayerConfig, ChamsTargetConfig,
         ColorsConfig, CondsDisplayConfig, Config, EntityESPConfig, EspColorConfig, GlowConfig,
-        GlowGroupConfig,
+        GlowGroupConfig, PickupESPConfig,
     },
     features::{chams, glow},
     player_db,
@@ -58,6 +58,10 @@ pub(super) fn esp_tab(nk: &Nuklear, config: &mut Config) {
     );
     nk.row_dynamic(ROW, 1)
         .checkbox("Team colors", &mut colors.buildings.use_team_colors);
+
+    nk.section("Pickups", false);
+    pickup_esp(nk, "Health", &mut esp.health);
+    pickup_esp(nk, "Ammo", &mut esp.ammo);
 
     nk.section("Other", false)
         .row_dynamic(ROW, 1)
@@ -172,6 +176,23 @@ fn building_esp(
     });
 }
 
+fn pickup_esp(nk: &Nuklear, title: &str, cfg: &mut PickupESPConfig) {
+    let names: Vec<&str> = [(cfg.names, "Names"), (cfg.timer, "Respawn timer")]
+        .into_iter()
+        .filter_map(|(on, name)| on.then_some(name))
+        .collect();
+    let swatches = [Swatch::new(cfg.bool(), cfg.color)];
+    field(nk, title, |nk| {
+        nk.summary_combo(&names, &swatches, ESP_POPUP_W, |nk| {
+            nk.toggle_color_list(&mut [
+                ToggleColor::new("Names", &mut cfg.names, None),
+                ToggleColor::new("Respawn timer", &mut cfg.timer, None),
+                ToggleColor::color("Color", &mut cfg.color),
+            ]);
+        });
+    });
+}
+
 fn conditions(nk: &Nuklear, conds: &mut CondsDisplayConfig) {
     let CondsDisplayConfig {
         disguised,
@@ -220,7 +241,13 @@ fn conditions(nk: &Nuklear, conds: &mut CondsDisplayConfig) {
 
 /// Chams tab shown in the menu, index into `CHAMS_TABS`
 static CHAMS_TAB: AtomicUsize = AtomicUsize::new(0);
-const CHAMS_TABS: [&str; 4] = ["Players", "Buildings", "Categories", "First person"];
+const CHAMS_TABS: [&str; 5] = [
+    "Players",
+    "Buildings",
+    "Pickups",
+    "Categories",
+    "First person",
+];
 
 fn chams_section(nk: &Nuklear, chams: &mut ChamsConfig) {
     nk.section("Chams", false)
@@ -240,13 +267,17 @@ fn chams_section(nk: &Nuklear, chams: &mut ChamsConfig) {
             chams_group(nk, "Friendly", &mut chams.building_friendly);
         }
         2 => {
+            chams_group(nk, "Health", &mut chams.health);
+            chams_group(nk, "Ammo", &mut chams.ammo);
+        }
+        3 => {
             let names = player_db::get_names();
             chams_group(nk, &names[0], &mut chams.category1);
             chams_group(nk, &names[1], &mut chams.category2);
             chams_group(nk, &names[2], &mut chams.category3);
             chams_group(nk, &names[3], &mut chams.category4);
         }
-        3 => {
+        4 => {
             first_person_group(nk, "Hands", &mut chams.hands);
             first_person_group(nk, "Weapon", &mut chams.weapon);
         }
@@ -368,7 +399,7 @@ fn material_grid(nk: &Nuklear, material: &mut usize) {
 
 /// Glow tab shown in the menu, index into `GLOW_TABS`
 static GLOW_TAB: AtomicUsize = AtomicUsize::new(0);
-const GLOW_TABS: [&str; 3] = ["Players", "Buildings", "Categories"];
+const GLOW_TABS: [&str; 4] = ["Players", "Buildings", "Pickups", "Categories"];
 
 fn glow_section(nk: &Nuklear, glow: &mut GlowConfig) {
     nk.section("Glow", false)
@@ -391,6 +422,10 @@ fn glow_section(nk: &Nuklear, glow: &mut GlowConfig) {
             glow_group(nk, "Friendly", &mut glow.building_friendly);
         }
         2 => {
+            glow_group(nk, "Health", &mut glow.health);
+            glow_group(nk, "Ammo", &mut glow.ammo);
+        }
+        3 => {
             let names = player_db::get_names();
             glow_group(nk, &names[0], &mut glow.category1);
             glow_group(nk, &names[1], &mut glow.category2);
